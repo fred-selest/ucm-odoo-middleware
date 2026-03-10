@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UCM ↔ Odoo — Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    body { background: #f1f5f9; }
+    .navbar { background: #fff !important; border-bottom: 1px solid #e2e8f0; }
+    .navbar-brand { font-weight: 700; color: #1e293b !important; }
+    .card { border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+    .card-header { background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #334155; }
+    .stat-card { text-align: center; padding: 1.2rem 1rem; background: #fff; }
+    .stat-card .value { font-size: 2rem; font-weight: 700; line-height: 1; }
+    .stat-card .label { font-size: .75rem; color: #94a3b8; margin-top: .3rem; text-transform: uppercase; letter-spacing: .5px; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .dot-green  { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    .dot-red    { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
+    .dot-gray   { background: #cbd5e1; }
+    #logBox { background: #0f172a; color: #94a3b8; font-family: 'Courier New', monospace;
+              font-size: .76rem; height: 300px; overflow-y: auto; border-radius: 8px; padding: .75rem; }
+    .log-info  { color: #38bdf8; }
+    .log-warn  { color: #fb923c; }
+    .log-error { color: #f87171; }
+    .log-debug { color: #475569; }
+    .call-row  { animation: fadeIn .3s ease; }
+    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login-card { width: 380px; border-radius: 12px; }
+    .login-logo { font-size: 2rem; color: #4f46e5; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- ══ Page login (cachée par défaut) ══════════════════════════════════════ -->
+<div id="loginPage" class="login-wrap d-none">
+  <div class="card login-card shadow">
+    <div class="card-body p-4">
+      <div class="text-center mb-4">
+        <div class="login-logo mb-2"><i class="bi bi-telephone-inbound-fill"></i></div>
+        <h5 class="fw-bold mb-0">UCM ↔ Odoo Middleware</h5>
+        <p class="text-muted small mt-1">Connectez-vous avec votre compte Odoo</p>
+      </div>
+      <div id="loginError" class="alert alert-danger py-2 small d-none"></div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Email</label>
+        <input type="email" id="loginEmail" class="form-control" placeholder="admin@exemple.com" autocomplete="username">
+      </div>
+      <div class="mb-4">
+        <label class="form-label small fw-semibold">Mot de passe</label>
+        <input type="password" id="loginPassword" class="form-control" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary w-100" id="loginBtn">
+        <i class="bi bi-box-arrow-in-right me-1"></i>Se connecter
+      </button>
+      <p class="text-center text-muted small mt-3 mb-0">
+        Authentification via <strong>Odoo</strong>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Interface principale (cachée au départ) ═════════════════════════════ -->
+<div id="mainPage" class="d-none">
+
+<nav class="navbar navbar-light px-4 py-2 mb-3">
+  <span class="navbar-brand"><i class="bi bi-telephone-inbound-fill me-2 text-primary"></i>UCM ↔ Odoo Admin</span>
+  <div class="d-flex align-items-center gap-3">
+    <span class="d-flex align-items-center gap-2 small">
+      <span class="status-dot dot-gray" id="wsIndicator"></span>
+      <span id="wsLabel" class="text-muted">WebSocket…</span>
+    </span>
+    <span class="text-muted small"><i class="bi bi-person me-1"></i><span id="navUser">—</span></span>
+    <span class="badge bg-light text-secondary border" id="uptime">—</span>
+    <button class="btn btn-sm btn-outline-secondary" id="logoutBtn">
+      <i class="bi bi-box-arrow-right me-1"></i>Déconnexion
+    </button>
+  </div>
+</nav>
+
+<div class="container-fluid px-4">
+
+  <!-- Cartes statut -->
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+      <div class="card stat-card">
+        <div class="value" id="statUcm"><span class="status-dot dot-gray"></span></div>
+        <div class="label" id="statUcmMode">UCM</div>
+        <div class="text-muted mt-1" style="font-size:.72rem" id="statUcmHost">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card stat-card">
+        <div class="value" id="statOdoo"><span class="status-dot dot-gray"></span></div>
+        <div class="label">Odoo</div>
+        <div class="text-muted mt-1" style="font-size:.72rem;word-break:break-all" id="statOdooUrl">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card stat-card">
+        <div class="value text-info" id="statCalls">0</div>
+        <div class="label">Appels actifs</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card stat-card">
+        <div class="value text-primary" id="statWsClients">0</div>
+        <div class="label">Agents connectés</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <!-- Journal d'appels -->
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-telephone-fill me-1 text-primary"></i>Journal d'appels</span>
+          <button class="btn btn-sm btn-outline-secondary" id="clearCalls"><i class="bi bi-trash me-1"></i>Vider</button>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive" style="max-height:300px;overflow-y:auto">
+            <table class="table table-hover table-sm mb-0" id="callTable">
+              <thead class="table-light sticky-top">
+                <tr><th style="width:75px">Heure</th><th>De</th><th>Extension</th><th>Contact Odoo</th><th style="width:90px">Statut</th></tr>
+              </thead>
+              <tbody id="callBody">
+                <tr><td colspan="5" class="text-center text-muted py-4 small">En attente d'appels…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recherche + Agents -->
+    <div class="col-lg-5">
+      <div class="card mb-3">
+        <div class="card-header"><i class="bi bi-search me-1 text-info"></i>Recherche contact Odoo</div>
+        <div class="card-body">
+          <div class="input-group input-group-sm">
+            <input type="text" id="testPhone" class="form-control" placeholder="Numéro de téléphone…">
+            <button class="btn btn-primary" id="testOdooBtn"><i class="bi bi-search"></i></button>
+          </div>
+          <div id="testOdooResult" class="mt-2 small"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><i class="bi bi-people me-1 text-success"></i>Agents connectés</div>
+        <div class="card-body p-0">
+          <div style="max-height:130px;overflow-y:auto">
+            <table class="table table-sm mb-0">
+              <thead class="table-light"><tr><th>Client</th><th>Extensions</th></tr></thead>
+              <tbody id="wsBody"><tr><td colspan="2" class="text-center text-muted py-3 small">Aucun agent</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- Logs -->
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-terminal me-1 text-warning"></i>Logs en direct</span>
+          <div class="d-flex gap-2">
+            <select class="form-select form-select-sm" id="logFilter" style="width:110px">
+              <option value="all">Tous</option>
+              <option value="info">Info</option>
+              <option value="warn">Warn</option>
+              <option value="error">Error</option>
+            </select>
+            <button class="btn btn-sm btn-outline-secondary" id="clearLogs"><i class="bi bi-trash"></i></button>
+            <button class="btn btn-sm btn-outline-secondary" id="pauseLogs"><i class="bi bi-pause-fill"></i></button>
+          </div>
+        </div>
+        <div class="card-body p-2"><div id="logBox"></div></div>
+      </div>
+    </div>
+
+    <!-- Config + Actions -->
+    <div class="col-lg-4">
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-gear me-1"></i>Statut</span>
+          <button class="btn btn-xs btn-sm btn-outline-primary py-0" data-bs-toggle="modal" data-bs-target="#modalConfig">
+            <i class="bi bi-pencil me-1"></i>Configurer
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm mb-0"><tbody id="configBody"></tbody></table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><i class="bi bi-lightning me-1 text-warning"></i>Actions</div>
+        <div class="card-body d-flex flex-column gap-2">
+          <button class="btn btn-sm btn-outline-danger" id="clearCacheBtn">
+            <i class="bi bi-trash me-1"></i>Vider cache contacts Odoo
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" id="broadcastBtn">
+            <i class="bi bi-broadcast me-1"></i>Test broadcast WS
+          </button>
+          <div id="actionResult" class="small mt-1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Webhooks clients -->
+  <div class="row g-3 mb-3">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-link-45deg me-1 text-success"></i>Clients Webhook <span class="text-muted fw-normal small">(Action URL UCM — sans VPN)</span></span>
+          <button class="btn btn-sm btn-success" id="newWebhookBtn"><i class="bi bi-plus-lg me-1"></i>Nouveau client</button>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-hover table-sm mb-0">
+            <thead class="table-light">
+              <tr><th class="ps-3">Client</th><th>Créé le</th><th>Dernier événement</th><th>Appels</th><th style="width:120px"></th></tr>
+            </thead>
+            <tbody id="webhookBody">
+              <tr><td colspan="5" class="text-center text-muted py-4 small">Aucun client — cliquez sur "Nouveau client" pour commencer.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+</div><!-- /mainPage -->
+
+<!-- ══ Modal : configuration UCM / Odoo ════════════════════════════════════ -->
+<div class="modal fade" id="modalConfig" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-gear me-1"></i>Configuration</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-3" id="configTabs">
+          <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabUcm">
+            <i class="bi bi-telephone-inbound me-1"></i>UCM AMI
+          </button></li>
+          <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabOdoo">
+            <i class="bi bi-box me-1"></i>Odoo
+          </button></li>
+        </ul>
+        <div class="tab-content">
+
+          <!-- UCM -->
+          <div class="tab-pane fade show active" id="tabUcm">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label small fw-semibold">Mode de connexion UCM</label>
+                <div class="d-flex gap-2">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="ucmMode" id="cfgModeAmi" value="ami" onchange="onUcmModeChange()">
+                    <label class="form-check-label small" for="cfgModeAmi">
+                      <strong>AMI</strong> <span class="text-muted fw-normal">(port 5039 TLS — nécessite VPN ou accès réseau direct)</span>
+                    </label>
+                  </div>
+                  <div class="form-check ms-3">
+                    <input class="form-check-input" type="radio" name="ucmMode" id="cfgModeWs" value="websocket" onchange="onUcmModeChange()">
+                    <label class="form-check-label small" for="cfgModeWs">
+                      <strong>WebSocket</strong> <span class="text-muted fw-normal">(port 8089 HTTPS — fonctionne sans VPN)</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-8">
+                <label class="form-label small fw-semibold">Hôte UCM <span class="text-muted fw-normal">(IP ou hostname)</span></label>
+                <input type="text" id="cfgUcmHost" class="form-control form-control-sm" placeholder="192.168.10.100">
+              </div>
+
+              <!-- AMI fields -->
+              <div class="col-md-4" id="amiPortField">
+                <label class="form-label small fw-semibold">Port AMI</label>
+                <input type="number" id="cfgUcmPort" class="form-control form-control-sm" placeholder="5039">
+              </div>
+              <div class="col-md-6" id="amiUserField">
+                <label class="form-label small fw-semibold">Utilisateur AMI</label>
+                <input type="text" id="cfgUcmUser" class="form-control form-control-sm" placeholder="admin">
+              </div>
+              <div class="col-md-6" id="amiSecretField">
+                <label class="form-label small fw-semibold">Secret AMI</label>
+                <div class="input-group input-group-sm">
+                  <input type="password" id="cfgUcmSecret" class="form-control" placeholder="Laisser vide = inchangé">
+                  <button class="btn btn-outline-secondary" type="button" onclick="togglePwd('cfgUcmSecret')"><i class="bi bi-eye"></i></button>
+                </div>
+              </div>
+
+              <!-- WebSocket fields -->
+              <div class="col-md-4 d-none" id="wsPortField">
+                <label class="form-label small fw-semibold">Port WebSocket</label>
+                <input type="number" id="cfgUcmWebPort" class="form-control form-control-sm" placeholder="8089">
+              </div>
+              <div class="col-md-4 d-none" id="wsUserField">
+                <label class="form-label small fw-semibold">Utilisateur web UCM</label>
+                <input type="text" id="cfgUcmWebUser" class="form-control form-control-sm" placeholder="admin">
+              </div>
+              <div class="col-md-4 d-none" id="wsPasswordField">
+                <label class="form-label small fw-semibold">Mot de passe web</label>
+                <div class="input-group input-group-sm">
+                  <input type="password" id="cfgUcmWebPwd" class="form-control" placeholder="Laisser vide = inchangé">
+                  <button class="btn btn-outline-secondary" type="button" onclick="togglePwd('cfgUcmWebPwd')"><i class="bi bi-eye"></i></button>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <label class="form-label small fw-semibold">Extensions surveillées <span class="text-muted fw-normal">(séparées par virgule — vide = toutes)</span></label>
+                <input type="text" id="cfgUcmExten" class="form-control form-control-sm" placeholder="101,102,103">
+              </div>
+            </div>
+            <div id="cfgUcmResult" class="mt-3 small"></div>
+            <div class="mt-3 d-flex gap-2">
+              <button class="btn btn-sm btn-primary" onclick="saveUcmConfig()">
+                <i class="bi bi-save me-1"></i>Sauvegarder et reconnecter
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="testUcmConnection()">
+                <i class="bi bi-plug me-1"></i>Tester la connexion
+              </button>
+            </div>
+          </div>
+
+          <!-- Odoo -->
+          <div class="tab-pane fade" id="tabOdoo">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label small fw-semibold">URL Odoo</label>
+                <input type="url" id="cfgOdooUrl" class="form-control form-control-sm" placeholder="https://mon-instance.odoo.com">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold">Base de données</label>
+                <input type="text" id="cfgOdooDb" class="form-control form-control-sm" placeholder="mon-instance">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold">Utilisateur</label>
+                <input type="email" id="cfgOdooUser" class="form-control form-control-sm" placeholder="admin@exemple.com">
+              </div>
+              <div class="col-12">
+                <label class="form-label small fw-semibold">Clé API Odoo</label>
+                <div class="input-group input-group-sm">
+                  <input type="password" id="cfgOdooKey" class="form-control font-monospace" placeholder="Laisser vide = inchangé">
+                  <button class="btn btn-outline-secondary" type="button" onclick="togglePwd('cfgOdooKey')"><i class="bi bi-eye"></i></button>
+                </div>
+                <div class="form-text">Générer dans Odoo → Paramètres → Mon compte → Clés API</div>
+              </div>
+            </div>
+            <div id="cfgOdooResult" class="mt-3 small"></div>
+            <div class="mt-3">
+              <button class="btn btn-sm btn-primary" onclick="saveOdooConfig()">
+                <i class="bi bi-save me-1"></i>Sauvegarder et tester
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Modal : nouveau client webhook ══════════════════════════════════════ -->
+<div class="modal fade" id="modalNewWebhook" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title">Nouveau client webhook</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <label class="form-label small fw-semibold">Nom du client</label>
+        <input type="text" id="newWebhookName" class="form-control form-control-sm" placeholder="Ex: Société Dupont">
+        <div id="newWebhookError" class="text-danger small mt-1 d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-sm btn-success" id="createWebhookBtn">Créer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Modal : configuration client webhook ═════════════════════════════════ -->
+<div class="modal fade" id="modalWebhookConfig" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-gear me-1 text-success"></i>Client webhook — <span id="whCfgTitle"></span></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="whCfgToken">
+        <ul class="nav nav-tabs mb-3">
+          <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#whTabUrls"><i class="bi bi-link-45deg me-1"></i>URLs UCM</button></li>
+          <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#whTabCfg"><i class="bi bi-sliders me-1"></i>Paramètres</button></li>
+        </ul>
+        <div class="tab-content">
+
+          <!-- Onglet URLs -->
+          <div class="tab-pane fade show active" id="whTabUrls">
+            <p class="text-muted small mb-3">Dans l'UCM → <strong>API Configuration → Action URL</strong>, collez ces URLs :</p>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-primary"><i class="bi bi-telephone-inbound me-1"></i>Appel entrant (Ring)</label>
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control font-monospace small" id="urlRing" readonly>
+                <button class="btn btn-outline-secondary" onclick="copyUrl('urlRing')"><i class="bi bi-clipboard"></i></button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-success"><i class="bi bi-telephone me-1"></i>Décroché (Answer)</label>
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control font-monospace small" id="urlAnswer" readonly>
+                <button class="btn btn-outline-secondary" onclick="copyUrl('urlAnswer')"><i class="bi bi-clipboard"></i></button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-secondary"><i class="bi bi-telephone-x me-1"></i>Raccroché (Hangup)</label>
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control font-monospace small" id="urlHangup" readonly>
+                <button class="btn btn-outline-secondary" onclick="copyUrl('urlHangup')"><i class="bi bi-clipboard"></i></button>
+              </div>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="copyAllUrls()">
+              <i class="bi bi-clipboard-fill me-1"></i>Copier les 3 URLs
+            </button>
+            <div class="alert alert-info py-2 small mt-3 mb-0">
+              <i class="bi bi-info-circle me-1"></i>Variables : <code>${CALLERID(num)}</code> numéro, <code>${EXTEN}</code> extension, <code>${UNIQUEID}</code> ID appel, <code>${CALLERID(name)}</code> nom.
+            </div>
+          </div>
+
+          <!-- Onglet Paramètres -->
+          <div class="tab-pane fade" id="whTabCfg">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label small fw-semibold">Nom du client</label>
+                <input type="text" id="whCfgName" class="form-control form-control-sm">
+              </div>
+              <div class="col-12"><hr class="my-1"><p class="text-muted small mb-2 fw-semibold">Accès web UCM <span class="fw-normal">(pour test de connectivité)</span></p></div>
+              <div class="col-md-8">
+                <label class="form-label small fw-semibold">Hôte UCM <span class="text-muted fw-normal">(IP ou hostname)</span></label>
+                <input type="text" id="whCfgUcmHost" class="form-control form-control-sm" placeholder="192.168.10.100">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Port web</label>
+                <input type="number" id="whCfgUcmPort" class="form-control form-control-sm" placeholder="8089" value="8089">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold">Utilisateur web</label>
+                <input type="text" id="whCfgUcmUser" class="form-control form-control-sm" placeholder="admin">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold">Mot de passe web</label>
+                <div class="input-group input-group-sm">
+                  <input type="password" id="whCfgUcmPwd" class="form-control" placeholder="Laisser vide = inchangé">
+                  <button class="btn btn-outline-secondary" type="button" onclick="togglePwd('whCfgUcmPwd')"><i class="bi bi-eye"></i></button>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label small fw-semibold">Notes</label>
+                <input type="text" id="whCfgNotes" class="form-control form-control-sm" placeholder="Infos complémentaires…">
+              </div>
+            </div>
+            <div id="whCfgResult" class="mt-3 small"></div>
+            <div class="mt-3 d-flex gap-2">
+              <button class="btn btn-sm btn-primary" onclick="saveWebhookConfig()"><i class="bi bi-save me-1"></i>Sauvegarder</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="testWebhookUcm()"><i class="bi bi-plug me-1"></i>Tester la connexion UCM</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Session ──────────────────────────────────────────────────────────────────
+let SESSION_TOKEN = sessionStorage.getItem('ucm_token') || '';
+
+async function apiFetch(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (SESSION_TOKEN) headers['X-Session-Token'] = SESSION_TOKEN;
+  const r = await fetch(path, { ...opts, headers });
+  if (r.status === 401) { doLogout(); throw new Error('401'); }
+  return r;
+}
+
+// ── Login ────────────────────────────────────────────────────────────────────
+async function tryLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  const btn   = document.getElementById('loginBtn');
+  errEl.classList.add('d-none');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Connexion…';
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: email, password: pass }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.token) throw new Error(d.error || 'Identifiants incorrects');
+    SESSION_TOKEN = d.token;
+    sessionStorage.setItem('ucm_token', d.token);
+    sessionStorage.setItem('ucm_user', d.username);
+    showMain(d.username);
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-box-arrow-in-right me-1"></i>Se connecter';
+  }
+}
+
+function doLogout() {
+  if (SESSION_TOKEN) fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Session-Token': SESSION_TOKEN } });
+  SESSION_TOKEN = '';
+  sessionStorage.removeItem('ucm_token');
+  sessionStorage.removeItem('ucm_user');
+  showLogin();
+}
+
+function showLogin() {
+  document.getElementById('mainPage').classList.add('d-none');
+  document.getElementById('loginPage').classList.remove('d-none');
+  document.getElementById('loginPassword').value = '';
+}
+
+function showMain(username) {
+  document.getElementById('loginPage').classList.add('d-none');
+  document.getElementById('mainPage').classList.remove('d-none');
+  document.getElementById('navUser').textContent = username || sessionStorage.getItem('ucm_user') || '—';
+  startApp();
+}
+
+document.getElementById('loginBtn').onclick = tryLogin;
+document.getElementById('loginEmail').addEventListener('keydown', e => e.key === 'Enter' && document.getElementById('loginPassword').focus());
+document.getElementById('loginPassword').addEventListener('keydown', e => e.key === 'Enter' && tryLogin());
+document.getElementById('logoutBtn').onclick = doLogout;
+
+// ── Init : vérifier session existante ────────────────────────────────────────
+(async () => {
+  if (SESSION_TOKEN) {
+    try {
+      const r = await fetch('/api/auth/me', { headers: { 'X-Session-Token': SESSION_TOKEN } });
+      if (r.ok) { const d = await r.json(); showMain(d.username); return; }
+    } catch { /* ignore */ }
+  }
+  showLogin();
+})();
+
+// ── App principale ────────────────────────────────────────────────────────────
+let appStarted = false;
+function startApp() {
+  if (appStarted) return;
+  appStarted = true;
+  connectWs();
+  fetchStatus();
+  fetchLogs();
+  fetchWebhooks();
+  setInterval(fetchStatus,   5000);
+  setInterval(fetchLogs,     3000);
+  setInterval(fetchWebhooks, 30000);
+}
+
+// ── WebSocket ────────────────────────────────────────────────────────────────
+let ws;
+function connectWs() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onopen  = () => setWsStatus(true);
+  ws.onclose = () => { setWsStatus(false); setTimeout(connectWs, 3000); };
+  ws.onmessage = ({ data }) => {
+    let msg; try { msg = JSON.parse(data); } catch { return; }
+    if (msg.type === 'call:incoming') addCallRow(msg.data, 'incoming');
+    if (msg.type === 'call:answered') updateCallRow(msg.data, 'answered');
+    if (msg.type === 'call:hangup')   updateCallRow(msg.data, 'hangup');
+    if (msg.type === 'contact')       updateCallContact(msg.data);
+  };
+}
+
+function setWsStatus(ok) {
+  document.getElementById('wsIndicator').className = 'status-dot ' + (ok ? 'dot-green' : 'dot-red');
+  const lbl = document.getElementById('wsLabel');
+  lbl.textContent = ok ? 'Connecté' : 'Déconnecté';
+  lbl.className = ok ? 'text-success small' : 'text-danger small';
+}
+
+// ── Statut ───────────────────────────────────────────────────────────────────
+let logPaused = false, logFilterVal = 'all', logLines = [];
+const MAX_LOG_LINES = 200, MAX_CALL_ROWS = 50;
+
+async function fetchStatus() {
+  try {
+    const r = await apiFetch('/api/status');
+    const d = await r.json();
+    if (!d?.ucm) return;
+
+    document.getElementById('statUcm').innerHTML =
+      `<span class="status-dot ${d.ucm.connected ? 'dot-green' : 'dot-red'}"></span>`;
+    document.getElementById('statUcmMode').textContent = d.ucm.mode === 'websocket' ? 'UCM WebSocket' : 'UCM AMI';
+    document.getElementById('statUcmHost').textContent = `${d.ucm.host}:${d.ucm.port}`;
+    document.getElementById('statOdoo').innerHTML =
+      `<span class="status-dot ${d.odoo?.cacheSize >= 0 ? 'dot-green' : 'dot-gray'}"></span>`;
+    document.getElementById('statOdooUrl').textContent = (d.odoo?.url||'').replace('https://','');
+    document.getElementById('statCalls').textContent     = d.calls?.active ?? 0;
+    document.getElementById('statWsClients').textContent = d.websocket?.clients ?? 0;
+
+    const up = Math.round(d.uptime || 0);
+    const h = Math.floor(up/3600), m = Math.floor((up%3600)/60), s = up%60;
+    document.getElementById('uptime').textContent =
+      `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+
+    // Config
+    document.getElementById('configBody').innerHTML = [
+      ['UCM',         `${d.ucm.host}:${d.ucm.port}`],
+      ['Extensions',  d.ucm.watchExtensions?.join(', ') || 'toutes'],
+      ['Odoo DB',     d.odoo?.db || '—'],
+      ['Cache',       (d.odoo?.cacheSize ?? '—') + ' contacts'],
+      ['Mémoire',     Math.round((d.memory?.heapUsed||0)/1024/1024) + ' MB'],
+    ].map(([k,v]) =>
+      `<tr><td class="text-muted small ps-3">${k}</td><td class="small pe-3 fw-semibold">${v}</td></tr>`
+    ).join('');
+
+    // Agents WS
+    const entries = Object.entries(d.websocket?.subscriptions || {});
+    document.getElementById('wsBody').innerHTML = entries.length
+      ? entries.map(([id, ex]) =>
+          `<tr><td><code class="small">${id}</code></td>
+           <td>${ex.length ? ex.map(e=>`<span class="badge bg-primary bg-opacity-10 text-primary me-1">${e}</span>`).join('') : '<span class="text-muted small">toutes</span>'}</td></tr>`
+        ).join('')
+      : '<tr><td colspan="2" class="text-center text-muted py-3 small">Aucun agent</td></tr>';
+  } catch { /* silencieux */ }
+}
+
+// ── Logs ─────────────────────────────────────────────────────────────────────
+async function fetchLogs() {
+  try {
+    const r = await apiFetch('/api/logs');
+    if (!r.ok) return;
+    logLines = (await r.json()).slice(-MAX_LOG_LINES);
+    if (!logPaused) renderLogs();
+  } catch { }
+}
+
+function renderLogs() {
+  const box = document.getElementById('logBox');
+  const filtered = logLines.filter(l => logFilterVal === 'all' || l.level === logFilterVal);
+  box.innerHTML = filtered.map(l =>
+    `<div class="log-${l.level}"><span style="color:#475569">${l.ts.slice(11,19)}</span> [${l.level.toUpperCase()}] ${esc(l.msg)}</div>`
+  ).join('') || '<span style="color:#475569">Aucun log.</span>';
+  box.scrollTop = box.scrollHeight;
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Journal d'appels ─────────────────────────────────────────────────────────
+const callRows = {};
+function addCallRow(call, status) {
+  const tbody = document.getElementById('callBody');
+  if (tbody.querySelector('[colspan]')) tbody.innerHTML = '';
+  if (tbody.querySelectorAll('tr').length >= MAX_CALL_ROWS)
+    tbody.lastElementChild?.remove();
+  const tr = document.createElement('tr');
+  tr.className = 'call-row'; tr.dataset.id = call.uniqueId;
+  tr.innerHTML = callHtml(call, status);
+  tbody.insertBefore(tr, tbody.firstChild);
+  callRows[call.uniqueId] = tr;
+}
+function updateCallRow(call, status) {
+  const tr = callRows[call.uniqueId];
+  if (tr) tr.innerHTML = callHtml(call, status); else addCallRow(call, status);
+}
+function updateCallContact(data) {
+  const tr = callRows[data.uniqueId];
+  if (tr && data.contact) tr.querySelector('.td-contact').innerHTML =
+    `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">${data.contact.name}</span>`;
+}
+function callHtml(call, status) {
+  const t = new Date().toTimeString().slice(0,8);
+  const badges = { incoming:'bg-primary', answered:'bg-success', hangup:'bg-secondary' };
+  const labels = { incoming:'Entrant', answered:'Décroché', hangup:'Raccroché' };
+  return `<td class="text-muted small">${t}</td>
+    <td><code class="small">${call.callerIdNum||'—'}</code></td>
+    <td><span class="badge bg-primary bg-opacity-10 text-primary">${call.exten||call.agentExten||'—'}</span></td>
+    <td class="td-contact">${call.contact?`<span class="badge bg-success bg-opacity-10 text-success">${call.contact.name}</span>`:'<span class="text-muted">—</span>'}</td>
+    <td><span class="badge ${badges[status]}">${labels[status]}</span></td>`;
+}
+
+// ── Événements UI ─────────────────────────────────────────────────────────────
+document.getElementById('clearCalls').onclick = () => {
+  document.getElementById('callBody').innerHTML =
+    '<tr><td colspan="5" class="text-center text-muted py-4 small">Journal vidé.</td></tr>';
+};
+document.getElementById('clearLogs').onclick  = () => { logLines = []; renderLogs(); };
+document.getElementById('pauseLogs').onclick  = function() {
+  logPaused = !logPaused;
+  this.innerHTML = logPaused ? '<i class="bi bi-play-fill"></i>' : '<i class="bi bi-pause-fill"></i>';
+  if (!logPaused) renderLogs();
+};
+document.getElementById('logFilter').onchange = function() { logFilterVal = this.value; renderLogs(); };
+
+document.getElementById('testOdooBtn').onclick = async () => {
+  const phone = document.getElementById('testPhone').value.trim();
+  if (!phone) return;
+  const res = document.getElementById('testOdooResult');
+  res.innerHTML = '<span class="text-muted">Recherche…</span>';
+  try {
+    const r = await apiFetch('/api/odoo/test', {
+      method:'POST', body: JSON.stringify({ phone }),
+    });
+    const d = await r.json();
+    if (d.ok && d.contact)
+      res.innerHTML = `<div class="p-2 rounded border border-success border-opacity-25 bg-success bg-opacity-10 mt-1">
+        <strong>${d.contact.name}</strong> — <span class="text-muted">${d.contact.email||''}</span><br>
+        <a href="${d.contact.odooUrl}" target="_blank" class="small">Voir dans Odoo →</a></div>`;
+    else if (d.ok) res.innerHTML = '<span class="text-muted">Aucun contact trouvé.</span>';
+    else res.innerHTML = `<span class="text-danger">${d.error}</span>`;
+  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
+};
+document.getElementById('testPhone').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('testOdooBtn').click();
+});
+
+document.getElementById('clearCacheBtn').onclick = async () => {
+  const r = await apiFetch('/api/cache/clear', { method:'POST' });
+  const d = await r.json();
+  document.getElementById('actionResult').innerHTML =
+    `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${d.message}</span>`;
+};
+document.getElementById('broadcastBtn').onclick = async () => {
+  const r = await apiFetch('/api/ws/broadcast', {
+    method:'POST', body: JSON.stringify({ type:'test', data:{ ts: Date.now() } }),
+  });
+  const d = await r.json();
+  document.getElementById('actionResult').innerHTML =
+    `<span class="text-info"><i class="bi bi-broadcast me-1"></i>Envoyé à ${d.sent} client(s)</span>`;
+};
+
+// ── Configuration ─────────────────────────────────────────────────────────────
+function onUcmModeChange() {
+  const mode = document.querySelector('input[name="ucmMode"]:checked')?.value || 'ami';
+  const isWs = mode === 'websocket';
+  ['amiPortField','amiUserField','amiSecretField'].forEach(id =>
+    document.getElementById(id).classList.toggle('d-none', isWs));
+  ['wsPortField','wsUserField','wsPasswordField'].forEach(id =>
+    document.getElementById(id).classList.toggle('d-none', !isWs));
+}
+
+async function loadConfig() {
+  try {
+    const r = await apiFetch('/api/config');
+    if (!r.ok) return;
+    const d = await r.json();
+    const mode = d.ucm?.mode || 'ami';
+    document.getElementById(mode === 'websocket' ? 'cfgModeWs' : 'cfgModeAmi').checked = true;
+    onUcmModeChange();
+    document.getElementById('cfgUcmHost').value    = d.ucm?.host     || '';
+    document.getElementById('cfgUcmPort').value    = d.ucm?.port     || 5039;
+    document.getElementById('cfgUcmUser').value    = d.ucm?.username || '';
+    document.getElementById('cfgUcmWebPort').value = d.ucm?.webPort  || 8089;
+    document.getElementById('cfgUcmWebUser').value = d.ucm?.webUser  || '';
+    document.getElementById('cfgUcmExten').value   = (d.ucm?.watchExtensions || []).join(',');
+    document.getElementById('cfgOdooUrl').value    = d.odoo?.url     || '';
+    document.getElementById('cfgOdooDb').value     = d.odoo?.db      || '';
+    document.getElementById('cfgOdooUser').value   = d.odoo?.username || '';
+  } catch { /* silencieux */ }
+}
+
+document.getElementById('modalConfig').addEventListener('show.bs.modal', loadConfig);
+
+function togglePwd(id) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+async function saveUcmConfig() {
+  const res = document.getElementById('cfgUcmResult');
+  res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Sauvegarde…</span>';
+  try {
+    const mode = document.querySelector('input[name="ucmMode"]:checked')?.value || 'ami';
+    const body = {
+      mode,
+      host:            document.getElementById('cfgUcmHost').value.trim(),
+      watchExtensions: document.getElementById('cfgUcmExten').value,
+    };
+    if (mode === 'ami') {
+      body.port     = parseInt(document.getElementById('cfgUcmPort').value)    || 5039;
+      body.username = document.getElementById('cfgUcmUser').value.trim();
+      body.secret   = document.getElementById('cfgUcmSecret').value;
+    } else {
+      body.webPort     = parseInt(document.getElementById('cfgUcmWebPort').value) || 8089;
+      body.webUser     = document.getElementById('cfgUcmWebUser').value.trim();
+      body.webPassword = document.getElementById('cfgUcmWebPwd').value;
+    }
+    const r = await apiFetch('/api/config/ucm', { method: 'POST', body: JSON.stringify(body) });
+    const d = await r.json();
+    res.innerHTML = `<span class="${d.ok!==false?'text-success':'text-warning'}"><i class="bi bi-check-circle me-1"></i>${d.message}</span>`;
+    setTimeout(fetchStatus, 1500);
+  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
+}
+
+async function testUcmConnection() {
+  const res = document.getElementById('cfgUcmResult');
+  res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Test…</span>';
+  try {
+    const r = await apiFetch('/api/status');
+    const d = await r.json();
+    const ok = d.ucm?.connected;
+    res.innerHTML = ok
+      ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>UCM connecté et authentifié</span>'
+      : '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>UCM non connecté — vérifiez les paramètres</span>';
+  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
+}
+
+async function saveOdooConfig() {
+  const res = document.getElementById('cfgOdooResult');
+  res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Sauvegarde…</span>';
+  try {
+    const body = {
+      url:      document.getElementById('cfgOdooUrl').value.trim(),
+      db:       document.getElementById('cfgOdooDb').value.trim(),
+      username: document.getElementById('cfgOdooUser').value.trim(),
+      apiKey:   document.getElementById('cfgOdooKey').value,
+    };
+    const r = await apiFetch('/api/config/odoo', { method: 'POST', body: JSON.stringify(body) });
+    const d = await r.json();
+    res.innerHTML = `<span class="${d.ok!==false?'text-success':'text-warning'}"><i class="bi bi-${d.ok!==false?'check':'exclamation'}-circle me-1"></i>${d.message}</span>`;
+  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
+}
+
+// ── Webhooks ───────────────────────────────────────────────────────────────────
+const bsModalNewWebhook    = new bootstrap.Modal(document.getElementById('modalNewWebhook'));
+const bsModalWebhookConfig = new bootstrap.Modal(document.getElementById('modalWebhookConfig'));
+
+async function fetchWebhooks() {
+  try {
+    const r = await apiFetch('/api/webhooks');
+    if (!r.ok) return;
+    const list = await r.json();
+    webhookCache = list;
+    const tbody = document.getElementById('webhookBody');
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4 small">Aucun client — cliquez sur "Nouveau client" pour commencer.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(w => `
+      <tr>
+        <td class="ps-3">
+          <div class="fw-semibold">${esc(w.name)}</div>
+          ${w.ucmHost ? `<div class="text-muted small"><i class="bi bi-hdd-network me-1"></i>${esc(w.ucmHost)}:${w.ucmWebPort||8089}</div>` : ''}
+          ${w.notes   ? `<div class="text-muted small fst-italic">${esc(w.notes)}</div>` : ''}
+        </td>
+        <td class="text-muted small">${w.createdAt ? new Date(w.createdAt).toLocaleDateString('fr') : '—'}</td>
+        <td class="text-muted small">${w.lastUsed ? new Date(w.lastUsed).toLocaleString('fr') : 'Jamais'}</td>
+        <td><span class="badge bg-info bg-opacity-10 text-info border">${w.callCount || 0}</span></td>
+        <td>
+          <button class="btn btn-sm btn-outline-primary py-0 me-1" onclick='openWebhookConfig(${JSON.stringify(w)})'>
+            <i class="bi bi-gear"></i> Config
+          </button>
+          <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteWebhook('${esc(w.token)}','${esc(w.name)}')">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      </tr>`).join('');
+  } catch { /* silencieux */ }
+}
+
+function buildWebhookUrl(token, event) {
+  const base = `${location.protocol}//${location.host}`;
+  const vars = event === 'ring'
+    ? `event=ring&caller=\${CALLERID(num)}&callerid_name=\${CALLERID(name)}&exten=\${EXTEN}&uniqueid=\${UNIQUEID}`
+    : event === 'answer'
+    ? `event=answer&caller=\${CALLERID(num)}&exten=\${EXTEN}&uniqueid=\${UNIQUEID}`
+    : `event=hangup&caller=\${CALLERID(num)}&exten=\${EXTEN}&uniqueid=\${UNIQUEID}`;
+  return `${base}/webhook/${token}?${vars}`;
+}
+
+function showWebhookUrls(token, name) {
+  // Compatibilité : redirige vers le modal config
+  openWebhookConfig(webhookCache?.find(w => w.token === token) || { token, name });
+}
+
+let webhookCache = [];
+
+function openWebhookConfig(w) {
+  document.getElementById('whCfgTitle').textContent   = w.name;
+  document.getElementById('whCfgToken').value         = w.token;
+  document.getElementById('whCfgName').value          = w.name        || '';
+  document.getElementById('whCfgUcmHost').value       = w.ucmHost     || '';
+  document.getElementById('whCfgUcmPort').value       = w.ucmWebPort  || 8089;
+  document.getElementById('whCfgUcmUser').value       = w.ucmWebUser  || '';
+  document.getElementById('whCfgUcmPwd').value        = '';
+  document.getElementById('whCfgNotes').value         = w.notes       || '';
+  document.getElementById('whCfgResult').innerHTML    = '';
+  document.getElementById('urlRing').value            = buildWebhookUrl(w.token, 'ring');
+  document.getElementById('urlAnswer').value          = buildWebhookUrl(w.token, 'answer');
+  document.getElementById('urlHangup').value          = buildWebhookUrl(w.token, 'hangup');
+  bsModalWebhookConfig.show();
+}
+
+function copyUrl(inputId) {
+  const el = document.getElementById(inputId);
+  navigator.clipboard.writeText(el.value).then(() => el.select());
+}
+
+function copyAllUrls() {
+  const txt = ['urlRing','urlAnswer','urlHangup']
+    .map(id => `${id.replace('url','').toUpperCase()}: ${document.getElementById(id).value}`)
+    .join('\n');
+  navigator.clipboard.writeText(txt);
+}
+
+async function saveWebhookConfig() {
+  const token = document.getElementById('whCfgToken').value;
+  const res   = document.getElementById('whCfgResult');
+  res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Sauvegarde…</span>';
+  try {
+    const body = {
+      name:           document.getElementById('whCfgName').value.trim(),
+      ucmHost:        document.getElementById('whCfgUcmHost').value.trim(),
+      ucmWebPort:     document.getElementById('whCfgUcmPort').value,
+      ucmWebUser:     document.getElementById('whCfgUcmUser').value.trim(),
+      ucmWebPassword: document.getElementById('whCfgUcmPwd').value,
+      notes:          document.getElementById('whCfgNotes').value.trim(),
+    };
+    const r = await apiFetch(`/api/webhooks/${token}`, { method: 'PATCH', body: JSON.stringify(body) });
+    if (!r.ok) throw new Error((await r.json()).error);
+    const updated = await r.json();
+    document.getElementById('whCfgTitle').textContent = updated.name;
+    res.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Sauvegardé</span>';
+    fetchWebhooks();
+  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
+}
+
+async function testWebhookUcm() {
+  const token = document.getElementById('whCfgToken').value;
+  const res   = document.getElementById('whCfgResult');
+  res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Test…</span>';
+  try {
+    const r = await apiFetch(`/api/webhooks/${token}/test-ucm`, { method: 'POST' });
+    const d = await r.json();
+    res.innerHTML = `<span class="${d.ok ? 'text-success' : 'text-danger'}"><i class="bi bi-${d.ok ? 'check' : 'x'}-circle me-1"></i>${d.message}</span>`;
+  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
+}
+
+async function deleteWebhook(token, name) {
+  if (!confirm(`Supprimer le client "${name}" ? Les URLs ne fonctionneront plus.`)) return;
+  try {
+    await apiFetch(`/api/webhooks/${token}`, { method: 'DELETE' });
+    fetchWebhooks();
+  } catch(e) { alert(e.message); }
+}
+
+document.getElementById('newWebhookBtn').onclick = () => {
+  document.getElementById('newWebhookName').value = '';
+  document.getElementById('newWebhookError').classList.add('d-none');
+  bsModalNewWebhook.show();
+  setTimeout(() => document.getElementById('newWebhookName').focus(), 300);
+};
+
+document.getElementById('createWebhookBtn').onclick = async () => {
+  const name = document.getElementById('newWebhookName').value.trim();
+  const errEl = document.getElementById('newWebhookError');
+  if (!name) { errEl.textContent = 'Nom requis.'; errEl.classList.remove('d-none'); return; }
+  try {
+    const r = await apiFetch('/api/webhooks', { method:'POST', body: JSON.stringify({ name }) });
+    const w = await r.json();
+    if (!r.ok) throw new Error(w.error || 'Erreur');
+    bsModalNewWebhook.hide();
+    fetchWebhooks();
+    setTimeout(() => openWebhookConfig(w), 400);
+  } catch(e) { errEl.textContent = e.message; errEl.classList.remove('d-none'); }
+};
+
+document.getElementById('newWebhookName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('createWebhookBtn').click();
+});
+
+</script>
+</body>
+</html>

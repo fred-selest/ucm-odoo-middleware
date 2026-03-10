@@ -1,0 +1,41 @@
+services:
+  middleware:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: ucm-odoo-middleware:latest
+    container_name: ucm_odoo_middleware
+    hostname: ucm-odoo-middleware
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - proxy-net
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -sf
+        - http://localhost:3000/health
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  proxy-net:
+    external: true

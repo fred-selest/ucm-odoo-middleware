@@ -1,0 +1,34 @@
+# Dépendances (reconstruites dans le build)
+node_modules/
+
+# Logs
+logs/
+*.log
+
+# Environnement (secrets)
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+
+# Éditeurs / OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# CI / docs
+.github/
+README.md
+CHANGELOG.md
+
+# Tests
+tests/
+*.test.js
+*.spec.js
+coverage/
