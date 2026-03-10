@@ -4,6 +4,7 @@ require('dotenv').config();
 
 const http         = require('http');
 const express      = require('express');
+const swaggerUi    = require('swagger-ui-express');
 const config       = require('./config');
 const logger       = require('./logger');
 const UcmClient      = require('./infrastructure/ucm/UcmClient');
@@ -12,7 +13,9 @@ const OdooClient     = require('./infrastructure/odoo/OdooClient');
 const WsServer       = require('./infrastructure/websocket/WsServer');
 const CallHandler    = require('./application/CallHandler');
 const WebhookManager = require('./application/WebhookManager');
+const CallHistory    = require('./infrastructure/database/CallHistory');
 const createRouter   = require('./presentation/api/router');
+const swaggerSpec    = require('./config/swagger');
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 
@@ -35,6 +38,15 @@ async function main() {
   logger.info(`UCM: mode ${ucmMode.toUpperCase()}`);
   const odooClient     = new OdooClient();
   const webhookManager = new WebhookManager();
+  
+  // ── Base de données / Historique ───────────────────────────────────────────
+  const callHistory = new CallHistory();
+  try {
+    await callHistory.init();
+    logger.info('Service d\'historique initialisé');
+  } catch (err) {
+    logger.error('Erreur initialisation historique', { error: err.message });
+  }
 
   // ── Serveur HTTP + WebSocket ───────────────────────────────────────────────
   const app        = express();
@@ -43,14 +55,21 @@ async function main() {
   // Désactiver X-Powered-By
   app.disable('x-powered-by');
 
+  // Documentation Swagger
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.get('/api-docs.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
+
   const httpServer = http.createServer(app);
   const wsServer   = new WsServer(httpServer);
 
   // ── Application ────────────────────────────────────────────────────────────
-  const callHandler = new CallHandler(ucmClient, odooClient, wsServer, webhookManager);
+  const callHandler = new CallHandler(ucmClient, odooClient, wsServer, webhookManager, callHistory);
 
   // ── Routes ─────────────────────────────────────────────────────────────────
-  const apiRouter = createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookManager });
+  const apiRouter = createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookManager, callHistory });
   app.use('/', apiRouter);
 
   // 404 catch-all
@@ -76,6 +95,7 @@ async function main() {
   });
   logger.info(`Serveur HTTP démarré sur le port ${config.server.port}`);
   logger.info(`WebSocket disponible sur ws://localhost:${config.server.port}${config.server.wsPath}`);
+  logger.info(`Documentation API disponible sur http://localhost:${config.server.port}/api-docs`);
 
   // 3. Connecter UCM (listener error obligatoire pour éviter uncaughtException)
   ucmClient.on('error', err => logger.warn('UCM: erreur réseau', { error: err.message }));
@@ -85,6 +105,9 @@ async function main() {
   const shutdown = async (signal) => {
     logger.info(`Signal ${signal} reçu — arrêt propre...`);
     ucmClient.disconnect();
+    if (callHistory) {
+      await callHistory.db.close();
+    }
     httpServer.close(() => {
       logger.info('Serveur HTTP arrêté');
       process.exit(0);

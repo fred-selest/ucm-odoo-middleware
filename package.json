@@ -1,11 +1,17 @@
 {
   "name": "ucm-odoo-middleware",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Grandstream UCM ↔ Odoo middleware — CTI integration",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "build": "docker build --target runtime -t ucm-odoo-middleware .",
+    "build:dev": "docker build --target development -t ucm-odoo-middleware:dev .",
+    "test": "echo \"Tests non configurés\" && exit 0",
+    "lint": "echo \"ESLint non configuré\" && exit 0",
+    "cleanup": "node -e \"require('./src/infrastructure/database/CallHistory').init().then(h => h.cleanupOldData(process.env.DATA_RETENTION_DAYS || 365))\"",
+    "db:migrate": "node -e \"require('./src/infrastructure/database/Database').connect()\""
   },
   "dependencies": {
     "axios": "^1.7.2",
@@ -14,7 +20,10 @@
     "winston": "^3.13.0",
     "winston-daily-rotate-file": "^5.0.0",
     "dotenv": "^16.4.5",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "sqlite3": "^5.1.7",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"

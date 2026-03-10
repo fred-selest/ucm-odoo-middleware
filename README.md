@@ -141,6 +141,56 @@ Les agents se connectent en WebSocket sur `ws(s)://votre-domaine/ws`.
 
 ---
 
+## API REST - Recherche de contacts
+
+### Recherche par numéro de téléphone
+
+```bash
+curl -X POST http://localhost:3000/api/odoo/test \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Token: votre-token" \
+  -d '{"phone": "0388588621"}'
+```
+
+### Recherche par nom ou société
+
+```bash
+# Recherche simple
+curl "http://localhost:3000/api/odoo/search?q=Dupont" \
+  -H "X-Session-Token: votre-token"
+
+# Avec limite de résultats
+curl "http://localhost:3000/api/odoo/search?q=Selest&limit=10" \
+  -H "X-Session-Token: votre-token"
+```
+
+**Réponse :**
+
+```json
+{
+  "ok": true,
+  "query": "Dupont",
+  "count": 3,
+  "data": [
+    {
+      "id": 42,
+      "name": "Jean Dupont",
+      "phone": "0388588621",
+      "mobile": "0612345678",
+      "email": "jean.dupont@example.com",
+      "company": "Selest",
+      "isCompany": false,
+      "function": "Directeur",
+      "street": "1 rue de la Paix",
+      "city": "Strasbourg",
+      "odooUrl": "https://odoo.example.com/odoo/contacts/42"
+    }
+  ]
+}
+```
+
+---
+
 ## Licence
 
 MIT

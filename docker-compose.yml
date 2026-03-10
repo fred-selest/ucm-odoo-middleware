@@ -15,6 +15,9 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - DB_PATH=/app/data/middleware.db
     deploy:
       resources:
         limits:

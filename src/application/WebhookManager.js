@@ -131,17 +131,20 @@ class WebhookManager extends EventEmitter {
   // ── Normalisation des paramètres UCM → callInfo ───────────────────────────
 
   _normalize(p, clientName) {
+    // Utiliser l'uniqueId de l'UCM si disponible, sinon générer un ID unique
+    const uniqueId = p.uniqueid || p.uniqueId || p.unique_id || `wh-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
     return {
-      uniqueId:     p.uniqueid    || p.uniqueId    || `wh-${Date.now()}`,
-      linkedId:     p.linkedid    || '',
-      channel:      p.channel     || '',
-      callerIdNum:  p.caller      || p.callerid    || p.callernum  || '',
-      callerIdName: p.callerid_name || p.callername || '',
-      exten:        p.exten       || p.extension   || p.dest       || '',
-      destChannel:  '',
-      agentExten:   p.agent       || '',
-      queue:        p.queue       || '',
-      direction:    p.direction   || 'inbound',
+      uniqueId:     uniqueId,
+      linkedId:     p.linkedid || p.linkedId || uniqueId,
+      channel:      p.channel || '',
+      callerIdNum:  p.caller || p.callerid || p.callerid_num || p.callernum || p.from || '',
+      callerIdName: p.callerid_name || p.callername || p.from_name || '',
+      exten:        p.exten || p.extension || p.dest || p.to || '',
+      destChannel:  p.destchannel || p.dest_channel || '',
+      agentExten:   p.agent || p.agent_exten || p.exten || '',
+      queue:        p.queue || p.queue_name || '',
+      direction:    p.direction || 'inbound',
       source:       'webhook',
       client:       clientName,
       timestamp:    new Date().toISOString(),

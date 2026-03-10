@@ -8,6 +8,7 @@ const logger = require('../logger');
  *   2. Recherche le contact dans Odoo
  *   3. Notifie l'agent via WebSocket
  *   4. Gère call:answered et call:hangup de la même façon
+ *   5. Persiste l'historique des appels en base de données
  */
 class CallHandler {
   /**
@@ -15,10 +16,12 @@ class CallHandler {
    * @param {OdooClient}          odooClient
    * @param {WsServer}            wsServer
    * @param {WebhookManager|null} webhookManager  Webhook manager (optionnel)
+   * @param {CallHistory|null}    callHistory     Service d'historique (optionnel)
    */
-  constructor(ucmClient, odooClient, wsServer, webhookManager = null) {
+  constructor(ucmClient, odooClient, wsServer, webhookManager = null, callHistory = null) {
     this._odoo = odooClient;
     this._ws   = wsServer;
+    this._callHistory = callHistory;
 
     // Registre des appels actifs : uniqueId → callInfo enrichi
     this._activeCalls = new Map();
@@ -42,8 +45,17 @@ class CallHandler {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   async _onIncoming(call) {
-    const { uniqueId, callerIdNum, exten, agentExten } = call;
+    const { uniqueId, callerIdNum, callerIdName, exten, agentExten } = call;
     logger.info('Appel entrant', { from: callerIdNum, to: exten || agentExten, uniqueId });
+
+    // Vérifier si le numéro est blacklisté
+    if (this._callHistory && callerIdNum) {
+      const isBlacklisted = await this._callHistory.isBlacklisted(callerIdNum);
+      if (isBlacklisted) {
+        logger.info('Appel bloqué (blacklist)', { callerIdNum, uniqueId });
+        return;
+      }
+    }
 
     let contact = null;
 
@@ -61,6 +73,27 @@ class CallHandler {
 
     const target = exten || agentExten;
 
+    // Créer l'appel dans l'historique
+    if (this._callHistory) {
+      try {
+        await this._callHistory.createCall({
+          uniqueId,
+          callerIdNum,
+          callerIdName,
+          exten,
+          agentExten,
+          direction: 'inbound'
+        });
+        
+        // Mettre à jour avec le contact si trouvé
+        if (contact) {
+          await this._callHistory.updateCallContact(uniqueId, contact);
+        }
+      } catch (err) {
+        logger.error('Erreur persistance appel entrant', { error: err.message, uniqueId });
+      }
+    }
+
     // Notifier l'extension cible
     if (target) {
       this._ws.notifyExtension(target, 'call:incoming', enriched);
@@ -72,7 +105,7 @@ class CallHandler {
     }
   }
 
-  _onAnswered(call) {
+  async _onAnswered(call) {
     const { uniqueId, exten, agentExten } = call;
     const existing = this._activeCalls.get(uniqueId) || call;
     const enriched = { ...existing, ...call, answeredAt: new Date().toISOString() };
@@ -81,11 +114,30 @@ class CallHandler {
     const target = exten || agentExten || existing.exten || existing.agentExten;
     if (target) {
       this._ws.notifyExtension(target, 'call:answered', enriched);
+      
+      // Mettre à jour le statut de l'agent en 'on_call'
+      if (this._callHistory) {
+        try {
+          await this._callHistory.setAgentOnCall(target, uniqueId);
+        } catch (err) {
+          logger.warn('Erreur mise à jour statut agent', { error: err.message, target });
+        }
+      }
     }
+    
+    // Mettre à jour l'historique
+    if (this._callHistory) {
+      try {
+        await this._callHistory.updateCallAnswered(uniqueId);
+      } catch (err) {
+        logger.error('Erreur mise à jour appel décroché', { error: err.message, uniqueId });
+      }
+    }
+    
     logger.info('Appel décroché', { uniqueId, target });
   }
 
-  _onHangup(call) {
+  async _onHangup(call) {
     const { uniqueId } = call;
     const existing = this._activeCalls.get(uniqueId) || call;
 
@@ -94,6 +146,9 @@ class CallHandler {
     if (existing.timestamp) {
       duration = Math.round((Date.now() - new Date(existing.timestamp).getTime()) / 1000);
     }
+    if (existing.answeredAt) {
+      duration = Math.round((Date.now() - new Date(existing.answeredAt).getTime()) / 1000);
+    }
 
     const enriched = { ...existing, ...call, hungUpAt: new Date().toISOString(), duration };
     this._activeCalls.delete(uniqueId);
@@ -101,7 +156,27 @@ class CallHandler {
     const target = existing.exten || existing.agentExten || call.exten;
     if (target) {
       this._ws.notifyExtension(target, 'call:hangup', enriched);
+      
+      // Mettre à jour le statut de l'agent en 'available' et ajouter les stats
+      if (this._callHistory) {
+        try {
+          await this._callHistory.setAgentAvailable(target, duration || 0);
+          await this._callHistory.removeActiveCall(uniqueId);
+        } catch (err) {
+          logger.warn('Erreur mise à jour statut agent', { error: err.message, target });
+        }
+      }
     }
+    
+    // Mettre à jour l'historique
+    if (this._callHistory) {
+      try {
+        await this._callHistory.updateCallHangup(uniqueId, duration);
+      } catch (err) {
+        logger.error('Erreur mise à jour appel raccroché', { error: err.message, uniqueId });
+      }
+    }
+    
     logger.info('Appel raccroché', { uniqueId, target, duration });
   }
 

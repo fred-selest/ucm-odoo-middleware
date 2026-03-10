@@ -96,6 +96,50 @@ class OdooClient {
     return contact;
   }
 
+  async searchContactsByNameOrCompany(query, limit = 20) {
+    if (!query || query.trim().length < 2) {
+      throw new Error('La recherche doit contenir au moins 2 caractères');
+    }
+
+    await this.ensureAuthenticated();
+
+    const searchTerm = query.trim();
+    logger.debug('Odoo: recherche par nom/société', { query: searchTerm, limit });
+
+    // Domaine : recherche dans name OU parent_id (société)
+    const domain = [
+      '|',
+      ['name', 'ilike', searchTerm],
+      ['parent_id.name', 'ilike', searchTerm]
+    ];
+
+    let result;
+    try {
+      result = await this._callModel('res.partner', 'search_read', [domain], {
+        fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function'],
+        limit: limit,
+        order: 'name asc',
+      });
+    } catch (err) {
+      if (err.message?.includes('Access Denied') || err.message?.includes('Session expired')) {
+        this._uid = null;
+        await this.authenticate();
+        result = await this._callModel('res.partner', 'search_read', [domain], {
+          fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function'],
+          limit: limit,
+          order: 'name asc',
+        });
+      } else {
+        throw err;
+      }
+    }
+
+    const contacts = result?.map(p => this._formatContact(p)) || [];
+    logger.info('Odoo: recherche par nom', { query: searchTerm, results: contacts.length });
+
+    return contacts;
+  }
+
   invalidateCache(phone = null) {
     if (phone) this._cache.delete(this._normalizePhone(phone));
     else this._cache.clear();
@@ -306,19 +350,26 @@ class OdooClient {
     const variants = new Set([clean]);
 
     if (/^0[1-9]\d{8}$/.test(clean)) {
-      const nat = clean.slice(1); // ex: 388588621
+      const nat = clean.slice(1); // ex: 679293871
       variants.add('+33' + nat);
       variants.add('0033' + nat);
       // Formats courants : espaces et points (local)
       variants.add(clean.replace(/^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/, '$1 $2 $3 $4 $5'));
       variants.add(clean.replace(/^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/, '$1.$2.$3.$4.$5'));
-      // Format international avec espaces : +33 3 88 58 86 21
+      // Format international avec espaces : +33 6 79 29 38 71
       const intl = nat.replace(/^(\d)(\d{2})(\d{2})(\d{2})(\d{2})$/, '+33 $1 $2 $3 $4 $5');
       if (intl !== nat) variants.add(intl);
     }
     if (/^\+33\d{9}$/.test(clean)) {
-      variants.add('0' + clean.slice(3));
-      variants.add('0033' + clean.slice(3));
+      const nat = clean.slice(3); // ex: 679293871
+      variants.add('0' + nat);
+      variants.add('0033' + nat);
+      // Format international avec espaces : +33 6 79 29 38 71
+      const intlSpaced = nat.replace(/^(\d)(\d{2})(\d{2})(\d{2})(\d{2})$/, '+33 $1 $2 $3 $4 $5');
+      if (intlSpaced !== nat) variants.add(intlSpaced);
+      // Format national avec espaces : 06 79 29 38 71
+      const localSpaced = nat.replace(/^(\d)(\d{2})(\d{2})(\d{2})(\d{2})$/, '0$1 $2 $3 $4 $5');
+      if (localSpaced !== nat) variants.add(localSpaced);
     }
     if (/^0033\d{9}$/.test(clean)) {
       variants.add('0' + clean.slice(4));
@@ -342,10 +393,12 @@ class OdooClient {
     return {
       id:        partner.id,
       name,
-      phone:     partner.phone || null,
+      phone:     partner.phone || partner.mobile || null,
+      mobile:    partner.mobile || null,
       email:     partner.email || null,
       company,
       isCompany: partner.is_company,
+      function:  partner.function || null,
       street:    partner.street || null,
       city:      partner.city   || null,
       odooUrl:   `${config.odoo.url}/odoo/contacts/${partner.id}`,

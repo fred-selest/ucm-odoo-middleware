@@ -138,20 +138,81 @@
       </div>
     </div>
 
-    <!-- Recherche + Agents -->
+      <!-- Colonne droite : Click-to-call + Recherche + Agents -->
     <div class="col-lg-5">
+      <!-- Click-to-call (Ringover style) -->
+      <div class="card mb-3 border-primary border-opacity-25">
+        <div class="card-header bg-primary bg-opacity-10">
+          <i class="bi bi-telephone-outbound me-1 text-primary"></i>Click-to-Call
+        </div>
+        <div class="card-body">
+          <div class="input-group input-group-sm mb-2">
+            <span class="input-group-text">Depuis</span>
+            <input type="text" id="dialExten" class="form-control" placeholder="Extension (ex: 101)" style="max-width:100px">
+            <span class="input-group-text">vers</span>
+            <input type="text" id="dialPhone" class="form-control" placeholder="Numéro à appeler…">
+            <button class="btn btn-primary" id="dialBtn">
+              <i class="bi bi-telephone-fill"></i> Appeler
+            </button>
+          </div>
+          <div id="dialResult" class="small"></div>
+        </div>
+      </div>
+
+      <!-- Recherche contact Odoo -->
       <div class="card mb-3">
         <div class="card-header"><i class="bi bi-search me-1 text-info"></i>Recherche contact Odoo</div>
         <div class="card-body">
-          <div class="input-group input-group-sm">
-            <input type="text" id="testPhone" class="form-control" placeholder="Numéro de téléphone…">
-            <button class="btn btn-primary" id="testOdooBtn"><i class="bi bi-search"></i></button>
+          <!-- Recherche par numéro -->
+          <div class="mb-3">
+            <label class="form-label small text-muted">Par numéro de téléphone</label>
+            <div class="input-group input-group-sm">
+              <input type="text" id="testPhone" class="form-control" placeholder="Numéro de téléphone…">
+              <button class="btn btn-primary" id="testOdooBtn"><i class="bi bi-search"></i></button>
+            </div>
+          </div>
+          <!-- Recherche par nom/société -->
+          <div>
+            <label class="form-label small text-muted">Par nom ou société</label>
+            <div class="input-group input-group-sm">
+              <input type="text" id="testName" class="form-control" placeholder="Nom ou société…">
+              <button class="btn btn-info" id="testNameBtn"><i class="bi bi-search"></i></button>
+            </div>
           </div>
           <div id="testOdooResult" class="mt-2 small"></div>
         </div>
       </div>
+
+      <!-- Statuts Agents (Ringover style) -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-people me-1 text-success"></i>Statuts Agents</span>
+          <button class="btn btn-xs btn-sm btn-outline-secondary" onclick="fetchAgentStatus()">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <div style="max-height:180px;overflow-y:auto">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Extension</th>
+                  <th>Statut</th>
+                  <th>Appels</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="agentStatusBody">
+                <tr><td colspan="4" class="text-center text-muted py-3 small">Chargement…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agents WebSocket connectés -->
       <div class="card">
-        <div class="card-header"><i class="bi bi-people me-1 text-success"></i>Agents connectés</div>
+        <div class="card-header"><i class="bi bi-wifi me-1 text-success"></i>Agents connectés (WebSocket)</div>
         <div class="card-body p-0">
           <div style="max-height:130px;overflow-y:auto">
             <table class="table table-sm mb-0">
@@ -571,6 +632,7 @@ function startApp() {
   fetchStatus();
   fetchLogs();
   fetchWebhooks();
+  fetchAgentStatus();
   setInterval(fetchStatus,   5000);
   setInterval(fetchLogs,     3000);
   setInterval(fetchWebhooks, 30000);
@@ -733,6 +795,130 @@ document.getElementById('testOdooBtn').onclick = async () => {
 document.getElementById('testPhone').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('testOdooBtn').click();
 });
+
+// Recherche par nom/société
+document.getElementById('testNameBtn').onclick = async () => {
+  const query = document.getElementById('testName').value.trim();
+  if (!query || query.length < 2) {
+    document.getElementById('testOdooResult').innerHTML = '<span class="text-warning">Minimum 2 caractères requis.</span>';
+    return;
+  }
+  const res = document.getElementById('testOdooResult');
+  res.innerHTML = '<span class="text-muted">Recherche…</span>';
+  try {
+    const r = await apiFetch(`/api/odoo/search?q=${encodeURIComponent(query)}&limit=10`);
+    const d = await r.json();
+    if (d.ok && d.data && d.data.length > 0) {
+      const contactsHtml = d.data.map(c => `
+        <div class="p-2 rounded border border-success border-opacity-25 bg-success bg-opacity-10 mt-1">
+          <strong>${esc(c.name)}</strong>
+          ${c.company ? `<span class="text-muted"> — ${esc(c.company)}</span>` : ''}
+          <br>
+          <span class="text-muted small">
+            ${c.phone ? `<i class="bi bi-telephone me-1"></i>${esc(c.phone)}` : ''}
+            ${c.email ? `<i class="bi bi-envelope ms-2 me-1"></i>${esc(c.email)}` : ''}
+          </span>
+          <br>
+          <a href="${c.odooUrl}" target="_blank" class="small">Voir dans Odoo →</a>
+        </div>
+      `).join('');
+      res.innerHTML = `<div class="text-muted small mb-2">${d.count} résultat(s) :</div>${contactsHtml}`;
+    } else if (d.ok) {
+      res.innerHTML = '<span class="text-muted">Aucun contact trouvé.</span>';
+    } else {
+      res.innerHTML = `<span class="text-danger">${esc(d.error || 'Erreur')}</span>`;
+    }
+  } catch(e) { res.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`; }
+};
+document.getElementById('testName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('testNameBtn').click();
+});
+
+// ══ Click-to-Call (Ringover style) ════════════════════════════════════════════
+document.getElementById('dialBtn').onclick = async () => {
+  const phone = document.getElementById('dialPhone').value.trim();
+  const exten = document.getElementById('dialExten').value.trim();
+  const res = document.getElementById('dialResult');
+  
+  if (!phone) { res.innerHTML = '<span class="text-warning">Numéro requis.</span>'; return; }
+  if (!exten) { res.innerHTML = '<span class="text-warning">Extension requise.</span>'; return; }
+  
+  res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Appel en cours…</span>';
+  try {
+    const r = await apiFetch('/api/calls/dial', {
+      method: 'POST',
+      body: JSON.stringify({ phone, exten })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      res.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>Appel initié (${d.uniqueId.slice(-8)})</span>`;
+      document.getElementById('dialPhone').value = '';
+    } else {
+      res.innerHTML = `<span class="text-danger">${esc(d.error)}</span>`;
+    }
+  } catch(e) { res.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`; }
+};
+document.getElementById('dialPhone').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('dialBtn').click();
+});
+
+// ══ Statuts Agents ═══════════════════════════════════════════════════════════
+const AGENT_STATUS_LABELS = {
+  available: { label: 'Disponible', class: 'bg-success' },
+  busy: { label: 'Occupé', class: 'bg-warning' },
+  on_call: { label: 'En appel', class: 'bg-danger' },
+  pause: { label: 'Pause', class: 'bg-secondary' },
+  offline: { label: 'Hors ligne', class: 'bg-dark' }
+};
+
+async function fetchAgentStatus() {
+  try {
+    const r = await apiFetch('/api/agents/status');
+    if (!r.ok) return;
+    const d = await r.json();
+    const tbody = document.getElementById('agentStatusBody');
+    if (!d.data || d.data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3 small">Aucun agent enregistré</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.data.map(a => {
+      const status = AGENT_STATUS_LABELS[a.status] || AGENT_STATUS_LABELS.offline;
+      return `
+        <tr>
+          <td><code>${esc(a.exten)}</code></td>
+          <td><span class="badge ${status.class}">${status.label}</span></td>
+          <td class="small">${a.total_calls_today || 0} / ${Math.round((a.total_duration_today || 0) / 60)}min</td>
+          <td>
+            <select class="form-select form-select-sm" style="width:auto" onchange="updateAgentStatus('${esc(a.exten)}', this.value)">
+              <option value="available" ${a.status === 'available' ? 'selected' : ''}>Disponible</option>
+              <option value="pause" ${a.status === 'pause' ? 'selected' : ''}>Pause</option>
+              <option value="busy" ${a.status === 'busy' ? 'selected' : ''}>Occupé</option>
+              <option value="offline" ${a.status === 'offline' ? 'selected' : ''}>Hors ligne</option>
+            </select>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch { 
+    document.getElementById('agentStatusBody').innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3 small">Erreur de chargement</td></tr>';
+  }
+}
+
+async function updateAgentStatus(exten, status) {
+  try {
+    const r = await apiFetch(`/api/agents/${exten}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      fetchAgentStatus();
+    }
+  } catch(e) { alert('Erreur: ' + e.message); }
+}
+
+// Charger les statuts des agents toutes les 30 secondes
+setInterval(fetchAgentStatus, 30000);
 
 document.getElementById('clearCacheBtn').onclick = async () => {
   const r = await apiFetch('/api/cache/clear', { method:'POST' });

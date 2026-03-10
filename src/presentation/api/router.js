@@ -42,7 +42,7 @@ function requireSession(req, res, next) {
   next();
 }
 
-function createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookManager }) {
+function createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookManager, callHistory }) {
   const router = Router();
 
   // ── Interface admin (sans auth) ─────────────────────────────────────────
@@ -165,6 +165,35 @@ function createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookMan
     }
   });
 
+  // GET /api/odoo/search - Recherche de contacts par nom ou société
+  router.get('/api/odoo/search', async (req, res) => {
+    try {
+      const { q, limit } = req.query;
+      
+      if (!q || q.trim().length < 2) {
+        return res.status(400).json({ 
+          ok: false, 
+          error: 'Le paramètre q (recherche) doit contenir au moins 2 caractères' 
+        });
+      }
+
+      const contacts = await odooClient.searchContactsByNameOrCompany(
+        q.trim(), 
+        parseInt(limit) || 20
+      );
+      
+      res.json({ 
+        ok: true, 
+        query: q.trim(),
+        count: contacts.length,
+        data: contacts 
+      });
+    } catch (err) {
+      logger.error('Erreur recherche Odoo', { error: err.message, query: req.query.q });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
   router.get('/api/logs', (req, res) => {
     const limit = Math.min(parseInt(req.query.limit || '200', 10), LOG_BUFFER_MAX);
     res.json(LOG_BUFFER.slice(-limit));
@@ -174,6 +203,182 @@ function createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookMan
     const { type = 'test', data = {} } = req.body || {};
     res.json({ ok: true, sent: wsServer.broadcast(type, data) });
   });
+
+  // ── Historique des appels ────────────────────────────────────────────────
+  if (callHistory) {
+    // GET /api/calls/history - Liste paginée des appels
+    router.get('/api/calls/history', async (req, res) => {
+      try {
+        const options = {
+          limit: parseInt(req.query.limit) || 50,
+          offset: parseInt(req.query.offset) || 0,
+          status: req.query.status,
+          direction: req.query.direction,
+          exten: req.query.exten,
+          callerIdNum: req.query.caller,
+          startDate: req.query.startDate,
+          endDate: req.query.endDate,
+          search: req.query.search
+        };
+
+        const [calls, total] = await Promise.all([
+          callHistory.getCalls(options),
+          callHistory.getCallsCount(options)
+        ]);
+
+        res.json({
+          ok: true,
+          data: calls,
+          pagination: {
+            total,
+            limit: options.limit,
+            offset: options.offset,
+            hasMore: total > options.offset + options.limit
+          }
+        });
+      } catch (err) {
+        logger.error('Erreur récupération historique', { error: err.message });
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // GET /api/calls/history/:id - Détail d'un appel
+    router.get('/api/calls/history/:id', async (req, res) => {
+      try {
+        const call = await callHistory.getCallById(req.params.id);
+        if (!call) {
+          return res.status(404).json({ ok: false, error: 'Appel non trouvé' });
+        }
+        res.json({ ok: true, data: call });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // GET /api/calls/missed - Appels manqués
+    router.get('/api/calls/missed', async (req, res) => {
+      try {
+        const limit = parseInt(req.query.limit) || 50;
+        const calls = await callHistory.getCalls({ status: 'missed', limit });
+        res.json({ ok: true, data: calls });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // POST /api/calls/:id/notes - Ajouter une note
+    router.post('/api/calls/:id/notes', async (req, res) => {
+      try {
+        const { notes } = req.body || {};
+        await callHistory.db.run(
+          'UPDATE calls SET notes = ? WHERE id = ?',
+          [notes, req.params.id]
+        );
+        res.json({ ok: true });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+  }
+
+  // ── Statistiques ─────────────────────────────────────────────────────────
+  if (callHistory) {
+    // GET /api/stats - Statistiques globales
+    router.get('/api/stats', async (req, res) => {
+      try {
+        const period = req.query.period || 'today';
+        const stats = await callHistory.getStats(period);
+        res.json({ ok: true, data: stats });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // GET /api/stats/extensions - Stats par extension
+    router.get('/api/stats/extensions', async (req, res) => {
+      try {
+        const days = parseInt(req.query.days) || 30;
+        const stats = await callHistory.getStatsByExtension(days);
+        res.json({ ok: true, data: stats });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // GET /api/stats/hourly - Distribution horaire
+    router.get('/api/stats/hourly', async (req, res) => {
+      try {
+        const distribution = await callHistory.getHourlyDistribution(req.query.date);
+        res.json({ ok: true, data: distribution });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // GET /api/stats/top-callers - Top appelants
+    router.get('/api/stats/top-callers', async (req, res) => {
+      try {
+        const limit = parseInt(req.query.limit) || 10;
+        const days = parseInt(req.query.days) || 30;
+        const callers = await callHistory.getTopCallers(limit, days);
+        res.json({ ok: true, data: callers });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+  }
+
+  // ── Blacklist ────────────────────────────────────────────────────────────
+  if (callHistory) {
+    // GET /api/blacklist - Liste des numéros bloqués
+    router.get('/api/blacklist', async (req, res) => {
+      try {
+        const options = {
+          limit: parseInt(req.query.limit) || 50,
+          offset: parseInt(req.query.offset) || 0,
+          active: req.query.active !== 'false'
+        };
+        const blacklist = await callHistory.getBlacklist(options);
+        res.json({ ok: true, data: blacklist });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // POST /api/blacklist - Ajouter un numéro
+    router.post('/api/blacklist', async (req, res) => {
+      try {
+        const { phoneNumber, reason } = req.body || {};
+        if (!phoneNumber) {
+          return res.status(400).json({ ok: false, error: 'phoneNumber requis' });
+        }
+        await callHistory.addToBlacklist(phoneNumber, reason, req.session.username);
+        res.json({ ok: true, message: 'Numéro ajouté à la blacklist' });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // DELETE /api/blacklist/:phone - Retirer un numéro
+    router.delete('/api/blacklist/:phone', async (req, res) => {
+      try {
+        await callHistory.removeFromBlacklist(req.params.phone);
+        res.json({ ok: true, message: 'Numéro retiré de la blacklist' });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // GET /api/blacklist/check/:phone - Vérifier si bloqué
+    router.get('/api/blacklist/check/:phone', async (req, res) => {
+      try {
+        const isBlocked = await callHistory.isBlacklisted(req.params.phone);
+        res.json({ ok: true, isBlocked });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+  }
 
   // ── Configuration UCM / Odoo ────────────────────────────────────────────
   router.get('/api/config', (req, res) => {
@@ -296,6 +501,195 @@ function createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookMan
     if (!deleted) return res.status(404).json({ error: 'Token introuvable' });
     logger.info('Admin: token webhook supprimé', { user: req.session.username });
     res.json({ ok: true });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ══ CLICK-TO-CALL (Ringover style) ═════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // POST /api/calls/dial - Initier un appel click-to-call
+  router.post('/api/calls/dial', async (req, res) => {
+    try {
+      const { phone, exten, contactId } = req.body;
+      
+      if (!phone || !exten) {
+        return res.status(400).json({ ok: false, error: 'Numéro et extension requis' });
+      }
+
+      // Créer un uniqueId pour cet appel
+      const uniqueId = `dial-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Enregistrer l'appel sortant dans l'historique
+      if (callHistory) {
+        await callHistory.createCall({
+          uniqueId,
+          callerIdNum: phone,
+          exten,
+          direction: 'outbound',
+          agentExten: exten
+        });
+      }
+
+      // Diffuser l'événement aux agents
+      const callInfo = {
+        uniqueId,
+        callerIdNum: phone,
+        exten,
+        direction: 'outbound',
+        timestamp: new Date().toISOString(),
+        contactId
+      };
+
+      wsServer.broadcast('call:outbound', callInfo);
+      
+      logger.info('Click-to-call initié', { phone, exten, uniqueId, user: req.session.username });
+      
+      res.json({ 
+        ok: true, 
+        uniqueId,
+        message: 'Appel initié',
+        call: callInfo
+      });
+    } catch (err) {
+      logger.error('Erreur click-to-call', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ══ GESTION DES NOTES ET TAGS ══════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // POST /api/calls/:uniqueId/notes - Ajouter une note à un appel
+  router.post('/api/calls/:uniqueId/notes', async (req, res) => {
+    try {
+      const { note } = req.body;
+      if (!note || !note.trim()) {
+        return res.status(400).json({ ok: false, error: 'Note requise' });
+      }
+
+      await callHistory.addCallNote(req.params.uniqueId, note.trim(), req.session.username);
+      res.json({ ok: true, message: 'Note ajoutée' });
+    } catch (err) {
+      logger.error('Erreur ajout note', { error: err.message, uniqueId: req.params.uniqueId });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // PUT /api/calls/:uniqueId/tags - Mettre à jour les tags d'un appel
+  router.put('/api/calls/:uniqueId/tags', async (req, res) => {
+    try {
+      const { tags } = req.body;
+      if (!Array.isArray(tags)) {
+        return res.status(400).json({ ok: false, error: 'Tags doit être un tableau' });
+      }
+
+      await callHistory.updateCallTags(req.params.uniqueId, tags);
+      res.json({ ok: true, message: 'Tags mis à jour', tags });
+    } catch (err) {
+      logger.error('Erreur mise à jour tags', { error: err.message, uniqueId: req.params.uniqueId });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // POST /api/calls/:uniqueId/rate - Noter un appel
+  router.post('/api/calls/:uniqueId/rate', async (req, res) => {
+    try {
+      const { rating, notes } = req.body;
+      if (!rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ ok: false, error: 'Rating entre 1 et 5 requis' });
+      }
+
+      await callHistory.rateCall(req.params.uniqueId, rating, notes);
+      res.json({ ok: true, message: 'Appel noté', rating });
+    } catch (err) {
+      logger.error('Erreur notation appel', { error: err.message, uniqueId: req.params.uniqueId });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // GET /api/calls/:uniqueId - Détails d'un appel
+  router.get('/api/calls/:uniqueId', async (req, res) => {
+    try {
+      const call = await callHistory.getCallByUniqueId(req.params.uniqueId);
+      if (!call) {
+        return res.status(404).json({ ok: false, error: 'Appel non trouvé' });
+      }
+      res.json({ ok: true, data: call });
+    } catch (err) {
+      logger.error('Erreur récupération appel', { error: err.message, uniqueId: req.params.uniqueId });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ══ STATUTS AGENTS (Ringover style) ════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // GET /api/agents/status - Liste des statuts de tous les agents
+  router.get('/api/agents/status', async (req, res) => {
+    try {
+      const agents = await callHistory.getAllAgentsStatus();
+      res.json({ ok: true, data: agents });
+    } catch (err) {
+      logger.error('Erreur récupération statuts agents', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // GET /api/agents/:exten/status - Statut d'un agent spécifique
+  router.get('/api/agents/:exten/status', async (req, res) => {
+    try {
+      const status = await callHistory.getAgentStatus(req.params.exten);
+      if (!status) {
+        return res.json({ ok: true, data: { exten: req.params.exten, status: 'offline' } });
+      }
+      res.json({ ok: true, data: status });
+    } catch (err) {
+      logger.error('Erreur récupération statut agent', { error: err.message, exten: req.params.exten });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // PUT /api/agents/:exten/status - Mettre à jour le statut d'un agent
+  router.put('/api/agents/:exten/status', async (req, res) => {
+    try {
+      const { status } = req.body;
+      const validStatuses = ['available', 'busy', 'on_call', 'pause', 'offline'];
+      
+      if (!status || !validStatuses.includes(status)) {
+        return res.status(400).json({ 
+          ok: false, 
+          error: `Statut invalide. Valeurs: ${validStatuses.join(', ')}` 
+        });
+      }
+
+      await callHistory.updateAgentStatus(req.params.exten, status);
+      
+      // Diffuser le changement de statut à tous les clients WebSocket
+      wsServer.broadcast('agent:status_changed', {
+        exten: req.params.exten,
+        status,
+        timestamp: new Date().toISOString()
+      });
+      
+      logger.info('Statut agent mis à jour', { exten: req.params.exten, status, user: req.session.username });
+      res.json({ ok: true, message: 'Statut mis à jour', status });
+    } catch (err) {
+      logger.error('Erreur mise à jour statut agent', { error: err.message, exten: req.params.exten });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // GET /api/agents/:exten/active-calls - Appels actifs d'un agent
+  router.get('/api/agents/:exten/active-calls', async (req, res) => {
+    try {
+      const calls = await callHistory.getActiveCalls(req.params.exten);
+      res.json({ ok: true, data: calls });
+    } catch (err) {
+      logger.error('Erreur récupération appels actifs', { error: err.message, exten: req.params.exten });
+      res.status(500).json({ ok: false, error: err.message });
+    }
   });
 
   return router;
