@@ -795,24 +795,20 @@ async function loadCallHistory() {
     tbody.innerHTML = '';
 
     d.data.forEach(call => {
-      const tr = document.createElement('tr');
-      tr.className = 'call-row';
-      tr.dataset.id = call.unique_id;
-      tr.innerHTML = callHtmlFromHistory(call);
-
       if (call.contact_id) {
-        tr.style.cursor = 'pointer';
-        tr.title = 'Cliquer pour voir la fiche contact';
-        tr.onclick = () => showQuickContact({
+        historyContactMap[call.unique_id] = {
           id: call.contact_id,
           name: call.contact_name || '—',
           phone: call.contact_phone || '—',
           email: call.contact_email || '—',
           company: '',
           odooUrl: call.contact_odoo_url || '#'
-        });
+        };
       }
-
+      const tr = document.createElement('tr');
+      tr.className = 'call-row';
+      tr.dataset.id = call.unique_id;
+      tr.innerHTML = callHtmlFromHistory(call);
       tbody.appendChild(tr);
     });
   } catch (e) {
@@ -828,10 +824,10 @@ function callHtmlFromHistory(call) {
   const statusLabels = { ringing: 'Sonnerie', answered: 'Décroché', missed: 'Manqué', hangup: 'Raccroché' };
   const exten = call.exten || call.agent_exten || '—';
   const contactHtml = call.contact_name
-    ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">${esc(call.contact_name)}</span>`
+    ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 contact-badge-clickable" data-uid="${esc(call.unique_id)}" style="cursor:pointer" title="Voir la fiche contact">${esc(call.contact_name)}</span>`
     : '<span class="text-muted">—</span>';
   return `<td class="text-muted small">${t}</td>
-    <td><code class="small">${esc(call.caller_id_num || '—')}</code></td>
+    <td>${phoneLink(call.caller_id_num)}</td>
     <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(exten)}</span></td>
     <td class="td-contact">${contactHtml}</td>
     <td><span class="badge ${statusBadges[call.status] || 'bg-secondary'}">${statusLabels[call.status] || call.status || '—'}</span></td>`;
@@ -979,6 +975,8 @@ function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 
 // ── Journal d'appels ─────────────────────────────────────────────────────────
 const callRows = {};
+const historyContactMap = {};
+
 function addCallRow(call, status) {
   const tbody = document.getElementById('callBody');
   if (tbody.querySelector('[colspan]')) tbody.innerHTML = '';
@@ -997,17 +995,46 @@ function updateCallRow(call, status) {
 function updateCallContact(data) {
   const tr = callRows[data.uniqueId];
   if (tr && data.contact) tr.querySelector('.td-contact').innerHTML =
-    `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">${data.contact.name}</span>`;
+    `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 contact-badge-clickable" data-uid="${data.uniqueId}">${data.contact.name}</span>`;
+}
+function phoneLink(phone) {
+  if (!phone) return '<span class="text-muted">—</span>';
+  return `<code class="small phone-link" data-phone="${esc(phone)}" style="cursor:pointer;text-decoration:underline dotted;color:inherit" title="Cliquer pour rechercher / créer le contact">${esc(phone)}</code>`;
 }
 function callHtml(call, status) {
   const t = new Date().toTimeString().slice(0,8);
   const badges = { incoming:'bg-primary', answered:'bg-success', hangup:'bg-secondary' };
   const labels = { incoming:'Entrant', answered:'Décroché', hangup:'Raccroché' };
   return `<td class="text-muted small">${t}</td>
-    <td><code class="small">${call.callerIdNum||'—'}</code></td>
-    <td><span class="badge bg-primary bg-opacity-10 text-primary">${call.exten||call.agentExten||'—'}</span></td>
-    <td class="td-contact">${call.contact?`<span class="badge bg-success bg-opacity-10 text-success">${call.contact.name}</span>`:'<span class="text-muted">—</span>'}</td>
+    <td>${phoneLink(call.callerIdNum)}</td>
+    <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(call.exten||call.agentExten||'—')}</span></td>
+    <td class="td-contact">${call.contact?`<span class="badge bg-success bg-opacity-10 text-success">${esc(call.contact.name)}</span>`:'<span class="text-muted">—</span>'}</td>
     <td><span class="badge ${badges[status]}">${labels[status]}</span></td>`;
+}
+
+// Délégation d'événements pour clics dans le journal d'appels
+document.getElementById('callBody').addEventListener('click', e => {
+  const phoneEl = e.target.closest('.phone-link');
+  if (phoneEl) { clickPhone(phoneEl.dataset.phone); return; }
+  const contactEl = e.target.closest('.contact-badge-clickable');
+  if (contactEl && historyContactMap[contactEl.dataset.uid]) {
+    showQuickContact(historyContactMap[contactEl.dataset.uid]);
+  }
+});
+
+// Recherche Odoo par numéro → fiche contact ou création
+async function clickPhone(phone) {
+  if (!phone || phone === '—') return;
+  try {
+    const r = await apiFetch('/api/odoo/test', { method: 'POST', body: JSON.stringify({ phone }) });
+    const d = await r.json();
+    if (d.ok && d.contact) {
+      showQuickContact(d.contact);
+    } else {
+      openCreateContactModal();
+      document.getElementById('newContactPhone').value = phone;
+    }
+  } catch(e) { console.error('clickPhone error:', e); }
 }
 
 // ── Événements UI ─────────────────────────────────────────────────────────────
