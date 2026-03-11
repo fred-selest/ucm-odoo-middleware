@@ -31,13 +31,17 @@ class CallHandler {
 
     // Binder les événements WebSocket UCM6300
     if (ucmWsClient) {
-      ucmWsClient.on('event', (event) => this.handleUcmEvent(event));
-      ucmWsClient.on('connected', () => logger.info('CallHandler: UCM WebSocket connecté, prêt'));
-      ucmWsClient.on('disconnected', () => logger.warn('CallHandler: UCM WebSocket déconnecté'));
+      this._bindSource(ucmWsClient, 'UCM');
     }
 
     // Webhook manager (fallback pour ancien UCM)
     if (webhookManager) this._bindSource(webhookManager, 'Webhook');
+
+    // Polling HTTP actif : détecte les appels en cours via l'API UCM (toutes les 3s)
+    this._pollInterval  = null;
+    this._polledCalls   = new Map(); // uniqueId → dernière vue
+    this._isPolling     = false;
+    this._startPolling();
   }
 
   /**
@@ -239,6 +243,63 @@ class CallHandler {
   _isInternalNumber(number) {
     // Numéros internes : 1 à 5 chiffres
     return /^\d{1,5}$/.test(number.replace(/\D/g, ''));
+  }
+
+  // ── Polling HTTP ───────────────────────────────────────────────────────────
+
+  _startPolling() {
+    this._pollInterval = setInterval(() => this._poll().catch(() => {}), 3000);
+  }
+
+  async _poll() {
+    if (this._isPolling || !this._http?.isAuthenticated()) return;
+    this._isPolling = true;
+    try { await this._doPoll(); } finally { this._isPolling = false; }
+  }
+
+  async _doPoll() {
+
+    let channels = [];
+    try {
+      const [bridged, unbridged] = await Promise.all([
+        this._http.listBridgedChannels().catch(() => []),
+        this._http.listUnBridgedChannels().catch(() => []),
+      ]);
+      channels = [...(bridged || []), ...(unbridged || [])];
+    } catch { return; }
+
+    const seenIds = new Set();
+
+    for (const ch of channels) {
+      // Normalise les champs UCM6300 (format réel confirmé)
+      const uniqueId    = ch.uniqueid    || ch.UniqueID  || ch.callid || ch.id;
+      const callerIdNum = ch.callernum   || ch.calleridnum || ch.callerid || ch.CallerIDNum || '';
+      const callerIdName= ch.callername  || ch.calleridname || '';
+      const exten       = ch.connectednum || ch.extension || ch.Extension || ch.dst || '';
+      const status      = (ch.state || ch.status || ch.Status || '').toLowerCase();
+      if (!uniqueId) continue;
+
+      seenIds.add(uniqueId);
+
+      if (!this._activeCalls.has(uniqueId) && !this._polledCalls.has(uniqueId)) {
+        // Nouvel appel détecté
+        const callData = { uniqueId, callerIdNum, callerIdName, exten, status };
+        this._polledCalls.set(uniqueId, callData);
+        logger.info('Polling: appel détecté', callData);
+        this._onIncoming({ uniqueId, callerIdNum, callerIdName, exten, agentExten: exten, direction: 'inbound', timestamp: new Date().toISOString() });
+      }
+    }
+
+    // Appels terminés : présents en polledCalls mais plus dans les channels actifs
+    for (const [uid] of this._polledCalls) {
+      if (!seenIds.has(uid)) {
+        this._polledCalls.delete(uid);
+        if (this._activeCalls.has(uid)) {
+          logger.info('Polling: appel terminé', { uniqueId: uid });
+          this._onHangup({ uniqueId: uid });
+        }
+      }
+    }
   }
 
   // ── Monitoring ─────────────────────────────────────────────────────────────

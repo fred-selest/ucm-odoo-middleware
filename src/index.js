@@ -8,7 +8,7 @@ const swaggerUi    = require('swagger-ui-express');
 const config       = require('./config');
 const logger       = require('./logger');
 const UcmHttpClient  = require('./infrastructure/ucm/UcmHttpClient');
-const UcmWebSocketClient = require('./infrastructure/ucm/UcmWebSocketClient');
+const UcmWsClient        = require('./infrastructure/ucm/UcmWsClient');
 const OdooClient     = require('./infrastructure/odoo/OdooClient');
 const WsServer       = require('./infrastructure/websocket/WsServer');
 const CallHandler    = require('./application/CallHandler');
@@ -38,7 +38,7 @@ async function main() {
   logger.info(`UCM: mode ${ucmMode.toUpperCase()}`);
   
   const ucmHttpClient = new UcmHttpClient();
-  const ucmWsClient   = new UcmWebSocketClient();
+  const ucmWsClient   = new UcmWsClient();
   const odooClient    = new OdooClient();
   const webhookManager = new WebhookManager();
   
@@ -111,20 +111,11 @@ async function main() {
     logger.info('UCM: statut système', status);
     
     // Connexion WebSocket pour événements
-    ucmWsClient.on('event', (event) => {
-      logger.debug('UCM WS: événement', event);
-      callHandler.handleUcmEvent(event);
-    });
-    
-    ucmWsClient.on('connected', () => {
-      logger.info('UCM WS: connecté pour événements temps réel');
-    });
-    
     ucmWsClient.on('error', (err) => {
       logger.warn('UCM WS: erreur', { error: err.message });
     });
-    
-    await ucmWsClient.connect();
+
+    ucmWsClient.connect();
     
   } catch (err) {
     logger.error('UCM: échec connexion', { error: err.message });
@@ -138,7 +129,7 @@ async function main() {
     // Déconnexion UCM
     try {
       await ucmHttpClient.disconnect();
-      await ucmWsClient.disconnect();
+      ucmWsClient.disconnect();
     } catch (err) {
       logger.warn('UCM: erreur déconnexion', { error: err.message });
     }

@@ -20,7 +20,8 @@ class UcmHttpClient {
     this._axiosInstance = null;
     this._reconnectAttempts = 0;
     this._maxReconnectAttempts = 5;
-    
+    this._authPromise = null;  // verrou anti-concurrence
+
     this._setupAxios();
   }
 
@@ -64,13 +65,12 @@ class UcmHttpClient {
       username 
     });
 
-    try {
-      await this._authenticate(username, password);
-      return true;
-    } catch (err) {
-      logger.error('UCM HTTP: échec authentification', { error: err.message });
-      throw err;
-    }
+    // Verrou : une seule auth à la fois
+    if (this._authPromise) return this._authPromise;
+    this._authPromise = this._authenticate(username, password)
+      .then(() => { this._authPromise = null; return true; })
+      .catch(err => { this._authPromise = null; logger.error('UCM HTTP: échec authentification', { error: err.message }); throw err; });
+    return this._authPromise;
   }
 
   /**

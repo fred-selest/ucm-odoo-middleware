@@ -14,8 +14,8 @@ FROM node:20-alpine AS runtime
 
 WORKDIR /app
 
-# Install curl for healthcheck
-RUN apk add --no-cache curl sqlite
+# Install curl for healthcheck + su-exec for entrypoint
+RUN apk add --no-cache curl sqlite su-exec
 
 # Create non-root user
 RUN addgroup -g 1001 nodejs && \
@@ -31,8 +31,9 @@ COPY --chown=nodejs:nodejs . .
 RUN mkdir -p /app/data /app/logs && \
     chown -R nodejs:nodejs /app/data /app/logs
 
-# Switch to non-root user
-USER nodejs
+# Entrypoint script (s'exécute en root pour fixer les permissions du volume)
+COPY --chown=root:root entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Expose ports
 EXPOSE 3000
@@ -41,5 +42,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -sf http://localhost:3000/health || exit 1
 
-# Start application
-CMD ["node", "src/index.js"]
+# Entrypoint root → fixe permissions → exec en nodejs
+ENTRYPOINT ["/entrypoint.sh"]

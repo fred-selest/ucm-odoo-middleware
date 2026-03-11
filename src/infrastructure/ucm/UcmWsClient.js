@@ -52,13 +52,14 @@ class UcmWsClient extends EventEmitter {
   }
 
   get isConnected() { return this._authenticated; }
+  get connected()   { return this._authenticated; }
 
   // ── Connexion ──────────────────────────────────────────────────────────────
 
   _doConnect() {
-    const { host, webPort, webUser } = config.ucm;
+    const { host, webPort, username } = config.ucm;
     const url = `wss://${host}:${webPort}/websockify`;
-    logger.info('UCM WS: connexion', { url, user: webUser, attempt: this._reconnectAttempts + 1 });
+    logger.info('UCM WS: connexion', { url, user: username, attempt: this._reconnectAttempts + 1 });
 
     const ws = new WebSocket(url, {
       rejectUnauthorized: process.env.UCM_TLS_REJECT_UNAUTHORIZED !== 'false'
@@ -67,6 +68,7 @@ class UcmWsClient extends EventEmitter {
 
     ws.on('open',    ()      => this._onOpen());
     ws.on('message', data    => this._onMessage(data));
+    ws.on('pong',    ()      => this._onPong());
     ws.on('error',   err     => this._onError(err));
     ws.on('close',   ()      => this._onClose());
   }
@@ -77,27 +79,26 @@ class UcmWsClient extends EventEmitter {
     logger.debug('UCM WS: connexion établie, démarrage auth');
     try {
       // Step 1 : challenge
-      const chalResp = await this._send({ action: 'challenge', username: config.ucm.webUser, version: '1' });
+      const chalResp = await this._send({ action: 'challenge', username: config.ucm.username, version: '1' });
       const challenge = chalResp?.challenge || chalResp?.message?.challenge;
       if (!challenge) throw new Error('Challenge non reçu');
 
-      // Step 2 : login
-      const token = crypto.createHash('md5').update(challenge + config.ucm.webPassword).digest('hex');
-      const loginResp = await this._send({ action: 'login', username: config.ucm.webUser, token, url: '' });
-      const cookie = loginResp?.cookie || loginResp?.message?.cookie;
-      if (!cookie) throw new Error('Cookie de session non reçu');
+      // Step 2 : login (la session WS est implicite — pas de cookie retourné)
+      const token = crypto.createHash('md5').update(challenge + config.ucm.password).digest('hex');
+      const loginResp = await this._send({ action: 'login', username: config.ucm.username, token, url: '' });
+      if (loginResp?.status !== 0) throw new Error(`Login échoué: status ${loginResp?.status}`);
 
-      this._cookie = cookie;
       this._authenticated = true;
       this._reconnectAttempts = 0;
-      logger.info('UCM WS: authentifié', { cookie: cookie.slice(0, 16) + '…' });
+      logger.info('UCM WS: authentifié');
 
-      // Step 3 : subscribe
-      await this._send({ action: 'subscribe', eventnames: ['ExtensionStatus'], cookie: this._cookie });
+      // Step 3 : subscribe (sans cookie — session implicite à la connexion WS)
+      await this._send({ action: 'subscribe', eventnames: ['ExtensionStatus'] });
       logger.info('UCM WS: souscription ExtensionStatus OK');
 
-      // Heartbeat toutes les 20s
-      this._heartbeatTimer = setInterval(() => this._heartbeat(), 20000);
+      // Keep-alive toutes les 15s : renouveler la subscribe pour éviter le timeout UCM (~25s)
+      this._pingTimeout = null;
+      this._heartbeatTimer = setInterval(() => this._heartbeat(), 15000);
 
       this.emit('connected');
     } catch (err) {
@@ -107,13 +108,17 @@ class UcmWsClient extends EventEmitter {
     }
   }
 
-  async _heartbeat() {
-    try {
-      await this._send({ action: 'heartbeat', cookie: this._cookie }, 5000);
-    } catch {
-      logger.warn('UCM WS: heartbeat timeout — reconnexion');
-      this._ws?.terminate();
-    }
+  _heartbeat() {
+    if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
+    // Renouveler la subscribe : maintient la session active côté UCM
+    const txId = String(++this._txId);
+    this._ws.send(JSON.stringify({ type: 'request', message: { transactionid: txId, action: 'subscribe', eventnames: ['ExtensionStatus'] } }));
+    logger.debug('UCM WS: keep-alive subscribe envoyé');
+  }
+
+  _onPong() {
+    // Pong WS natif (au cas où l'UCM répond aux pings)
+    logger.debug('UCM WS: pong reçu');
   }
 
   // ── Envoi de messages ──────────────────────────────────────────────────────
@@ -266,6 +271,10 @@ class UcmWsClient extends EventEmitter {
   _clearTimers() {
     clearInterval(this._heartbeatTimer);
     this._heartbeatTimer = null;
+    if (this._pingTimeout) {
+      clearTimeout(this._pingTimeout);
+      this._pingTimeout = null;
+    }
   }
 
   _scheduleReconnect() {

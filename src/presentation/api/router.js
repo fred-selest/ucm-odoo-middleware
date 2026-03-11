@@ -426,11 +426,11 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
 
     // Reconnexion UCM
     await ucmHttpClient.disconnect();
-    await ucmWsClient.disconnect();
+    ucmWsClient.disconnect();
     setTimeout(async () => {
       try {
         await ucmHttpClient.connect();
-        await ucmWsClient.connect();
+        ucmWsClient.connect();
       } catch (err) {
         logger.error('UCM: échec reconnexion', { error: err.message });
       }

@@ -778,9 +778,63 @@ function startApp() {
   fetchLogs();
   fetchWebhooks();
   fetchAgentStatus();
+  loadCallHistory();
   setInterval(fetchStatus,   5000);
   setInterval(fetchLogs,     3000);
   setInterval(fetchWebhooks, 30000);
+}
+
+async function loadCallHistory() {
+  try {
+    const r = await apiFetch('/api/calls/history?limit=50');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.ok || !d.data || d.data.length === 0) return;
+
+    const tbody = document.getElementById('callBody');
+    tbody.innerHTML = '';
+
+    d.data.forEach(call => {
+      const tr = document.createElement('tr');
+      tr.className = 'call-row';
+      tr.dataset.id = call.unique_id;
+      tr.innerHTML = callHtmlFromHistory(call);
+
+      if (call.contact_id) {
+        tr.style.cursor = 'pointer';
+        tr.title = 'Cliquer pour voir la fiche contact';
+        tr.onclick = () => showQuickContact({
+          id: call.contact_id,
+          name: call.contact_name || '—',
+          phone: call.contact_phone || '—',
+          email: call.contact_email || '—',
+          company: '',
+          odooUrl: call.contact_odoo_url || '#'
+        });
+      }
+
+      tbody.appendChild(tr);
+    });
+  } catch (e) {
+    console.error('Erreur chargement historique:', e);
+  }
+}
+
+function callHtmlFromHistory(call) {
+  const t = call.started_at
+    ? new Date(call.started_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : '—';
+  const statusBadges = { ringing: 'bg-primary', answered: 'bg-success', missed: 'bg-danger', hangup: 'bg-secondary' };
+  const statusLabels = { ringing: 'Sonnerie', answered: 'Décroché', missed: 'Manqué', hangup: 'Raccroché' };
+  const exten = call.exten || call.agent_exten || '—';
+  const contactHtml = call.contact_name
+    ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">${esc(call.contact_name)}</span>`
+    : '<span class="text-muted">—</span>';
+  return `<td class="text-muted small">${t}</td>
+    <td><code class="small">${esc(call.caller_id_num || '—')}</code></td>
+    <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(exten)}</span></td>
+    <td class="td-contact">${contactHtml}</td>
+    <td><span class="badge ${statusBadges[call.status] || 'bg-secondary'}">${statusLabels[call.status] || call.status || '—'}</span></td>`;
 }
 
 // ── WebSocket ────────────────────────────────────────────────────────────────
@@ -854,7 +908,7 @@ async function fetchStatus() {
       ucmStatusDot = d.websocket?.clients > 0 ? 'dot-green' : 'dot-gray';
     } else {
       // For AMI/WebSocket modes, show status based on UCM connection
-      ucmStatusDot = d.ucm.connected ? 'dot-green' : 'dot-red';
+      ucmStatusDot = d.ucm.wsConnected ? 'dot-green' : 'dot-red';
     }
     
     document.getElementById('statUcm').innerHTML = `<span class="status-dot ${ucmStatusDot}"></span>`;
