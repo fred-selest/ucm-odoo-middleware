@@ -931,9 +931,16 @@ function connectWs() {
   ws.onclose = () => { setWsStatus(false); setTimeout(connectWs, 3000); };
   ws.onmessage = ({ data }) => {
     let msg; try { msg = JSON.parse(data); } catch { return; }
-    if (msg.type === 'call:incoming') addCallRow(msg.data, 'incoming');
+    if (msg.type === 'call:incoming') {
+      addCallRow(msg.data, 'incoming');
+      if (msg.data.contact) showQuickContact(msg.data.contact);
+    }
     if (msg.type === 'call:answered') updateCallRow(msg.data, 'answered');
-    if (msg.type === 'call:hangup')   updateCallRow(msg.data, 'hangup');
+    if (msg.type === 'call:hangup') {
+      updateCallRow(msg.data, 'hangup');
+      // Rafraîchir le journal et l'historique après un raccroché
+      setTimeout(() => { loadCallHistory(); loadFullJournal(jPage); }, 500);
+    }
     if (msg.type === 'contact')       updateCallContact(msg.data);
     if (msg.type === 'agent:status_changed') fetchAgentStatus();
   };

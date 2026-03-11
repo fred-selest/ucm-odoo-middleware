@@ -224,14 +224,15 @@ class OdooClient {
     const icon = status === 'answered' ? '📞' : '📵';
     const dt = new Date(timestamp || Date.now());
     const dateStr = dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    let body = `<p>${icon} <strong>Appel ${dirLabel}</strong> — ${statusLabel}`;
+    let lines = [`${icon} Appel ${dirLabel} — ${statusLabel}`];
     if (duration > 0) {
       const min = Math.floor(duration / 60), sec = duration % 60;
-      body += `<br/>⏱ Durée : ${min > 0 ? min + 'min ' : ''}${sec}s`;
+      lines.push(`Durée : ${min > 0 ? min + 'min ' : ''}${sec}s`);
     }
-    if (callerIdNum) body += `<br/>📱 De : ${callerIdNum}`;
-    if (exten)       body += `<br/>🔢 Ext. : ${exten}`;
-    body += `<br/><small style="color:#888">${dateStr}</small></p>`;
+    if (callerIdNum) lines.push(`De : ${callerIdNum}`);
+    if (exten)       lines.push(`Ext. : ${exten}`);
+    lines.push(dateStr);
+    const body = lines.join('\n');
     try {
       await this._callModel('res.partner', 'message_post', [[partnerId]], {
         body,
@@ -478,7 +479,11 @@ class OdooClient {
   }
 
   _normalizePhone(phone) {
-    return phone.replace(/[\s\-\.\(\)]/g, '');
+    let clean = phone.replace(/[\s\-\.\(\)]/g, '');
+    // Canonicalise en format 0XXXXXXXXX pour unifier le cache
+    if (/^\+33(\d{9})$/.test(clean))   clean = '0' + clean.slice(3);
+    if (/^0033(\d{9})$/.test(clean))   clean = '0' + clean.slice(4);
+    return clean;
   }
 
   _phoneVariants(phone) {
