@@ -188,22 +188,34 @@
       <div class="card mb-3" id="quickContactCard" style="display:none;">
         <div class="card-header bg-success bg-opacity-10 d-flex justify-content-between align-items-center">
           <span><i class="bi bi-person-check me-1 text-success"></i><span id="quickContactName">—</span></span>
-          <button class="btn btn-sm btn-outline-success" onclick="openContactHistory()">
-            <i class="bi bi-clock-history"></i> Historique
-          </button>
+          <a href="#" id="quickContactOdooLink" target="_blank" class="btn btn-sm btn-outline-secondary py-0">
+            <i class="bi bi-box-arrow-up-right"></i> Odoo
+          </a>
         </div>
         <div class="card-body p-2">
           <input type="hidden" id="quickContactId">
-          <div class="small mb-1"><i class="bi bi-telephone me-1 text-muted"></i><span id="quickContactPhone">—</span></div>
-          <div class="small mb-1"><i class="bi bi-envelope me-1 text-muted"></i><span id="quickContactEmail">—</span></div>
-          <div class="small mb-1"><i class="bi bi-building me-1 text-muted"></i><span id="quickContactCompany">—</span></div>
-          <div class="d-flex gap-2 mt-2">
+          <!-- Avatar + coordonnées -->
+          <div class="d-flex align-items-start gap-2 mb-2">
+            <div id="quickContactAvatar" style="width:54px;height:54px;flex-shrink:0;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;overflow:hidden;font-weight:700;font-size:1.3rem;color:#64748b"></div>
+            <div class="flex-grow-1">
+              <div class="small mb-1"><i class="bi bi-telephone me-1 text-muted"></i><span id="quickContactPhone">—</span></div>
+              <div class="small mb-1" id="quickMobileRow" style="display:none"><i class="bi bi-phone me-1 text-muted"></i><span id="quickContactMobile">—</span></div>
+              <div class="small mb-1"><i class="bi bi-envelope me-1 text-muted"></i><span id="quickContactEmail">—</span></div>
+              <div class="small mb-1"><i class="bi bi-building me-1 text-muted"></i><span id="quickContactCompany">—</span></div>
+            </div>
+          </div>
+          <!-- Mini-historique -->
+          <div class="border-top pt-2 mt-1">
+            <div class="small fw-semibold text-muted mb-1">Appels récents</div>
+            <div id="quickContactHistory" class="small text-muted">—</div>
+          </div>
+          <div class="d-flex gap-2 mt-2 border-top pt-2">
             <button class="btn btn-sm btn-outline-primary" onclick="openEditContactModal()">
               <i class="bi bi-pencil"></i> Modifier
             </button>
-            <a href="#" id="quickContactOdooLink" target="_blank" class="btn btn-sm btn-outline-secondary">
-              <i class="bi bi-box"></i> Odoo
-            </a>
+            <button class="btn btn-sm btn-outline-success" onclick="openContactHistory()">
+              <i class="bi bi-clock-history"></i> Historique
+            </button>
           </div>
         </div>
       </div>
@@ -817,9 +829,15 @@ async function loadCallHistory() {
 }
 
 function callHtmlFromHistory(call) {
-  const t = call.started_at
-    ? new Date(call.started_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    : '—';
+  let t = '—';
+  if (call.started_at) {
+    const dt = new Date(call.started_at.replace(' ', 'T') + 'Z');
+    const today = new Date();
+    const isToday = dt.toDateString() === today.toDateString();
+    t = isToday
+      ? dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
   const statusBadges = { ringing: 'bg-primary', answered: 'bg-success', missed: 'bg-danger', hangup: 'bg-secondary' };
   const statusLabels = { ringing: 'Sonnerie', answered: 'Décroché', missed: 'Manqué', hangup: 'Raccroché' };
   const exten = call.exten || call.agent_exten || '—';
@@ -1497,7 +1515,61 @@ function showQuickContact(contact) {
   document.getElementById('quickContactEmail').textContent = contact.email || '—';
   document.getElementById('quickContactCompany').textContent = contact.company || '—';
   document.getElementById('quickContactOdooLink').href = contact.odooUrl || '#';
+
+  // Mobile
+  const mobileEl = document.getElementById('quickContactMobile');
+  const mobileRow = document.getElementById('quickMobileRow');
+  if (contact.mobile && contact.mobile !== contact.phone) {
+    mobileEl.textContent = contact.mobile;
+    mobileRow.style.display = '';
+  } else {
+    mobileRow.style.display = 'none';
+  }
+
+  // Avatar : initiales puis tentative de chargement photo
+  const avatarEl = document.getElementById('quickContactAvatar');
+  const initials = (contact.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  avatarEl.textContent = initials;
+  avatarEl.style.background = '#e2e8f0';
+  if (contact.avatarUrl) {
+    const img = new Image();
+    img.onload = () => {
+      avatarEl.innerHTML = '';
+      avatarEl.style.background = 'none';
+      const i = document.createElement('img');
+      i.src = contact.avatarUrl;
+      i.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
+      avatarEl.appendChild(i);
+    };
+    img.src = contact.avatarUrl;
+  }
+
+  document.getElementById('quickContactHistory').textContent = 'Chargement…';
   document.getElementById('quickContactCard').style.display = 'block';
+  loadQuickHistory(contact);
+}
+
+async function loadQuickHistory(contact) {
+  const el = document.getElementById('quickContactHistory');
+  try {
+    const phones = [contact.phone, contact.mobile].filter(Boolean);
+    if (!phones.length) { el.textContent = 'Aucun numéro'; return; }
+    // Chercher sur le premier numéro disponible
+    const r = await apiFetch(`/api/calls/history?caller=${encodeURIComponent(phones[0])}&limit=5`);
+    const d = await r.json();
+    if (!d.ok || !d.data || d.data.length === 0) {
+      el.textContent = 'Aucun appel précédent';
+      return;
+    }
+    const icons = { answered: '📞', missed: '📵', hangup: '📴', ringing: '🔔' };
+    const labels = { answered: 'Décroché', missed: 'Manqué', hangup: 'Raccroché', ringing: 'Sonnerie' };
+    el.innerHTML = d.data.map(c => {
+      const dt = new Date(c.started_at.replace(' ', 'T') + 'Z');
+      const date = dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+      const dur  = c.duration ? ` · ${Math.round(c.duration)}s` : '';
+      return `<div class="d-flex justify-content-between"><span>${icons[c.status] || '📞'} ${labels[c.status] || c.status}</span><span class="text-muted">${date}${dur}</span></div>`;
+    }).join('');
+  } catch { el.textContent = 'Erreur chargement'; }
 }
 
 // Mettre à jour la fiche contact quand un appel arrive

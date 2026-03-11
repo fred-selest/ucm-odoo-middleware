@@ -67,7 +67,7 @@ class OdooClient {
     let result;
     try {
       result = await this._callModel('res.partner', 'search_read', [domain], {
-        fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city'],
+        fields: ['id', 'name', 'phone', 'mobile', 'email', 'parent_id', 'is_company', 'street', 'city', 'function'],
         limit:  1,
         order:  'is_company desc, id asc',
       });
@@ -76,7 +76,7 @@ class OdooClient {
         this._uid = null;
         await this.authenticate();
         result = await this._callModel('res.partner', 'search_read', [domain], {
-          fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city'],
+          fields: ['id', 'name', 'phone', 'mobile', 'email', 'parent_id', 'is_company', 'street', 'city', 'function'],
           limit:  1,
           order:  'is_company desc, id asc',
         });
@@ -468,7 +468,7 @@ class OdooClient {
     return {
       id:        partner.id,
       name,
-      phone:     partner.phone || partner.mobile || null,
+      phone:     partner.phone || null,
       mobile:    partner.mobile || null,
       email:     partner.email || null,
       company,
@@ -477,6 +477,7 @@ class OdooClient {
       street:    partner.street || null,
       city:      partner.city   || null,
       odooUrl:   `${config.odoo.url}/odoo/contacts/${partner.id}`,
+      avatarUrl: `${config.odoo.url}/web/image/res.partner/${partner.id}/image_128`,
     };
   }
 
