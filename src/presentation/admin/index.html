@@ -1482,19 +1482,21 @@ document.getElementById('newWebhookName').addEventListener('keydown', e => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 let currentContactId = null;
+let _quickContactData = null;
 const bsModalEditContact = new bootstrap.Modal(document.getElementById('modalEditContact'));
 const bsModalCreateContact = new bootstrap.Modal(document.getElementById('modalCreateContact'));
 const bsModalContactHistory = new bootstrap.Modal(document.getElementById('modalContactHistory'));
 
 // Afficher la fiche contact rapide
 function showQuickContact(contact) {
+  _quickContactData = contact;
   currentContactId = contact.id;
   document.getElementById('quickContactId').value = contact.id;
   document.getElementById('quickContactName').textContent = contact.name;
   document.getElementById('quickContactPhone').textContent = contact.phone || '—';
   document.getElementById('quickContactEmail').textContent = contact.email || '—';
   document.getElementById('quickContactCompany').textContent = contact.company || '—';
-  document.getElementById('quickContactOdooLink').href = contact.odooUrl;
+  document.getElementById('quickContactOdooLink').href = contact.odooUrl || '#';
   document.getElementById('quickContactCard').style.display = 'block';
 }
 
@@ -1502,39 +1504,27 @@ function showQuickContact(contact) {
 function updateCallContactWithDetails(data) {
   const tr = callRows[data.uniqueId];
   if (tr && data.contact) {
-    tr.querySelector('.td-contact').innerHTML = 
+    tr.querySelector('.td-contact').innerHTML =
       `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">${data.contact.name}</span>`;
-    // Afficher la fiche contact rapide
     showQuickContact(data.contact);
   }
 }
 
-// Ouvrir la modale d'édition
+// Ouvrir la modale d'édition — utilise les données déjà en mémoire (pas de fetch)
 function openEditContactModal() {
   const contactId = document.getElementById('quickContactId').value;
   if (!contactId) return;
-  
+  const c = _quickContactData || {};
   document.getElementById('editContactError').classList.add('d-none');
-  document.getElementById('saveEditContactBtn').disabled = true;
-  document.getElementById('saveEditContactBtn').innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Chargement…';
-  
-  apiFetch(`/api/odoo/contacts/${contactId}`)
-    .then(r => r.json())
-    .then(d => {
-      if (d.ok && d.data) {
-        document.getElementById('editContactId').value = d.data.id;
-        document.getElementById('editContactName').value = d.data.name || '';
-        document.getElementById('editContactPhone').value = d.data.phone || '';
-        document.getElementById('editContactMobile').value = d.data.mobile || '';
-        document.getElementById('editContactEmail').value = d.data.email || '';
-        document.getElementById('editContactFunction').value = d.data.function || '';
-        bsModalEditContact.show();
-      }
-    })
-    .finally(() => {
-      document.getElementById('saveEditContactBtn').disabled = false;
-      document.getElementById('saveEditContactBtn').innerHTML = '<i class="bi bi-save me-1"></i>Enregistrer';
-    });
+  document.getElementById('editContactId').value = contactId;
+  document.getElementById('editContactName').value = c.name || '';
+  document.getElementById('editContactPhone').value = c.phone || '';
+  document.getElementById('editContactMobile').value = c.mobile || '';
+  document.getElementById('editContactEmail').value = c.email || '';
+  document.getElementById('editContactFunction').value = c.function || '';
+  document.getElementById('saveEditContactBtn').disabled = false;
+  document.getElementById('saveEditContactBtn').innerHTML = '<i class="bi bi-save me-1"></i>Enregistrer';
+  bsModalEditContact.show();
 }
 
 // Sauvegarder la modification du contact
