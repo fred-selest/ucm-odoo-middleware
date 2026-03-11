@@ -757,6 +757,29 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
     }
   });
 
+  // GET /api/odoo/contacts/:id/messages - Messages chatter Odoo
+  router.get('/api/odoo/contacts/:id/messages', async (req, res) => {
+    try {
+      const messages = await odooClient.getContactMessages(parseInt(req.params.id), 20);
+      res.json({ ok: true, data: messages });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // POST /api/odoo/contacts/:id/notes - Ajouter une note dans le chatter
+  router.post('/api/odoo/contacts/:id/notes', async (req, res) => {
+    try {
+      const { note } = req.body || {};
+      if (!note?.trim()) return res.status(400).json({ ok: false, error: 'Note requise' });
+      await odooClient.addContactNote(parseInt(req.params.id), note.trim());
+      logger.info('Note ajoutée sur contact Odoo', { id: req.params.id, user: req.session?.username });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
   // POST /api/odoo/contacts - Créer un nouveau contact
   router.post('/api/odoo/contacts', async (req, res) => {
     try {

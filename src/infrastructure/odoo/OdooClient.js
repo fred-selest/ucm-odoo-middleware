@@ -67,7 +67,7 @@ class OdooClient {
     let result;
     try {
       result = await this._callModel('res.partner', 'search_read', [domain], {
-        fields: ['id', 'name', 'phone', 'mobile', 'email', 'parent_id', 'is_company', 'street', 'city', 'function'],
+        fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function', 'image_128'],
         limit:  1,
         order:  'is_company desc, id asc',
       });
@@ -76,7 +76,7 @@ class OdooClient {
         this._uid = null;
         await this.authenticate();
         result = await this._callModel('res.partner', 'search_read', [domain], {
-          fields: ['id', 'name', 'phone', 'mobile', 'email', 'parent_id', 'is_company', 'street', 'city', 'function'],
+          fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function', 'image_128'],
           limit:  1,
           order:  'is_company desc, id asc',
         });
@@ -116,7 +116,7 @@ class OdooClient {
     let result;
     try {
       result = await this._callModel('res.partner', 'search_read', [domain], {
-        fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function'],
+        fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function', 'image_128'],
         limit: limit,
         order: 'name asc',
       });
@@ -125,7 +125,7 @@ class OdooClient {
         this._uid = null;
         await this.authenticate();
         result = await this._callModel('res.partner', 'search_read', [domain], {
-          fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function'],
+          fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function', 'image_128'],
           limit: limit,
           order: 'name asc',
         });
@@ -147,7 +147,7 @@ class OdooClient {
     const result = await this._callModel('res.partner', 'search_read', [
       [['id', '=', contactId]]
     ], {
-      fields: ['id', 'name', 'phone', 'mobile', 'email', 'parent_id', 'is_company', 
+      fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company',
                'street', 'city', 'zip', 'country_id', 'function', 'website', 'comment'],
       limit: 1,
     });
@@ -163,7 +163,6 @@ class OdooClient {
     const values = {
       name: contactData.name,
       phone: contactData.phone,
-      mobile: contactData.mobile,
       email: contactData.email,
       is_company: contactData.is_company || false,
     };
@@ -186,7 +185,6 @@ class OdooClient {
     const values = {};
     if (contactData.name !== undefined) values.name = contactData.name;
     if (contactData.phone !== undefined) values.phone = contactData.phone;
-    if (contactData.mobile !== undefined) values.mobile = contactData.mobile;
     if (contactData.email !== undefined) values.email = contactData.email;
     if (contactData.street !== undefined) values.street = contactData.street;
     if (contactData.city !== undefined) values.city = contactData.city;
@@ -194,7 +192,7 @@ class OdooClient {
     if (contactData.comment !== undefined) values.comment = contactData.comment;
     if (contactData.company_id !== undefined) values.parent_id = contactData.company_id;
     
-    await this._callModel('res.partner', 'write', [[contactId, values]]);
+    await this._callModel('res.partner', 'write', [[contactId], values]);
     logger.info('Odoo: contact modifié', { id: contactId });
     
     return this.getContactById(contactId);
@@ -206,13 +204,76 @@ class OdooClient {
     const result = await this._callModel('res.partner', 'search_read', [
       [['id', '=', contactId]]
     ], {
-      fields: ['id', 'name', 'phone', 'email', 'mobile', 'parent_id', 'is_company', 
-               'street', 'city', 'function'],
+      fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company',
+               'street', 'city', 'function', 'image_128'],
       limit: 1,
     });
     
     if (!result || result.length === 0) return null;
     return this._formatContact(result[0]);
+  }
+
+  /**
+   * Logue automatiquement un appel dans le chatter Odoo du contact
+   */
+  async logCallActivity(partnerId, callData) {
+    await this.ensureAuthenticated();
+    const { direction = 'inbound', status, duration, callerIdNum, exten, timestamp } = callData;
+    const dirLabel = direction === 'outbound' ? 'sortant' : 'entrant';
+    const statusLabel = { answered: 'Décroché', missed: 'Manqué', hangup: 'Raccroché' }[status] || status;
+    const icon = status === 'answered' ? '📞' : '📵';
+    const dt = new Date(timestamp || Date.now());
+    const dateStr = dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    let body = `<p>${icon} <strong>Appel ${dirLabel}</strong> — ${statusLabel}`;
+    if (duration > 0) {
+      const min = Math.floor(duration / 60), sec = duration % 60;
+      body += `<br/>⏱ Durée : ${min > 0 ? min + 'min ' : ''}${sec}s`;
+    }
+    if (callerIdNum) body += `<br/>📱 De : ${callerIdNum}`;
+    if (exten)       body += `<br/>🔢 Ext. : ${exten}`;
+    body += `<br/><small style="color:#888">${dateStr}</small></p>`;
+    try {
+      await this._callModel('res.partner', 'message_post', [[partnerId]], {
+        body,
+        message_type: 'comment',
+        subtype_xmlid: 'mail.mt_note',
+      });
+      logger.info('Odoo: appel loggé sur contact', { partnerId, status });
+    } catch (err) {
+      logger.warn('Odoo: échec log appel', { error: err.message, partnerId });
+    }
+  }
+
+  /**
+   * Récupère les messages du chatter d'un contact
+   */
+  async getContactMessages(partnerId, limit = 15) {
+    await this.ensureAuthenticated();
+    try {
+      const result = await this._callModel('mail.message', 'search_read', [
+        [['res_id', '=', partnerId], ['model', '=', 'res.partner'], ['message_type', 'in', ['comment', 'email']]]
+      ], {
+        fields: ['body', 'date', 'author_id', 'message_type'],
+        limit,
+        order: 'date desc',
+      });
+      return result || [];
+    } catch (err) {
+      logger.warn('Odoo: échec récupération messages', { error: err.message, partnerId });
+      return [];
+    }
+  }
+
+  /**
+   * Ajoute une note manuelle dans le chatter d'un contact
+   */
+  async addContactNote(partnerId, note) {
+    await this.ensureAuthenticated();
+    await this._callModel('res.partner', 'message_post', [[partnerId]], {
+      body: note.trim(),
+      message_type: 'comment',
+      subtype_xmlid: 'mail.mt_note',
+    });
   }
 
   invalidateCache(phone = null) {
@@ -469,7 +530,6 @@ class OdooClient {
       id:        partner.id,
       name,
       phone:     partner.phone || null,
-      mobile:    partner.mobile || null,
       email:     partner.email || null,
       company,
       isCompany: partner.is_company,
@@ -477,7 +537,7 @@ class OdooClient {
       street:    partner.street || null,
       city:      partner.city   || null,
       odooUrl:   `${config.odoo.url}/odoo/contacts/${partner.id}`,
-      avatarUrl: `${config.odoo.url}/web/image/res.partner/${partner.id}/image_128`,
+      avatar:    partner.image_128 ? `data:image/png;base64,${partner.image_128}` : null,
     };
   }
 
@@ -491,7 +551,6 @@ class OdooClient {
       id:        partner.id,
       name,
       phone:     partner.phone || null,
-      mobile:    partner.mobile || null,
       email:     partner.email || null,
       company,
       companyId: Array.isArray(partner.parent_id) ? partner.parent_id[0] : null,

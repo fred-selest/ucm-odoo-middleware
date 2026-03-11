@@ -199,15 +199,22 @@
             <div id="quickContactAvatar" style="width:54px;height:54px;flex-shrink:0;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;overflow:hidden;font-weight:700;font-size:1.3rem;color:#64748b"></div>
             <div class="flex-grow-1">
               <div class="small mb-1"><i class="bi bi-telephone me-1 text-muted"></i><span id="quickContactPhone">—</span></div>
-              <div class="small mb-1" id="quickMobileRow" style="display:none"><i class="bi bi-phone me-1 text-muted"></i><span id="quickContactMobile">—</span></div>
               <div class="small mb-1"><i class="bi bi-envelope me-1 text-muted"></i><span id="quickContactEmail">—</span></div>
               <div class="small mb-1"><i class="bi bi-building me-1 text-muted"></i><span id="quickContactCompany">—</span></div>
             </div>
           </div>
-          <!-- Mini-historique -->
+          <!-- Timeline appels + notes -->
           <div class="border-top pt-2 mt-1">
-            <div class="small fw-semibold text-muted mb-1">Appels récents</div>
-            <div id="quickContactHistory" class="small text-muted">—</div>
+            <div class="small fw-semibold text-muted mb-1">Historique &amp; notes</div>
+            <div id="quickContactHistory" class="small" style="max-height:130px;overflow-y:auto">—</div>
+          </div>
+          <!-- Saisie note Odoo -->
+          <div class="border-top pt-2 mt-1">
+            <div class="input-group input-group-sm">
+              <input type="text" id="quickNoteInput" class="form-control" placeholder="Ajouter une note dans Odoo…">
+              <button class="btn btn-outline-secondary" id="quickNoteSaveBtn"><i class="bi bi-send"></i></button>
+            </div>
+            <div id="quickNoteResult" class="small mt-1"></div>
           </div>
           <div class="d-flex gap-2 mt-2 border-top pt-2">
             <button class="btn btn-sm btn-outline-primary" onclick="openEditContactModal()">
@@ -644,13 +651,9 @@
             <label class="form-label small fw-semibold">Nom complet *</label>
             <input type="text" id="newContactName" class="form-control form-control-sm" placeholder="Jean Dupont">
           </div>
-          <div class="col-6">
+          <div class="col-12">
             <label class="form-label small fw-semibold">Téléphone</label>
             <input type="text" id="newContactPhone" class="form-control form-control-sm" placeholder="0612345678">
-          </div>
-          <div class="col-6">
-            <label class="form-label small fw-semibold">Mobile</label>
-            <input type="text" id="newContactMobile" class="form-control form-control-sm" placeholder="0612345678">
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Email</label>
@@ -690,13 +693,9 @@
             <label class="form-label small fw-semibold">Nom complet *</label>
             <input type="text" id="editContactName" class="form-control form-control-sm">
           </div>
-          <div class="col-6">
+          <div class="col-12">
             <label class="form-label small fw-semibold">Téléphone</label>
             <input type="text" id="editContactPhone" class="form-control form-control-sm">
-          </div>
-          <div class="col-6">
-            <label class="form-label small fw-semibold">Mobile</label>
-            <input type="text" id="editContactMobile" class="form-control form-control-sm">
           </div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Email</label>
@@ -1714,32 +1713,17 @@ function showQuickContact(contact) {
   document.getElementById('quickContactCompany').textContent = contact.company || '—';
   document.getElementById('quickContactOdooLink').href = contact.odooUrl || '#';
 
-  // Mobile
-  const mobileEl = document.getElementById('quickContactMobile');
-  const mobileRow = document.getElementById('quickMobileRow');
-  if (contact.mobile && contact.mobile !== contact.phone) {
-    mobileEl.textContent = contact.mobile;
-    mobileRow.style.display = '';
-  } else {
-    mobileRow.style.display = 'none';
-  }
-
-  // Avatar : initiales puis tentative de chargement photo
+  // Avatar : photo base64 si disponible, sinon initiales
   const avatarEl = document.getElementById('quickContactAvatar');
-  const initials = (contact.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-  avatarEl.textContent = initials;
-  avatarEl.style.background = '#e2e8f0';
-  if (contact.avatarUrl) {
-    const img = new Image();
-    img.onload = () => {
-      avatarEl.innerHTML = '';
-      avatarEl.style.background = 'none';
-      const i = document.createElement('img');
-      i.src = contact.avatarUrl;
-      i.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
-      avatarEl.appendChild(i);
-    };
-    img.src = contact.avatarUrl;
+  if (contact.avatar) {
+    avatarEl.innerHTML = `<img src="${contact.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    avatarEl.style.background = 'none';
+    avatarEl.style.color = 'transparent';
+  } else {
+    const initials = (contact.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+    avatarEl.textContent = initials;
+    avatarEl.style.background = '#e2e8f0';
+    avatarEl.style.color = '#64748b';
   }
 
   document.getElementById('quickContactHistory').textContent = 'Chargement…';
@@ -1749,26 +1733,75 @@ function showQuickContact(contact) {
 
 async function loadQuickHistory(contact) {
   const el = document.getElementById('quickContactHistory');
+  el.textContent = 'Chargement…';
   try {
-    const phones = [contact.phone, contact.mobile].filter(Boolean);
-    if (!phones.length) { el.textContent = 'Aucun numéro'; return; }
-    // Chercher sur le premier numéro disponible
-    const r = await apiFetch(`/api/calls/history?caller=${encodeURIComponent(phones[0])}&limit=5`);
-    const d = await r.json();
-    if (!d.ok || !d.data || d.data.length === 0) {
-      el.textContent = 'Aucun appel précédent';
-      return;
+    const requests = [
+      contact.id ? apiFetch(`/api/odoo/contacts/${contact.id}/messages`).then(r => r.json()).catch(() => ({ ok: false })) : Promise.resolve({ ok: false }),
+      contact.phone ? apiFetch(`/api/calls/history?caller=${encodeURIComponent(contact.phone)}&limit=10`).then(r => r.json()).catch(() => ({ ok: false })) : Promise.resolve({ ok: false }),
+    ];
+    const [msgResult, callResult] = await Promise.all(requests);
+
+    const items = [];
+
+    // Appels depuis la DB locale
+    if (callResult.ok && callResult.data) {
+      const icons  = { answered:'📞', missed:'📵', hangup:'📴', ringing:'🔔' };
+      const labels = { answered:'Décroché', missed:'Manqué', hangup:'Raccroché', ringing:'Sonnerie' };
+      callResult.data.forEach(c => {
+        const dt  = new Date(c.started_at.replace(' ', 'T') + 'Z');
+        const dur = c.duration > 0 ? ` · ${c.duration >= 60 ? Math.floor(c.duration/60)+'min ' : ''}${c.duration%60}s` : '';
+        items.push({ dt, html:
+          `<div class="d-flex justify-content-between py-1 border-bottom">
+            <span>${icons[c.status]||'📞'} ${labels[c.status]||c.status}${dur}</span>
+            <span class="text-muted">${dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</span>
+          </div>` });
+      });
     }
-    const icons = { answered: '📞', missed: '📵', hangup: '📴', ringing: '🔔' };
-    const labels = { answered: 'Décroché', missed: 'Manqué', hangup: 'Raccroché', ringing: 'Sonnerie' };
-    el.innerHTML = d.data.map(c => {
-      const dt = new Date(c.started_at.replace(' ', 'T') + 'Z');
-      const date = dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
-      const dur  = c.duration ? ` · ${Math.round(c.duration)}s` : '';
-      return `<div class="d-flex justify-content-between"><span>${icons[c.status] || '📞'} ${labels[c.status] || c.status}</span><span class="text-muted">${date}${dur}</span></div>`;
-    }).join('');
-  } catch { el.textContent = 'Erreur chargement'; }
+
+    // Notes Odoo chatter
+    if (msgResult.ok && msgResult.data) {
+      msgResult.data.forEach(m => {
+        const dt = new Date((m.date || '').replace(' ', 'T') + 'Z');
+        const preview = m.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+        items.push({ dt, html:
+          `<div class="d-flex justify-content-between align-items-start py-1 border-bottom">
+            <span class="me-1 text-secondary">💬 ${esc(preview)}</span>
+            <span class="text-muted flex-shrink-0">${dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</span>
+          </div>` });
+      });
+    }
+
+    if (!items.length) { el.innerHTML = '<span class="text-muted">Aucun historique</span>'; return; }
+    items.sort((a, b) => b.dt - a.dt);
+    el.innerHTML = items.slice(0, 10).map(i => i.html).join('');
+  } catch { el.innerHTML = '<span class="text-muted text-danger">Erreur chargement</span>'; }
 }
+
+// Sauvegarder une note dans le chatter Odoo
+document.getElementById('quickNoteSaveBtn').onclick = async () => {
+  const contactId = document.getElementById('quickContactId').value;
+  const note = document.getElementById('quickNoteInput').value.trim();
+  const res  = document.getElementById('quickNoteResult');
+  if (!contactId || !note) return;
+  document.getElementById('quickNoteSaveBtn').disabled = true;
+  try {
+    const r = await apiFetch(`/api/odoo/contacts/${contactId}/notes`, {
+      method: 'POST', body: JSON.stringify({ note }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('quickNoteInput').value = '';
+      res.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Note ajoutée dans Odoo</span>';
+      setTimeout(() => { res.innerHTML = ''; loadQuickHistory(_quickContactData); }, 2000);
+    } else {
+      res.innerHTML = `<span class="text-danger">${esc(d.error)}</span>`;
+    }
+  } catch(e) { res.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`; }
+  finally { document.getElementById('quickNoteSaveBtn').disabled = false; }
+};
+document.getElementById('quickNoteInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('quickNoteSaveBtn').click();
+});
 
 // Mettre à jour la fiche contact quand un appel arrive
 function updateCallContactWithDetails(data) {
@@ -1789,7 +1822,7 @@ function openEditContactModal() {
   document.getElementById('editContactId').value = contactId;
   document.getElementById('editContactName').value = c.name || '';
   document.getElementById('editContactPhone').value = c.phone || '';
-  document.getElementById('editContactMobile').value = c.mobile || '';
+
   document.getElementById('editContactEmail').value = c.email || '';
   document.getElementById('editContactFunction').value = c.function || '';
   document.getElementById('saveEditContactBtn').disabled = false;
@@ -1803,7 +1836,6 @@ document.getElementById('saveEditContactBtn').onclick = async () => {
   const body = {
     name: document.getElementById('editContactName').value.trim(),
     phone: document.getElementById('editContactPhone').value.trim(),
-    mobile: document.getElementById('editContactMobile').value.trim(),
     email: document.getElementById('editContactEmail').value.trim(),
     function: document.getElementById('editContactFunction').value.trim(),
   };
@@ -1841,7 +1873,6 @@ document.getElementById('saveEditContactBtn').onclick = async () => {
 function openCreateContactModal() {
   document.getElementById('newContactName').value = '';
   document.getElementById('newContactPhone').value = '';
-  document.getElementById('newContactMobile').value = '';
   document.getElementById('newContactEmail').value = '';
   document.getElementById('newContactCompany').value = '';
   document.getElementById('newContactFunction').value = '';
@@ -1855,7 +1886,6 @@ document.getElementById('createContactBtn').onclick = async () => {
   const body = {
     name: document.getElementById('newContactName').value.trim(),
     phone: document.getElementById('newContactPhone').value.trim(),
-    mobile: document.getElementById('newContactMobile').value.trim(),
     email: document.getElementById('newContactEmail').value.trim(),
     is_company: !document.getElementById('newContactCompany').value.trim(),
     function: document.getElementById('newContactFunction').value.trim(),

@@ -235,6 +235,20 @@ class CallHandler {
       }
     }
     
+    // Log automatique dans Odoo si un contact est associé
+    const contact = enriched.contact;
+    if (contact?.id && this._odoo) {
+      const callStatus = enriched.answeredAt ? 'answered' : 'missed';
+      this._odoo.logCallActivity(contact.id, {
+        direction: enriched.direction || 'inbound',
+        status:    callStatus,
+        duration:  duration || 0,
+        callerIdNum: enriched.callerIdNum,
+        exten:     enriched.exten || enriched.agentExten,
+        timestamp: enriched.timestamp,
+      }).catch(() => {});
+    }
+
     logger.info('Appel raccroché', { uniqueId, target, duration });
   }
 
