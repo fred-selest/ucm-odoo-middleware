@@ -1,93 +1,45 @@
-# ── Stage 1 : Build des dépendances natives ─────────────────────────────────
+# Build stage
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Installer les outils de compilation pour sqlite3
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    sqlite-dev
+# Copy package files
+COPY package*.json ./
 
-# Copier les manifestes
-COPY package.json package-lock.json* ./
+# Install dependencies
+RUN npm ci --only=production && npm cache clean --force
 
-# Installer TOUTES les dépendances (inclut dev pour compilation)
-RUN npm ci --ignore-scripts && \
-    npm rebuild sqlite3 && \
-    npm cache clean --force
-
-# ── Stage 2 : Production dependencies ────────────────────────────────────────
-FROM node:20-alpine AS deps
-
-WORKDIR /app
-
-# Installer sqlite-dev pour les libs natives
-RUN apk add --no-cache sqlite-dev
-
-COPY package.json package-lock.json* ./
-
-# Installer uniquement les dépendances de production
-RUN npm install --omit=dev --ignore-scripts && \
-    npm cache clean --force
-
-# ── Stage 3 : Image finale (distroless-like) ─────────────────────────────────
+# Runtime stage
 FROM node:20-alpine AS runtime
 
-# Métadonnées OCI
-LABEL org.opencontainers.image.title="UCM ↔ Odoo Middleware" \
-      org.opencontainers.image.description="CTI middleware for Grandstream UCM and Odoo integration" \
-      org.opencontainers.image.source="https://github.com/${GITHUB_REPOSITORY}" \
-      org.opencontainers.image.version="${VERSION:-latest}" \
-      maintainer="contact@selest.info"
-
 WORKDIR /app
 
-# Dépendances système minimales
-RUN apk add --no-cache \
-    tini \
-    curl \
-    sqlite-libs \
-    && rm -rf /var/cache/apk/*
+# Install curl for healthcheck
+RUN apk add --no-cache curl sqlite
 
-# Copier les modules depuis le stage deps
-COPY --from=deps /app/node_modules ./node_modules
+# Create non-root user
+RUN addgroup -g 1001 nodejs && \
+    adduser -S -u 1001 nodejs
 
-# Copier le code applicatif
-COPY src/ ./src/
-COPY package.json ./
+# Copy dependencies from builder
+COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 
-# Créer le répertoire de logs et données avec les bons droits
-RUN mkdir -p /app/logs /app/data && \
-    chown -R node:node /app
+# Copy application files
+COPY --chown=nodejs:nodejs . .
 
-# Basculer sur l'utilisateur non-root
-USER node
+# Create data and logs directories
+RUN mkdir -p /app/data /app/logs && \
+    chown -R nodejs:nodejs /app/data /app/logs
 
-# Exposition du port HTTP/WS
+# Switch to non-root user
+USER nodejs
+
+# Expose ports
 EXPOSE 3000
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -sf http://localhost:3000/health || exit 1
 
-# Utiliser tini comme PID 1
-ENTRYPOINT ["/sbin/tini", "--"]
-
+# Start application
 CMD ["node", "src/index.js"]
-
-# ── Stage 4 : Development ────────────────────────────────────────────────────
-FROM builder AS development
-
-WORKDIR /app
-
-# Installer nodemon pour le hot-reload
-RUN npm install -g nodemon
-
-# Copier tout le code
-COPY . .
-
-EXPOSE 3000
-
-CMD ["nodemon", "--watch", "src", "--ext", "js,json", "src/index.js"]

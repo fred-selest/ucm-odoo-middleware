@@ -42,7 +42,7 @@ function requireSession(req, res, next) {
   next();
 }
 
-function createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookManager, callHistory }) {
+function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHandler, webhookManager, callHistory }) {
   const router = Router();
 
   // ── Interface admin (sans auth) ─────────────────────────────────────────
@@ -63,9 +63,14 @@ function createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookMan
 
   // ── Healthcheck public ──────────────────────────────────────────────────
   router.get('/health', (req, res) => {
-    const ucmOk = ucmClient.isConnected;
+    const ucmHttpOk = ucmHttpClient?.authenticated || false;
+    const ucmWsOk = ucmWsClient?.connected || false;
+    const ucmOk = ucmHttpOk && ucmWsOk;
     res.status(ucmOk ? 200 : 503).json({
-      status: ucmOk ? 'ok' : 'degraded', ucm: ucmOk,
+      status: ucmOk ? 'ok' : 'degraded',
+      ucm: ucmOk,
+      ucmHttp: ucmHttpOk,
+      ucmWs: ucmWsOk,
       timestamp: new Date().toISOString(),
     });
   });
@@ -114,10 +119,11 @@ function createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookMan
   router.get('/api/status', (req, res) => {
     res.json({
       ucm: {
-        connected: ucmClient.isConnected,
+        httpConnected: ucmHttpClient?.authenticated || false,
+        wsConnected: ucmWsClient?.connected || false,
         mode:      config.ucm.mode,
         host:      config.ucm.host,
-        port:      config.ucm.port,
+        port:      config.ucm.webPort,
         watchExtensions: config.ucm.watchExtensions,
       },
       odoo: {
@@ -386,12 +392,11 @@ function createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookMan
       ucm: {
         mode:            config.ucm.mode,
         host:            config.ucm.host,
-        port:            config.ucm.port,
-        username:        config.ucm.username,
         webPort:         config.ucm.webPort,
-        webUser:         config.ucm.webUser,
+        username:        config.ucm.username,
         watchExtensions: config.ucm.watchExtensions,
-        connected:       ucmClient.isConnected,
+        httpConnected:   ucmHttpClient?.authenticated || false,
+        wsConnected:     ucmWsClient?.connected || false,
       },
       odoo: {
         url:      config.odoo.url,
@@ -411,8 +416,7 @@ function createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookMan
     if (username)        fields.username        = username.trim();
     if (secret !== undefined && secret !== '') fields.secret = secret;
     if (webPort)         fields.webPort         = parseInt(webPort, 10);
-    if (webUser)         fields.webUser         = webUser.trim();
-    if (webPassword !== undefined && webPassword !== '') fields.webPassword = webPassword;
+    if (fields.webPort)  fields.webPort         = parseInt(fields.webPort, 10);
     if (watchExtensions !== undefined)
       fields.watchExtensions = Array.isArray(watchExtensions)
         ? watchExtensions : watchExtensions.split(',').map(s => s.trim()).filter(Boolean);
@@ -421,8 +425,16 @@ function createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookMan
     logger.info('Admin: config UCM mise à jour', { user: req.session.username, fields: Object.keys(fields) });
 
     // Reconnexion UCM
-    ucmClient.disconnect();
-    setTimeout(() => ucmClient.connect(), 500);
+    await ucmHttpClient.disconnect();
+    await ucmWsClient.disconnect();
+    setTimeout(async () => {
+      try {
+        await ucmHttpClient.connect();
+        await ucmWsClient.connect();
+      } catch (err) {
+        logger.error('UCM: échec reconnexion', { error: err.message });
+      }
+    }, 500);
 
     res.json({ ok: true, message: 'Configuration UCM sauvegardée — reconnexion en cours' });
   });
@@ -688,6 +700,211 @@ function createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookMan
       res.json({ ok: true, data: calls });
     } catch (err) {
       logger.error('Erreur récupération appels actifs', { error: err.message, exten: req.params.exten });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ══ GESTION DES CONTACTS ODOO (Ringover style) ═════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // GET /api/odoo/contacts/:id - Détails d'un contact
+  router.get('/api/odoo/contacts/:id', async (req, res) => {
+    try {
+      const contact = await odooClient.getContactById(parseInt(req.params.id));
+      if (!contact) {
+        return res.status(404).json({ ok: false, error: 'Contact non trouvé' });
+      }
+      res.json({ ok: true, data: contact });
+    } catch (err) {
+      logger.error('Erreur récupération contact', { error: err.message, id: req.params.id });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // GET /api/odoo/contacts/:id/history - Historique des appels d'un contact
+  router.get('/api/odoo/contacts/:id/history', async (req, res) => {
+    try {
+      const contactId = parseInt(req.params.id);
+      const contact = await odooClient.getContactById(contactId);
+      if (!contact) {
+        return res.status(404).json({ ok: false, error: 'Contact non trouvé' });
+      }
+
+      // Récupérer les appels depuis l'historique par numéro de téléphone
+      const phone = contact.phone || contact.mobile;
+      let calls = [];
+      if (phone && callHistory) {
+        calls = await callHistory.getCalls({ callerIdNum: phone, limit: 100 });
+      }
+
+      res.json({
+        ok: true,
+        data: {
+          contact,
+          calls,
+          stats: {
+            totalCalls: calls.length,
+            answeredCalls: calls.filter(c => c.status === 'answered').length,
+            missedCalls: calls.filter(c => c.status === 'missed').length,
+            totalDuration: calls.reduce((sum, c) => sum + (c.duration || 0), 0),
+          }
+        }
+      });
+    } catch (err) {
+      logger.error('Erreur historique contact', { error: err.message, id: req.params.id });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // POST /api/odoo/contacts - Créer un nouveau contact
+  router.post('/api/odoo/contacts', async (req, res) => {
+    try {
+      const contactData = req.body;
+      
+      if (!contactData.name) {
+        return res.status(400).json({ ok: false, error: 'Nom requis' });
+      }
+      
+      const contact = await odooClient.createContact(contactData);
+      logger.info('Contact créé via API', { id: contact.id, name: contact.name, user: req.session.username });
+      
+      res.json({ ok: true, data: contact });
+    } catch (err) {
+      logger.error('Erreur création contact', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // PUT /api/odoo/contacts/:id - Modifier un contact
+  router.put('/api/odoo/contacts/:id', async (req, res) => {
+    try {
+      const contactId = parseInt(req.params.id);
+      const contactData = req.body;
+      
+      const contact = await odooClient.updateContact(contactId, contactData);
+      logger.info('Contact modifié via API', { id: contactId, user: req.session.username });
+      
+      res.json({ ok: true, data: contact });
+    } catch (err) {
+      logger.error('Erreur modification contact', { error: err.message, id: req.params.id });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // POST /api/calls/:uniqueId/link-contact - Associer un contact à un appel
+  router.post('/api/calls/:uniqueId/link-contact', async (req, res) => {
+    try {
+      const { contactId } = req.body;
+      if (!contactId) {
+        return res.status(400).json({ ok: false, error: 'contactId requis' });
+      }
+
+      const call = await callHistory.getCallByUniqueId(req.params.uniqueId);
+      if (!call) {
+        return res.status(404).json({ ok: false, error: 'Appel non trouvé' });
+      }
+
+      const contact = await odooClient.getContactById(parseInt(contactId));
+      if (!contact) {
+        return res.status(404).json({ ok: false, error: 'Contact non trouvé' });
+      }
+
+      await callHistory.updateCallContact(req.params.uniqueId, {
+        id: contact.id,
+        name: contact.name,
+        phone: contact.phone,
+        email: contact.email,
+        odooUrl: contact.odooUrl,
+      });
+
+      logger.info('Contact associé à l\'appel', { uniqueId: req.params.uniqueId, contactId });
+      res.json({ ok: true, message: 'Contact associé' });
+    } catch (err) {
+      logger.error('Erreur association contact', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ══ ENREGISTREMENTS D'APPELS ═══════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // POST /api/calls/:uniqueId/recording - Sauvegarder un enregistrement
+  router.post('/api/calls/:uniqueId/recording', async (req, res) => {
+    try {
+      const { recordingUrl, duration } = req.body;
+      
+      if (!recordingUrl) {
+        return res.status(400).json({ ok: false, error: 'recordingUrl requis' });
+      }
+
+      const call = await callHistory.getCallByUniqueId(req.params.uniqueId);
+      if (!call) {
+        return res.status(404).json({ ok: false, error: 'Appel non trouvé' });
+      }
+
+      await callHistory.saveCallRecording(req.params.uniqueId, recordingUrl, duration);
+      
+      // Notifier les clients WebSocket
+      wsServer.broadcast('call:recording_saved', {
+        uniqueId: req.params.uniqueId,
+        recordingUrl,
+        duration
+      });
+
+      logger.info('Enregistrement sauvegardé', { uniqueId: req.params.uniqueId, url: recordingUrl });
+      res.json({ ok: true, message: 'Enregistrement sauvegardé' });
+    } catch (err) {
+      logger.error('Erreur sauvegarde enregistrement', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // GET /api/recordings - Liste des enregistrements
+  router.get('/api/recordings', async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit) || 50;
+      const recordings = await callHistory.getCallsWithRecordings(limit);
+      
+      res.json({ 
+        ok: true, 
+        data: recordings.map(c => ({
+          uniqueId: c.unique_id,
+          callerIdNum: c.caller_id_num,
+          contactName: c.contact_name,
+          recordingUrl: c.recording_url,
+          duration: c.recording_duration || c.duration,
+          startedAt: c.started_at,
+        }))
+      });
+    } catch (err) {
+      logger.error('Erreur récupération enregistrements', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // GET /api/calls/:uniqueId/recording - Récupérer un enregistrement
+  router.get('/api/calls/:uniqueId/recording', async (req, res) => {
+    try {
+      const call = await callHistory.getCallByUniqueId(req.params.uniqueId);
+      if (!call) {
+        return res.status(404).json({ ok: false, error: 'Appel non trouvé' });
+      }
+      if (!call.recording_url) {
+        return res.status(404).json({ ok: false, error: 'Aucun enregistrement' });
+      }
+      
+      res.json({
+        ok: true,
+        data: {
+          uniqueId: call.unique_id,
+          recordingUrl: call.recording_url,
+          duration: call.recording_duration || call.duration,
+        }
+      });
+    } catch (err) {
+      logger.error('Erreur récupération enregistrement', { error: err.message });
       res.status(500).json({ ok: false, error: err.message });
     }
   });

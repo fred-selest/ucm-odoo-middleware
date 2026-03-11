@@ -60,7 +60,9 @@ class UcmWsClient extends EventEmitter {
     const url = `wss://${host}:${webPort}/websockify`;
     logger.info('UCM WS: connexion', { url, user: webUser, attempt: this._reconnectAttempts + 1 });
 
-    const ws = new WebSocket(url, { rejectUnauthorized: false });
+    const ws = new WebSocket(url, {
+      rejectUnauthorized: process.env.UCM_TLS_REJECT_UNAUTHORIZED !== 'false'
+    });
     this._ws = ws;
 
     ws.on('open',    ()      => this._onOpen());

@@ -75,6 +75,7 @@
       <span class="status-dot dot-gray" id="wsIndicator"></span>
       <span id="wsLabel" class="text-muted">WebSocket…</span>
     </span>
+    <span class="badge bg-primary text-white ms-2" id="ucmModeBadge">Webhook</span>
     <span class="text-muted small"><i class="bi bi-person me-1"></i><span id="navUser">—</span></span>
     <span class="badge bg-light text-secondary border" id="uptime">—</span>
     <button class="btn btn-sm btn-outline-secondary" id="logoutBtn">
@@ -90,7 +91,7 @@
     <div class="col-6 col-md-3">
       <div class="card stat-card">
         <div class="value" id="statUcm"><span class="status-dot dot-gray"></span></div>
-        <div class="label" id="statUcmMode">UCM</div>
+        <div class="label" id="statUcmMode">UCM Webhook</div>
         <div class="text-muted mt-1" style="font-size:.72rem" id="statUcmHost">—</div>
       </div>
     </div>
@@ -180,6 +181,30 @@
             </div>
           </div>
           <div id="testOdooResult" class="mt-2 small"></div>
+        </div>
+      </div>
+
+      <!-- Fiche contact rapide (Ringover style) -->
+      <div class="card mb-3" id="quickContactCard" style="display:none;">
+        <div class="card-header bg-success bg-opacity-10 d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-person-check me-1 text-success"></i><span id="quickContactName">—</span></span>
+          <button class="btn btn-sm btn-outline-success" onclick="openContactHistory()">
+            <i class="bi bi-clock-history"></i> Historique
+          </button>
+        </div>
+        <div class="card-body p-2">
+          <input type="hidden" id="quickContactId">
+          <div class="small mb-1"><i class="bi bi-telephone me-1 text-muted"></i><span id="quickContactPhone">—</span></div>
+          <div class="small mb-1"><i class="bi bi-envelope me-1 text-muted"></i><span id="quickContactEmail">—</span></div>
+          <div class="small mb-1"><i class="bi bi-building me-1 text-muted"></i><span id="quickContactCompany">—</span></div>
+          <div class="d-flex gap-2 mt-2">
+            <button class="btn btn-sm btn-outline-primary" onclick="openEditContactModal()">
+              <i class="bi bi-pencil"></i> Modifier
+            </button>
+            <a href="#" id="quickContactOdooLink" target="_blank" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-box"></i> Odoo
+            </a>
+          </div>
         </div>
       </div>
 
@@ -310,7 +335,7 @@
         <!-- Tabs -->
         <ul class="nav nav-tabs mb-3" id="configTabs">
           <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabUcm">
-            <i class="bi bi-telephone-inbound me-1"></i>UCM AMI
+            <i class="bi bi-telephone-inbound me-1"></i>UCM Configuration
           </button></li>
           <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabOdoo">
             <i class="bi bi-box me-1"></i>Odoo
@@ -321,55 +346,38 @@
           <!-- UCM -->
           <div class="tab-pane fade show active" id="tabUcm">
             <div class="row g-3">
-              <div class="col-12">
-                <label class="form-label small fw-semibold">Mode de connexion UCM</label>
-                <div class="d-flex gap-2">
-                  <div class="form-check">
-                    <input class="form-check-input" type="radio" name="ucmMode" id="cfgModeAmi" value="ami" onchange="onUcmModeChange()">
-                    <label class="form-check-label small" for="cfgModeAmi">
-                      <strong>AMI</strong> <span class="text-muted fw-normal">(port 5039 TLS — nécessite VPN ou accès réseau direct)</span>
-                    </label>
-                  </div>
-                  <div class="form-check ms-3">
-                    <input class="form-check-input" type="radio" name="ucmMode" id="cfgModeWs" value="websocket" onchange="onUcmModeChange()">
-                    <label class="form-check-label small" for="cfgModeWs">
-                      <strong>WebSocket</strong> <span class="text-muted fw-normal">(port 8089 HTTPS — fonctionne sans VPN)</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <div class="col-md-8">
+               <div class="col-12">
+                 <label class="form-label small fw-semibold">Mode de connexion UCM</label>
+                 <div class="d-flex gap-2">
+                   <div class="form-check">
+                     <input class="form-check-input" type="radio" name="ucmMode" id="cfgModeWebhook" value="webhook" onchange="onUcmModeChange()">
+                     <label class="form-check-label small" for="cfgModeWebhook">
+                       <strong>Webhook</strong> <span class="text-muted fw-normal">(HTTP events — sans VPN, recommandé)</span>
+                     </label>
+                   </div>
+                   <div class="form-check ms-3">
+                     <input class="form-check-input" type="radio" name="ucmMode" id="cfgModeWs" value="websocket" onchange="onUcmModeChange()">
+                     <label class="form-check-label small" for="cfgModeWs">
+                       <strong>WebSocket</strong> <span class="text-muted fw-normal">(port 8089 HTTPS — sans VPN)</span>
+                     </label>
+                   </div>
+                 </div>
+               </div>
+              <div class="col-md-12">
                 <label class="form-label small fw-semibold">Hôte UCM <span class="text-muted fw-normal">(IP ou hostname)</span></label>
                 <input type="text" id="cfgUcmHost" class="form-control form-control-sm" placeholder="192.168.10.100">
               </div>
 
-              <!-- AMI fields -->
-              <div class="col-md-4" id="amiPortField">
-                <label class="form-label small fw-semibold">Port AMI</label>
-                <input type="number" id="cfgUcmPort" class="form-control form-control-sm" placeholder="5039">
-              </div>
-              <div class="col-md-6" id="amiUserField">
-                <label class="form-label small fw-semibold">Utilisateur AMI</label>
-                <input type="text" id="cfgUcmUser" class="form-control form-control-sm" placeholder="admin">
-              </div>
-              <div class="col-md-6" id="amiSecretField">
-                <label class="form-label small fw-semibold">Secret AMI</label>
-                <div class="input-group input-group-sm">
-                  <input type="password" id="cfgUcmSecret" class="form-control" placeholder="Laisser vide = inchangé">
-                  <button class="btn btn-outline-secondary" type="button" onclick="togglePwd('cfgUcmSecret')"><i class="bi bi-eye"></i></button>
-                </div>
-              </div>
-
               <!-- WebSocket fields -->
-              <div class="col-md-4 d-none" id="wsPortField">
+              <div class="col-md-4" id="wsPortField">
                 <label class="form-label small fw-semibold">Port WebSocket</label>
                 <input type="number" id="cfgUcmWebPort" class="form-control form-control-sm" placeholder="8089">
               </div>
-              <div class="col-md-4 d-none" id="wsUserField">
+              <div class="col-md-4" id="wsUserField">
                 <label class="form-label small fw-semibold">Utilisateur web UCM</label>
                 <input type="text" id="cfgUcmWebUser" class="form-control form-control-sm" placeholder="admin">
               </div>
-              <div class="col-md-4 d-none" id="wsPasswordField">
+              <div class="col-md-4" id="wsPasswordField">
                 <label class="form-label small fw-semibold">Mot de passe web</label>
                 <div class="input-group input-group-sm">
                   <input type="password" id="cfgUcmWebPwd" class="form-control" placeholder="Laisser vide = inchangé">
@@ -543,6 +551,143 @@
   </div>
 </div>
 
+<!-- ══ Modal : Créer contact ══════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalCreateContact" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-person-plus me-1"></i>Nouveau contact</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Nom complet *</label>
+            <input type="text" id="newContactName" class="form-control form-control-sm" placeholder="Jean Dupont">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Téléphone</label>
+            <input type="text" id="newContactPhone" class="form-control form-control-sm" placeholder="0612345678">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Mobile</label>
+            <input type="text" id="newContactMobile" class="form-control form-control-sm" placeholder="0612345678">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Email</label>
+            <input type="email" id="newContactEmail" class="form-control form-control-sm" placeholder="jean@example.com">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Société</label>
+            <input type="text" id="newContactCompany" class="form-control form-control-sm" placeholder="Nom de la société">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Fonction</label>
+            <input type="text" id="newContactFunction" class="form-control form-control-sm" placeholder="Directeur">
+          </div>
+        </div>
+        <div id="createContactError" class="text-danger small mt-2 d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-sm btn-success" id="createContactBtn">Créer le contact</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Modal : Modifier contact ═══════════════════════════════════════════════ -->
+<div class="modal fade" id="modalEditContact" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-pencil me-1"></i>Modifier le contact</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editContactId">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Nom complet *</label>
+            <input type="text" id="editContactName" class="form-control form-control-sm">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Téléphone</label>
+            <input type="text" id="editContactPhone" class="form-control form-control-sm">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Mobile</label>
+            <input type="text" id="editContactMobile" class="form-control form-control-sm">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Email</label>
+            <input type="email" id="editContactEmail" class="form-control form-control-sm">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Fonction</label>
+            <input type="text" id="editContactFunction" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div id="editContactError" class="text-danger small mt-2 d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-sm btn-primary" id="saveEditContactBtn">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Modal : Historique contact ════════════════════════════════════════════ -->
+<div class="modal fade" id="modalContactHistory" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-clock-history me-1"></i>Historique des appels — <span id="historyContactName"></span></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="p-3 bg-light border-bottom">
+          <div class="row g-3">
+            <div class="col-4 text-center">
+              <div class="h3 mb-0 text-primary" id="statTotalCalls">0</div>
+              <div class="small text-muted">Appels totaux</div>
+            </div>
+            <div class="col-4 text-center">
+              <div class="h3 mb-0 text-success" id="statAnsweredCalls">0</div>
+              <div class="small text-muted">Décrochés</div>
+            </div>
+            <div class="col-4 text-center">
+              <div class="h3 mb-0 text-danger" id="statMissedCalls">0</div>
+              <div class="small text-muted">Manqués</div>
+            </div>
+          </div>
+          <div class="text-center mt-2">
+            <span class="badge bg-secondary">Durée totale : <span id="statTotalDuration">0</span> min</span>
+          </div>
+        </div>
+        <div class="table-responsive" style="max-height:400px;overflow-y:auto">
+          <table class="table table-hover table-sm mb-0">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Extension</th>
+                <th>Durée</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody id="contactHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // ── Session ──────────────────────────────────────────────────────────────────
@@ -643,7 +788,11 @@ let ws;
 function connectWs() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen  = () => setWsStatus(true);
+  ws.onopen  = () => {
+    setWsStatus(true);
+    // Auto-subscribe to all extensions when connected
+    subscribeToExtensions();
+  };
   ws.onclose = () => { setWsStatus(false); setTimeout(connectWs, 3000); };
   ws.onmessage = ({ data }) => {
     let msg; try { msg = JSON.parse(data); } catch { return; }
@@ -651,7 +800,32 @@ function connectWs() {
     if (msg.type === 'call:answered') updateCallRow(msg.data, 'answered');
     if (msg.type === 'call:hangup')   updateCallRow(msg.data, 'hangup');
     if (msg.type === 'contact')       updateCallContact(msg.data);
+    if (msg.type === 'agent:status_changed') fetchAgentStatus();
   };
+}
+
+// Auto-subscribe to extensions from config
+async function subscribeToExtensions() {
+  try {
+    const r = await apiFetch('/api/status');
+    if (!r.ok) return;
+    const d = await r.json();
+    const extensions = d.ucm?.watchExtensions || [];
+    
+    if (extensions.length > 0) {
+      // Subscribe to each configured extension
+      for (const exten of extensions) {
+        ws.send(JSON.stringify({ type: 'subscribe', extension: exten }));
+      }
+      console.log('Subscribed to extensions:', extensions);
+    } else {
+      // Subscribe to all (empty subscription = all extensions)
+      ws.send(JSON.stringify({ type: 'subscribe', extension: '*' }));
+      console.log('Subscribed to all extensions');
+    }
+  } catch (e) {
+    console.error('Failed to subscribe to extensions:', e);
+  }
 }
 
 function setWsStatus(ok) {
@@ -671,10 +845,25 @@ async function fetchStatus() {
     const d = await r.json();
     if (!d?.ucm) return;
 
-    document.getElementById('statUcm').innerHTML =
-      `<span class="status-dot ${d.ucm.connected ? 'dot-green' : 'dot-red'}"></span>`;
-    document.getElementById('statUcmMode').textContent = d.ucm.mode === 'websocket' ? 'UCM WebSocket' : 'UCM AMI';
-    document.getElementById('statUcmHost').textContent = `${d.ucm.host}:${d.ucm.port}`;
+    const isWebhook = d.ucm.mode === 'webhook';
+    
+    // Update status dot based on mode
+    let ucmStatusDot = '';
+    if (isWebhook) {
+      // For webhook mode, show green if WebSocket clients are connected (webhook events being received)
+      ucmStatusDot = d.websocket?.clients > 0 ? 'dot-green' : 'dot-gray';
+    } else {
+      // For AMI/WebSocket modes, show status based on UCM connection
+      ucmStatusDot = d.ucm.connected ? 'dot-green' : 'dot-red';
+    }
+    
+    document.getElementById('statUcm').innerHTML = `<span class="status-dot ${ucmStatusDot}"></span>`;
+    document.getElementById('statUcmMode').textContent = isWebhook ? 'UCM Webhook' : (d.ucm.mode === 'websocket' ? 'UCM WebSocket' : 'UCM AMI');
+    
+    // Update UCM host display
+    document.getElementById('statUcmHost').textContent = 
+      isWebhook ? 'Webhook Events' : `${d.ucm.host}:${d.ucm.port}`;
+    
     document.getElementById('statOdoo').innerHTML =
       `<span class="status-dot ${d.odoo?.cacheSize >= 0 ? 'dot-green' : 'dot-gray'}"></span>`;
     document.getElementById('statOdooUrl').textContent = (d.odoo?.url||'').replace('https://','');
@@ -689,9 +878,11 @@ async function fetchStatus() {
     // Config
     document.getElementById('configBody').innerHTML = [
       ['UCM',         `${d.ucm.host}:${d.ucm.port}`],
+      ['Mode',        isWebhook ? 'Webhook (HTTP)' : d.ucm.mode.capitalize()],
       ['Extensions',  d.ucm.watchExtensions?.join(', ') || 'toutes'],
       ['Odoo DB',     d.odoo?.db || '—'],
       ['Cache',       (d.odoo?.cacheSize ?? '—') + ' contacts'],
+      ['Clients WS',  d.websocket?.clients ?? 0],
       ['Mémoire',     Math.round((d.memory?.heapUsed||0)/1024/1024) + ' MB'],
     ].map(([k,v]) =>
       `<tr><td class="text-muted small ps-3">${k}</td><td class="small pe-3 fw-semibold">${v}</td></tr>`
@@ -703,10 +894,14 @@ async function fetchStatus() {
       ? entries.map(([id, ex]) =>
           `<tr><td><code class="small">${id}</code></td>
            <td>${ex.length ? ex.map(e=>`<span class="badge bg-primary bg-opacity-10 text-primary me-1">${e}</span>`).join('') : '<span class="text-muted small">toutes</span>'}</td></tr>`
-        ).join('')
+         ).join('')
       : '<tr><td colspan="2" class="text-center text-muted py-3 small">Aucun agent</td></tr>';
   } catch { /* silencieux */ }
 }
+
+String.prototype.capitalize = function() {
+  return this.charAt(0).toUpperCase() + this.slice(1);
+};
 
 // ── Logs ─────────────────────────────────────────────────────────────────────
 async function fetchLogs() {
@@ -937,12 +1132,21 @@ document.getElementById('broadcastBtn').onclick = async () => {
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 function onUcmModeChange() {
-  const mode = document.querySelector('input[name="ucmMode"]:checked')?.value || 'ami';
-  const isWs = mode === 'websocket';
-  ['amiPortField','amiUserField','amiSecretField'].forEach(id =>
-    document.getElementById(id).classList.toggle('d-none', isWs));
-  ['wsPortField','wsUserField','wsPasswordField'].forEach(id =>
-    document.getElementById(id).classList.toggle('d-none', !isWs));
+  const mode = document.querySelector('input[name="ucmMode"]:checked')?.value || 'webhook';
+  const isWebhook = mode === 'webhook';
+  
+  // Webhook mode: show host only, hide WebSocket config
+  if (isWebhook) {
+    document.getElementById('cfgUcmHost').parentElement.classList.remove('d-none');
+    ['wsPortField','wsUserField','wsPasswordField'].forEach(id =>
+      document.getElementById(id).classList.add('d-none'));
+  } 
+  // WebSocket mode: show host + WebSocket fields
+  else {
+    document.getElementById('cfgUcmHost').parentElement.classList.remove('d-none');
+    ['wsPortField','wsUserField','wsPasswordField'].forEach(id =>
+      document.getElementById(id).classList.remove('d-none'));
+  }
 }
 
 async function loadConfig() {
@@ -950,12 +1154,17 @@ async function loadConfig() {
     const r = await apiFetch('/api/config');
     if (!r.ok) return;
     const d = await r.json();
-    const mode = d.ucm?.mode || 'ami';
-    document.getElementById(mode === 'websocket' ? 'cfgModeWs' : 'cfgModeAmi').checked = true;
+    const mode = d.ucm?.mode || 'webhook';
+    
+    // Default to webhook if mode is not explicitly set
+    if (mode === 'webhook') {
+      document.getElementById('cfgModeWebhook').checked = true;
+    } else if (mode === 'websocket') {
+      document.getElementById('cfgModeWs').checked = true;
+    }
+    
     onUcmModeChange();
     document.getElementById('cfgUcmHost').value    = d.ucm?.host     || '';
-    document.getElementById('cfgUcmPort').value    = d.ucm?.port     || 5039;
-    document.getElementById('cfgUcmUser').value    = d.ucm?.username || '';
     document.getElementById('cfgUcmWebPort').value = d.ucm?.webPort  || 8089;
     document.getElementById('cfgUcmWebUser').value = d.ucm?.webUser  || '';
     document.getElementById('cfgUcmExten').value   = (d.ucm?.watchExtensions || []).join(',');
@@ -976,17 +1185,13 @@ async function saveUcmConfig() {
   const res = document.getElementById('cfgUcmResult');
   res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Sauvegarde…</span>';
   try {
-    const mode = document.querySelector('input[name="ucmMode"]:checked')?.value || 'ami';
+    const mode = document.querySelector('input[name="ucmMode"]:checked')?.value || 'webhook';
     const body = {
       mode,
       host:            document.getElementById('cfgUcmHost').value.trim(),
       watchExtensions: document.getElementById('cfgUcmExten').value,
     };
-    if (mode === 'ami') {
-      body.port     = parseInt(document.getElementById('cfgUcmPort').value)    || 5039;
-      body.username = document.getElementById('cfgUcmUser').value.trim();
-      body.secret   = document.getElementById('cfgUcmSecret').value;
-    } else {
+    if (mode === 'websocket') {
       body.webPort     = parseInt(document.getElementById('cfgUcmWebPort').value) || 8089;
       body.webUser     = document.getElementById('cfgUcmWebUser').value.trim();
       body.webPassword = document.getElementById('cfgUcmWebPwd').value;
@@ -1004,10 +1209,26 @@ async function testUcmConnection() {
   try {
     const r = await apiFetch('/api/status');
     const d = await r.json();
-    const ok = d.ucm?.connected;
-    res.innerHTML = ok
-      ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>UCM connecté et authentifié</span>'
-      : '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>UCM non connecté — vérifiez les paramètres</span>';
+    const isWebhook = d.ucm.mode === 'webhook';
+    let ok;
+    
+    if (isWebhook) {
+      // For webhook mode, check if WebSocket clients are connected (webhook events being received)
+      ok = d.websocket?.clients > 0;
+    } else {
+      // For AMI/WebSocket modes, check actual connection
+      ok = d.ucm?.connected;
+    }
+    
+    if (isWebhook) {
+      res.innerHTML = ok
+        ? `<span class="text-success"><i class="bi bi-check-circle me-1"></i>Webhook mode — ${d.websocket?.clients} client(s) WebSocket connecté(s)</span>`
+        : `<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Webhook mode — aucune connexion WebSocket (vérifiez les clients)</span>`;
+    } else {
+      res.innerHTML = ok
+        ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>UCM connecté et authentifié</span>'
+        : '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>UCM non connecté — vérifiez les paramètres</span>';
+    }
   } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
 }
 
@@ -1174,6 +1395,251 @@ document.getElementById('createWebhookBtn').onclick = async () => {
 document.getElementById('newWebhookName').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('createWebhookBtn').click();
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ══ GESTION DES CONTACTS (Ringover style) ═══════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+
+let currentContactId = null;
+const bsModalEditContact = new bootstrap.Modal(document.getElementById('modalEditContact'));
+const bsModalCreateContact = new bootstrap.Modal(document.getElementById('modalCreateContact'));
+const bsModalContactHistory = new bootstrap.Modal(document.getElementById('modalContactHistory'));
+
+// Afficher la fiche contact rapide
+function showQuickContact(contact) {
+  currentContactId = contact.id;
+  document.getElementById('quickContactId').value = contact.id;
+  document.getElementById('quickContactName').textContent = contact.name;
+  document.getElementById('quickContactPhone').textContent = contact.phone || '—';
+  document.getElementById('quickContactEmail').textContent = contact.email || '—';
+  document.getElementById('quickContactCompany').textContent = contact.company || '—';
+  document.getElementById('quickContactOdooLink').href = contact.odooUrl;
+  document.getElementById('quickContactCard').style.display = 'block';
+}
+
+// Mettre à jour la fiche contact quand un appel arrive
+function updateCallContactWithDetails(data) {
+  const tr = callRows[data.uniqueId];
+  if (tr && data.contact) {
+    tr.querySelector('.td-contact').innerHTML = 
+      `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">${data.contact.name}</span>`;
+    // Afficher la fiche contact rapide
+    showQuickContact(data.contact);
+  }
+}
+
+// Ouvrir la modale d'édition
+function openEditContactModal() {
+  const contactId = document.getElementById('quickContactId').value;
+  if (!contactId) return;
+  
+  document.getElementById('editContactError').classList.add('d-none');
+  document.getElementById('saveEditContactBtn').disabled = true;
+  document.getElementById('saveEditContactBtn').innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Chargement…';
+  
+  apiFetch(`/api/odoo/contacts/${contactId}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok && d.data) {
+        document.getElementById('editContactId').value = d.data.id;
+        document.getElementById('editContactName').value = d.data.name || '';
+        document.getElementById('editContactPhone').value = d.data.phone || '';
+        document.getElementById('editContactMobile').value = d.data.mobile || '';
+        document.getElementById('editContactEmail').value = d.data.email || '';
+        document.getElementById('editContactFunction').value = d.data.function || '';
+        bsModalEditContact.show();
+      }
+    })
+    .finally(() => {
+      document.getElementById('saveEditContactBtn').disabled = false;
+      document.getElementById('saveEditContactBtn').innerHTML = '<i class="bi bi-save me-1"></i>Enregistrer';
+    });
+}
+
+// Sauvegarder la modification du contact
+document.getElementById('saveEditContactBtn').onclick = async () => {
+  const contactId = document.getElementById('editContactId').value;
+  const body = {
+    name: document.getElementById('editContactName').value.trim(),
+    phone: document.getElementById('editContactPhone').value.trim(),
+    mobile: document.getElementById('editContactMobile').value.trim(),
+    email: document.getElementById('editContactEmail').value.trim(),
+    function: document.getElementById('editContactFunction').value.trim(),
+  };
+  
+  if (!body.name) {
+    document.getElementById('editContactError').textContent = 'Nom requis';
+    document.getElementById('editContactError').classList.remove('d-none');
+    return;
+  }
+  
+  try {
+    const r = await apiFetch(`/api/odoo/contacts/${contactId}`, {
+      method: 'PUT',
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.ok) {
+      bsModalEditContact.hide();
+      showQuickContact(d.data);
+      // Rafraîchir la recherche si le contact était affiché
+      if (document.getElementById('testOdooResult').innerHTML.includes(d.data.name)) {
+        document.getElementById('testOdooBtn').click();
+      }
+    } else {
+      document.getElementById('editContactError').textContent = d.error;
+      document.getElementById('editContactError').classList.remove('d-none');
+    }
+  } catch(e) {
+    document.getElementById('editContactError').textContent = e.message;
+    document.getElementById('editContactError').classList.remove('d-none');
+  }
+};
+
+// Ouvrir la modale de création
+function openCreateContactModal() {
+  document.getElementById('newContactName').value = '';
+  document.getElementById('newContactPhone').value = '';
+  document.getElementById('newContactMobile').value = '';
+  document.getElementById('newContactEmail').value = '';
+  document.getElementById('newContactCompany').value = '';
+  document.getElementById('newContactFunction').value = '';
+  document.getElementById('createContactError').classList.add('d-none');
+  bsModalCreateContact.show();
+  setTimeout(() => document.getElementById('newContactName').focus(), 300);
+}
+
+// Créer un nouveau contact
+document.getElementById('createContactBtn').onclick = async () => {
+  const body = {
+    name: document.getElementById('newContactName').value.trim(),
+    phone: document.getElementById('newContactPhone').value.trim(),
+    mobile: document.getElementById('newContactMobile').value.trim(),
+    email: document.getElementById('newContactEmail').value.trim(),
+    is_company: !document.getElementById('newContactCompany').value.trim(),
+    function: document.getElementById('newContactFunction').value.trim(),
+  };
+  
+  if (!body.name) {
+    document.getElementById('createContactError').textContent = 'Nom requis';
+    document.getElementById('createContactError').classList.remove('d-none');
+    return;
+  }
+  
+  const company = document.getElementById('newContactCompany').value.trim();
+  if (company) {
+    // Chercher la société pour l'associer
+    try {
+      const r = await apiFetch(`/api/odoo/search?q=${encodeURIComponent(company)}&limit=1`);
+      const d = await r.json();
+      if (d.ok && d.data && d.data.length > 0 && d.data[0].isCompany) {
+        body.company_id = d.data[0].id;
+      }
+    } catch { /* ignore */ }
+  }
+  
+  try {
+    const r = await apiFetch('/api/odoo/contacts', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.ok) {
+      bsModalCreateContact.hide();
+      showQuickContact(d.data);
+      document.getElementById('testOdooResult').innerHTML = 
+        `<div class="p-2 rounded border border-success border-opacity-25 bg-success bg-opacity-10 mt-1">
+          <strong>Contact créé : ${esc(d.data.name)}</strong><br>
+          <a href="${d.data.odooUrl}" target="_blank" class="small">Voir dans Odoo →</a>
+        </div>`;
+    } else {
+      document.getElementById('createContactError').textContent = d.error;
+      document.getElementById('createContactError').classList.remove('d-none');
+    }
+  } catch(e) {
+    document.getElementById('createContactError').textContent = e.message;
+    document.getElementById('createContactError').classList.remove('d-none');
+  }
+};
+
+// Ouvrir l'historique des appels d'un contact
+function openContactHistory() {
+  const contactId = document.getElementById('quickContactId').value;
+  if (!contactId) return;
+  
+  document.getElementById('contactHistoryBody').innerHTML = 
+    '<tr><td colspan="5" class="text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Chargement…</td></tr>';
+  bsModalContactHistory.show();
+  
+  apiFetch(`/api/odoo/contacts/${contactId}/history`)
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok || !d.data) return;
+      
+      const { contact, calls, stats } = d.data;
+      document.getElementById('historyContactName').textContent = contact.name;
+      document.getElementById('statTotalCalls').textContent = stats.totalCalls;
+      document.getElementById('statAnsweredCalls').textContent = stats.answeredCalls;
+      document.getElementById('statMissedCalls').textContent = stats.missedCalls;
+      document.getElementById('statTotalDuration').textContent = Math.round(stats.totalDuration / 60);
+      
+      const tbody = document.getElementById('contactHistoryBody');
+      if (calls.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4 small">Aucun appel pour ce contact</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = calls.map(c => {
+        const statusClass = c.status === 'answered' ? 'bg-success' : (c.status === 'missed' ? 'bg-danger' : 'bg-secondary');
+        const statusLabel = c.status === 'answered' ? 'Décroché' : (c.status === 'missed' ? 'Manqué' : 'Terminé');
+        const direction = c.direction === 'outbound' ? 'sortant' : 'entrant';
+        return `
+          <tr>
+            <td class="small">${new Date(c.started_at).toLocaleString('fr-FR')}</td>
+            <td><span class="badge bg-${direction === 'entrant' ? 'info' : 'warning'} bg-opacity-10 text-${direction === 'entrant' ? 'info' : 'warning'}">${direction}</span></td>
+            <td><span class="badge bg-primary bg-opacity-10 text-primary">${c.exten || c.agent_exten || '—'}</span></td>
+            <td>${c.duration ? Math.round(c.duration) + 's' : '—'}</td>
+            <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+          </tr>
+        `;
+      }).join('');
+    });
+}
+
+// Recherche par numéro - afficher la fiche contact si trouvé
+const originalTestOdoo = document.getElementById('testOdooBtn').onclick;
+document.getElementById('testOdooBtn').onclick = async () => {
+  const phone = document.getElementById('testPhone').value.trim();
+  if (!phone) return;
+  const res = document.getElementById('testOdooResult');
+  res.innerHTML = '<span class="text-muted">Recherche…</span>';
+  try {
+    const r = await apiFetch('/api/odoo/test', {
+      method:'POST', body: JSON.stringify({ phone }),
+    });
+    const d = await r.json();
+    if (d.ok && d.contact) {
+      res.innerHTML = `<div class="p-2 rounded border border-success border-opacity-25 bg-success bg-opacity-10 mt-1">
+        <strong>${d.contact.name}</strong> — <span class="text-muted">${d.contact.email||''}</span><br>
+        <a href="${d.contact.odooUrl}" target="_blank" class="small">Voir dans Odoo →</a>
+        <button class="btn btn-sm btn-outline-primary ms-2" onclick="showQuickContact(${JSON.stringify(d.contact).replace(/"/g, '&quot;')}); return false;">
+          <i class="bi bi-person-check"></i> Voir fiche
+        </button>
+      </div>`;
+      showQuickContact(d.contact);
+    } else if (d.ok) {
+      res.innerHTML = `<span class="text-muted">Aucun contact trouvé.</span>
+        <button class="btn btn-sm btn-outline-success ms-2" onclick="openCreateContactModal(); return false;">
+          <i class="bi bi-plus-lg"></i> Créer un contact
+        </button>`;
+    } else {
+      res.innerHTML = `<span class="text-danger">${d.error}</span>`;
+    }
+  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
+};
+
+// Remplacer la fonction updateCallContact pour utiliser la nouvelle version
+window.updateCallContact = updateCallContactWithDetails;
 
 </script>
 </body>

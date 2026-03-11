@@ -12,13 +12,16 @@ const logger = require('../logger');
  */
 class CallHandler {
   /**
-   * @param {UcmClient|null}      ucmClient       Client AMI (optionnel)
+   * @param {UcmHttpClient}       ucmHttpClient   Client HTTP API UCM6300
+   * @param {UcmWebSocketClient}  ucmWsClient     Client WebSocket UCM6300
    * @param {OdooClient}          odooClient
    * @param {WsServer}            wsServer
    * @param {WebhookManager|null} webhookManager  Webhook manager (optionnel)
    * @param {CallHistory|null}    callHistory     Service d'historique (optionnel)
    */
-  constructor(ucmClient, odooClient, wsServer, webhookManager = null, callHistory = null) {
+  constructor(ucmHttpClient, ucmWsClient, odooClient, wsServer, webhookManager = null, callHistory = null) {
+    this._http = ucmHttpClient;
+    this._wsClient = ucmWsClient;
     this._odoo = odooClient;
     this._ws   = wsServer;
     this._callHistory = callHistory;
@@ -26,8 +29,59 @@ class CallHandler {
     // Registre des appels actifs : uniqueId → callInfo enrichi
     this._activeCalls = new Map();
 
-    if (ucmClient) this._bindSource(ucmClient, 'UCM');
+    // Binder les événements WebSocket UCM6300
+    if (ucmWsClient) {
+      ucmWsClient.on('event', (event) => this.handleUcmEvent(event));
+      ucmWsClient.on('connected', () => logger.info('CallHandler: UCM WebSocket connecté, prêt'));
+      ucmWsClient.on('disconnected', () => logger.warn('CallHandler: UCM WebSocket déconnecté'));
+    }
+
+    // Webhook manager (fallback pour ancien UCM)
     if (webhookManager) this._bindSource(webhookManager, 'Webhook');
+  }
+
+  /**
+   * Traite les événements de l'UCM6300
+   * @param {object} event
+   */
+  handleUcmEvent(event) {
+    const { type, data } = event;
+    
+    switch (type) {
+      case 'call:incoming':
+        this._onIncoming({
+          uniqueId: data.uniqueId,
+          callerIdNum: data.callerIdNum,
+          callerIdName: data.callerIdName,
+          exten: data.exten,
+          channel: data.channel,
+          direction: data.direction,
+          timestamp: data.timestamp,
+        });
+        break;
+
+      case 'call:answered':
+        this._onAnswered({
+          uniqueId: data.uniqueId,
+          exten: data.exten,
+          channel: data.channel,
+          answerTime: data.answerTime,
+        });
+        break;
+
+      case 'call:hangup':
+        this._onHangup({
+          uniqueId: data.uniqueId,
+          channel: data.channel,
+          duration: data.duration,
+          disposition: data.disposition,
+          hangupTime: data.hangupTime,
+        });
+        break;
+
+      default:
+        logger.debug('CallHandler: événement non géré', { type, data });
+    }
   }
 
   // ── Binding ────────────────────────────────────────────────────────────────

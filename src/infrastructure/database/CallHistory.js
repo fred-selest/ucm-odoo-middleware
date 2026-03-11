@@ -77,6 +77,37 @@ class CallHistory {
     }
   }
 
+  async saveCallRecording(uniqueId, recordingUrl, recordingDuration = null) {
+    try {
+      await this.db.run(
+        `UPDATE calls 
+         SET recording_url = ?, recording_duration = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE unique_id = ?`,
+        [recordingUrl, recordingDuration, uniqueId]
+      );
+      logger.info('Enregistrement associé à l\'appel', { uniqueId, url: recordingUrl });
+      return true;
+    } catch (err) {
+      logger.error('Erreur sauvegarde enregistrement', { error: err.message, uniqueId });
+      throw err;
+    }
+  }
+
+  async getCallsWithRecordings(limit = 50) {
+    try {
+      return await this.db.all(
+        `SELECT * FROM calls 
+         WHERE recording_url IS NOT NULL 
+         ORDER BY started_at DESC 
+         LIMIT ?`,
+        [limit]
+      );
+    } catch (err) {
+      logger.error('Erreur récupération appels enregistrés', { error: err.message });
+      return [];
+    }
+  }
+
   async updateCallContact(uniqueId, contact) {
     if (!contact) return;
 

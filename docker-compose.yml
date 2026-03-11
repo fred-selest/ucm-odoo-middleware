@@ -12,9 +12,12 @@ services:
       - .env
     networks:
       - proxy-net
+    ports:
+      - "3000:3000"
     volumes:
-      - ./logs:/app/logs
       - ./data:/app/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       - NODE_ENV=production
       - DB_PATH=/app/data/middleware.db

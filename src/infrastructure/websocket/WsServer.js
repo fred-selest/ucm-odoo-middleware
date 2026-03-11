@@ -33,7 +33,11 @@ class WsServer {
   notifyExtension(extension, type, data) {
     let sent = 0;
     for (const [, client] of this._clients) {
-      if (client.extensions.size === 0 || client.extensions.has(extension)) {
+      // Si le client a '*' ou aucune extension spécifique, il reçoit tout
+      // Sinon, il reçoit seulement les extensions auxquelles il est abonné
+      if (client.extensions.size === 0 || 
+          client.extensions.has('*') || 
+          client.extensions.has(extension)) {
         this._send(client.ws, { type, data });
         sent++;
       }
@@ -111,7 +115,13 @@ class WsServer {
     switch (msg.type) {
       case 'subscribe': {
         const exten = String(msg.extension || '').trim();
-        if (exten) {
+        if (exten === '*') {
+          // Abonnement à toutes les extensions - on remplace toutes les extensions par '*'
+          client.extensions.clear();
+          client.extensions.add('*');
+          logger.info('WS: abonnement à TOUTES les extensions', { clientId });
+          this._send(client.ws, { type: 'subscribed', extension: '*' });
+        } else if (exten) {
           client.extensions.add(exten);
           logger.info('WS: abonnement extension', { clientId, extension: exten });
           this._send(client.ws, { type: 'subscribed', extension: exten });

@@ -1,0 +1,423 @@
+'use strict';
+
+const axios = require('axios');
+const https = require('https');
+const crypto = require('crypto');
+const config = require('../../config');
+const logger = require('../../logger');
+
+/**
+ * Client HTTP pour l'API Grandstream UCM6300
+ * Authentification challenge/response avec cookie de session
+ * @class UcmHttpClient
+ */
+class UcmHttpClient {
+  constructor() {
+    this._baseUrl = '';
+    this._cookie = null;
+    this._cookieExpiry = null;
+    this._authenticated = false;
+    this._axiosInstance = null;
+    this._reconnectAttempts = 0;
+    this._maxReconnectAttempts = 5;
+    
+    this._setupAxios();
+  }
+
+  /**
+   * Configure l'instance Axios avec les paramètres TLS
+   * @private
+   */
+  _setupAxios() {
+    const tlsOptions = {
+      rejectUnauthorized: config.ucm.tls.rejectUnauthorized !== false,
+    };
+
+    if (config.ucm.tls.caCert) {
+      tlsOptions.ca = config.ucm.tls.caCert;
+    }
+
+    this._axiosInstance = axios.create({
+      httpsAgent: new https.Agent(tlsOptions),
+      timeout: config.ucm.timeout || 8000,
+      validateStatus: () => true,
+      headers: {
+        'Content-Type': 'application/json',
+        'Connection': 'close',
+      },
+    });
+  }
+
+  /**
+   * Initialise la connexion à l'UCM
+   * @returns {Promise<boolean>}
+   */
+  async connect() {
+    const { host, webPort, username, password } = config.ucm;
+    
+    // Construire l'URL de base
+    this._baseUrl = `https://${host}:${webPort}/api`;
+    
+    logger.info('UCM HTTP: connexion en cours', { 
+      host, 
+      port: webPort,
+      username 
+    });
+
+    try {
+      await this._authenticate(username, password);
+      return true;
+    } catch (err) {
+      logger.error('UCM HTTP: échec authentification', { error: err.message });
+      throw err;
+    }
+  }
+
+  /**
+   * Authentification challenge/response
+   * 1. Demande un challenge
+   * 2. Calcule MD5(challenge + password)
+   * 3. Envoie le token pour obtenir le cookie
+   * @param {string} username
+   * @param {string} password
+   * @returns {Promise<string>} cookie
+   * @private
+   */
+  async _authenticate(username, password) {
+    try {
+      // Étape 1: Obtenir le challenge
+      const challenge = await this._getChallenge(username);
+      logger.debug('UCM HTTP: challenge reçu', { challenge: challenge.substring(0, 8) + '...' });
+
+      // Étape 2: Calculer le token MD5
+      const token = this._computeToken(challenge, password);
+      logger.debug('UCM HTTP: token généré');
+
+      // Étape 3: Login avec le token
+      const cookie = await this._login(username, token);
+      
+      this._cookie = cookie;
+      this._cookieExpiry = Date.now() + (10 * 60 * 1000); // 10 minutes
+      this._authenticated = true;
+      this._reconnectAttempts = 0;
+
+      logger.info('UCM HTTP: authentifié avec succès', { cookie: cookie.substring(0, 15) + '...' });
+      return cookie;
+
+    } catch (err) {
+      this._authenticated = false;
+      this._cookie = null;
+      throw err;
+    }
+  }
+
+  /**
+   * Demande un challenge à l'UCM
+   * @param {string} username
+   * @returns {Promise<string>}
+   * @private
+   */
+  async _getChallenge(username) {
+    const payload = {
+      request: {
+        action: 'challenge',
+        user: username,
+        version: '1.0'
+      }
+    };
+
+    const response = await this._axiosInstance.post(this._baseUrl, payload);
+    
+    if (response.status !== 200 || response.data.status !== 0) {
+      throw new Error(`Challenge failed: ${response.data.status || response.status}`);
+    }
+
+    return response.data.response.challenge;
+  }
+
+  /**
+   * Calcule le token MD5(challenge + password)
+   * @param {string} challenge
+   * @param {string} password
+   * @returns {string}
+   * @private
+   */
+  _computeToken(challenge, password) {
+    return crypto
+      .createHash('md5')
+      .update(challenge + password)
+      .digest('hex');
+  }
+
+  /**
+   * Envoie le login avec le token pour obtenir le cookie
+   * @param {string} username
+   * @param {string} token
+   * @returns {Promise<string>}
+   * @private
+   */
+  async _login(username, token) {
+    const payload = {
+      request: {
+        action: 'login',
+        user: username,
+        token: token,
+        version: '1.0'
+      }
+    };
+
+    const response = await this._axiosInstance.post(this._baseUrl, payload);
+
+    if (response.status !== 200 || response.data.status !== 0) {
+      const errorCode = response.data?.status || response.status;
+      const remainNum = response.data?.response?.remain_num;
+      const remainTime = response.data?.response?.remain_time;
+      
+      let errorMsg = `Login failed: ${errorCode}`;
+      if (remainNum !== undefined) {
+        errorMsg += ` - Tentatives restantes: ${remainNum}`;
+      }
+      if (remainTime !== undefined) {
+        errorMsg += ` - Délai: ${remainTime}s`;
+      }
+      
+      throw new Error(errorMsg);
+    }
+
+    return response.data.response.cookie;
+  }
+
+  /**
+   * Vérifie si le cookie est encore valide
+   * @returns {boolean}
+   */
+  isAuthenticated() {
+    if (!this._authenticated || !this._cookie) {
+      return false;
+    }
+    
+    // Refresh 1 minute avant expiration
+    return Date.now() < (this._cookieExpiry - 60000);
+  }
+
+  /**
+   * Exécute une requête API avec re-authentification automatique
+   * @param {string} action
+   * @param {object} params
+   * @returns {Promise<any>}
+   */
+  async request(action, params = {}) {
+    // Vérifier/rafraîchir l'authentification
+    if (!this.isAuthenticated()) {
+      logger.info('UCM HTTP: session expirée, re-authentification...');
+      await this.connect();
+    }
+
+    const payload = {
+      request: {
+        action,
+        cookie: this._cookie,
+        ...params
+      }
+    };
+
+    try {
+      const response = await this._axiosInstance.post(this._baseUrl, payload);
+      
+      if (response.data.status === -6) {
+        // Cookie invalide, re-authentifier
+        logger.warn('UCM HTTP: cookie invalide, re-authentification');
+        await this.connect();
+        payload.request.cookie = this._cookie;
+        return await this._axiosInstance.post(this._baseUrl, payload);
+      }
+
+      if (response.data.status !== 0) {
+        throw new Error(`API Error ${response.data.status}: ${this._getErrorMessage(response.data.status)}`);
+      }
+
+      return response.data.response;
+
+    } catch (err) {
+      logger.error('UCM HTTP: erreur requête', { action, error: err.message });
+      throw err;
+    }
+  }
+
+  /**
+   * Traduit les codes d'erreur UCM
+   * @param {number} code
+   * @returns {string}
+   * @private
+   */
+  _getErrorMessage(code) {
+    const errors = {
+      '-0': 'Succès',
+      '-1': 'Paramètres invalides',
+      '-5': 'Authentification requise',
+      '-6': 'Erreur cookie',
+      '-7': 'Connexion fermée',
+      '-8': 'Timeout système',
+      '-9': 'Erreur système',
+      '-15': 'Valeur invalide',
+      '-16': 'Élément inexistant',
+      '-37': 'Compte/mot de passe incorrect',
+      '-45': 'Trop de requêtes, réessayez dans 15s',
+      '-47': 'Permission refusée',
+      '-68': 'Restriction de connexion',
+      '-70': 'Connexion interdite',
+    };
+    return errors[String(code)] || 'Erreur inconnue';
+  }
+
+  /**
+   * Récupère le statut système
+   * @returns {Promise<object>}
+   */
+  async getSystemStatus() {
+    return await this.request('getSystemStatus');
+  }
+
+  /**
+   * Récupère la liste des extensions
+   * @returns {Promise<Array>}
+   */
+  async listExtensions() {
+    const result = await this.request('listAccount', {
+      options: 'extension,fullname,status,addr',
+      sord: 'asc',
+      sidx: 'extension'
+    });
+    return result.account || [];
+  }
+
+  /**
+   * Récupère les appels en cours (bridged)
+   * @returns {Promise<Array>}
+   */
+  async listBridgedChannels() {
+    const result = await this.request('listBridgedChannels');
+    return result.channel || [];
+  }
+
+  /**
+   * Récupère les appels en sonnerie (unbridged)
+   * @returns {Promise<Array>}
+   */
+  async listUnBridgedChannels() {
+    const result = await this.request('listUnBridgedChannels');
+    return result.channel || [];
+  }
+
+  /**
+   * Raccroche un appel
+   * @param {string} channel
+   * @returns {Promise<boolean>}
+   */
+  async hangup(channel) {
+    await this.request('Hangup', { channel });
+    return true;
+  }
+
+  /**
+   * Appelle une extension interne
+   * @param {string} caller - Extension qui appelle
+   * @param {string} callee - Extension appelée
+   * @returns {Promise<boolean>}
+   */
+  async dialExtension(caller, callee) {
+    await this.request('dialExtension', { caller, callee });
+    return true;
+  }
+
+  /**
+   * Appelle un numéro externe
+   * @param {string} caller - Extension qui appelle
+   * @param {string} outbound - Numéro à appeler
+   * @returns {Promise<boolean>}
+   */
+  async dialOutbound(caller, outbound) {
+    await this.request('dialOutbound', { caller, outbound });
+    return true;
+  }
+
+  /**
+   * Accepte un appel entrant (dans les 10s)
+   * @param {string} channel
+   * @returns {Promise<boolean>}
+   */
+  async acceptCall(channel) {
+    await this.request('acceptCall', { channel });
+    return true;
+  }
+
+  /**
+   * Refuse un appel entrant (dans les 10s)
+   * @param {string} channel
+   * @returns {Promise<boolean>}
+   */
+  async refuseCall(channel) {
+    await this.request('refuseCall', { channel });
+    return true;
+  }
+
+  /**
+   * Transfère un appel
+   * @param {string} channel
+   * @param {string} extension
+   * @returns {Promise<boolean>}
+   */
+  async callTransfer(channel, extension) {
+    await this.request('callTransfer', { channel, extension });
+    return true;
+  }
+
+  /**
+   * Récupère les statistiques d'une file d'attente
+   * @param {string} queue
+   * @param {string} startTime
+   * @param {string} endTime
+   * @returns {Promise<object>}
+   */
+  async getQueueStats(queue, startTime, endTime) {
+    return await this.request('queueapi', {
+      queue,
+      startTime,
+      endTime,
+      format: 'json'
+    });
+  }
+
+  /**
+   * Déconnexion propre
+   * @returns {Promise<void>}
+   */
+  async disconnect() {
+    if (this._cookie) {
+      try {
+        await this.request('logout', {});
+      } catch (err) {
+        logger.warn('UCM HTTP: erreur déconnexion', { error: err.message });
+      }
+    }
+    this._cookie = null;
+    this._authenticated = false;
+    logger.info('UCM HTTP: déconnecté');
+  }
+
+  /**
+   * Getter pour le statut d'authentification
+   */
+  get authenticated() {
+    return this._authenticated;
+  }
+
+  /**
+   * Getter pour le cookie (tests uniquement)
+   */
+  get cookie() {
+    return this._cookie;
+  }
+}
+
+module.exports = UcmHttpClient;

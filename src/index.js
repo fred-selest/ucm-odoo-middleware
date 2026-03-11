@@ -7,8 +7,8 @@ const express      = require('express');
 const swaggerUi    = require('swagger-ui-express');
 const config       = require('./config');
 const logger       = require('./logger');
-const UcmClient      = require('./infrastructure/ucm/UcmClient');
-const UcmWsClient    = require('./infrastructure/ucm/UcmWsClient');
+const UcmHttpClient  = require('./infrastructure/ucm/UcmHttpClient');
+const UcmWebSocketClient = require('./infrastructure/ucm/UcmWebSocketClient');
 const OdooClient     = require('./infrastructure/odoo/OdooClient');
 const WsServer       = require('./infrastructure/websocket/WsServer');
 const CallHandler    = require('./application/CallHandler');
@@ -33,10 +33,13 @@ async function main() {
   });
 
   // ── Infrastructure ─────────────────────────────────────────────────────────
-  const ucmMode    = config.ucm.mode || 'ami';
-  const ucmClient  = ucmMode === 'websocket' ? new UcmWsClient() : new UcmClient();
+  // UCM6300: HTTP API + WebSocket pour événements temps réel
+  const ucmMode    = config.ucm.mode || 'websocket';
   logger.info(`UCM: mode ${ucmMode.toUpperCase()}`);
-  const odooClient     = new OdooClient();
+  
+  const ucmHttpClient = new UcmHttpClient();
+  const ucmWsClient   = new UcmWebSocketClient();
+  const odooClient    = new OdooClient();
   const webhookManager = new WebhookManager();
   
   // ── Base de données / Historique ───────────────────────────────────────────
@@ -66,10 +69,10 @@ async function main() {
   const wsServer   = new WsServer(httpServer);
 
   // ── Application ────────────────────────────────────────────────────────────
-  const callHandler = new CallHandler(ucmClient, odooClient, wsServer, webhookManager, callHistory);
+  const callHandler = new CallHandler(ucmHttpClient, ucmWsClient, odooClient, wsServer, webhookManager, callHistory);
 
   // ── Routes ─────────────────────────────────────────────────────────────────
-  const apiRouter = createRouter({ ucmClient, odooClient, wsServer, callHandler, webhookManager, callHistory });
+  const apiRouter = createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHandler, webhookManager, callHistory });
   app.use('/', apiRouter);
 
   // 404 catch-all
@@ -97,14 +100,49 @@ async function main() {
   logger.info(`WebSocket disponible sur ws://localhost:${config.server.port}${config.server.wsPath}`);
   logger.info(`Documentation API disponible sur http://localhost:${config.server.port}/api-docs`);
 
-  // 3. Connecter UCM (listener error obligatoire pour éviter uncaughtException)
-  ucmClient.on('error', err => logger.warn('UCM: erreur réseau', { error: err.message }));
-  ucmClient.connect();
+  // 3. Connecter UCM6300 (HTTP + WebSocket)
+  try {
+    // Connexion HTTP API
+    await ucmHttpClient.connect();
+    logger.info('UCM HTTP: connecté avec succès');
+    
+    // Récupérer le statut système
+    const status = await ucmHttpClient.getSystemStatus();
+    logger.info('UCM: statut système', status);
+    
+    // Connexion WebSocket pour événements
+    ucmWsClient.on('event', (event) => {
+      logger.debug('UCM WS: événement', event);
+      callHandler.handleUcmEvent(event);
+    });
+    
+    ucmWsClient.on('connected', () => {
+      logger.info('UCM WS: connecté pour événements temps réel');
+    });
+    
+    ucmWsClient.on('error', (err) => {
+      logger.warn('UCM WS: erreur', { error: err.message });
+    });
+    
+    await ucmWsClient.connect();
+    
+  } catch (err) {
+    logger.error('UCM: échec connexion', { error: err.message });
+    logger.warn('UCM: le middleware fonctionnera sans connexion UCM (webhook uniquement)');
+  }
 
   // ── Arrêt propre ───────────────────────────────────────────────────────────
   const shutdown = async (signal) => {
     logger.info(`Signal ${signal} reçu — arrêt propre...`);
-    ucmClient.disconnect();
+    
+    // Déconnexion UCM
+    try {
+      await ucmHttpClient.disconnect();
+      await ucmWsClient.disconnect();
+    } catch (err) {
+      logger.warn('UCM: erreur déconnexion', { error: err.message });
+    }
+    
     if (callHistory) {
       await callHistory.db.close();
     }

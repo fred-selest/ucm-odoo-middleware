@@ -29,17 +29,24 @@ const ov = loadOverrides();
 
 const config = {
   ucm: {
-    mode:              ov.ucm?.mode        ?? process.env.UCM_MODE            ?? 'ami',
+    mode:              ov.ucm?.mode        ?? process.env.UCM_MODE            ?? 'websocket',
     host:              ov.ucm?.host        ?? process.env.UCM_HOST            ?? 'localhost',
-    port:              ov.ucm?.port        ?? parseInt(process.env.UCM_AMI_PORT  ?? '5039', 10),
-    username:          ov.ucm?.username    ?? process.env.UCM_AMI_USERNAME    ?? 'admin',
-    secret:            ov.ucm?.secret      ?? process.env.UCM_AMI_SECRET      ?? '',
     webPort:           ov.ucm?.webPort     ?? parseInt(process.env.UCM_WEB_PORT  ?? '8089', 10),
-    webUser:           ov.ucm?.webUser     ?? process.env.UCM_WEB_USER        ?? process.env.UCM_AMI_USERNAME ?? 'admin',
-    webPassword:       ov.ucm?.webPassword ?? process.env.UCM_WEB_PASSWORD    ?? process.env.UCM_AMI_SECRET   ?? '',
+    username:          ov.ucm?.username    ?? process.env.UCM_API_USER        ?? 'admin',
+    password:          ov.ucm?.password    ?? process.env.UCM_API_PASS        ?? '',
     reconnectDelay:    parseInt(process.env.UCM_RECONNECT_DELAY    || '3000', 10),
     reconnectMaxDelay: parseInt(process.env.UCM_RECONNECT_MAX_DELAY || '60000', 10),
+    timeout:           parseInt(process.env.UCM_TIMEOUT            || '8000', 10),
     watchExtensions:   ov.ucm?.watchExtensions ?? list('UCM_WATCH_EXTENSIONS'),
+    
+    // TLS configuration
+    tls: {
+      rejectUnauthorized: process.env.UCM_TLS_REJECT_UNAUTHORIZED !== 'false',
+      caCert:            process.env.UCM_TLS_CA_CERT_CONTENT || null,
+    },
+    
+    // Webhook (fallback for old UCM models)
+    webhookPort:       ov.ucm?.webhookPort   ?? parseInt(process.env.UCM_WEBHOOK_PORT ?? '8088', 10),
   },
 
   odoo: {
@@ -66,7 +73,7 @@ const config = {
 
   // ── Mise à jour dynamique ───────────────────────────────────────────────────
   applyUcm(fields) {
-    const allowed = ['mode', 'host', 'port', 'username', 'secret', 'webPort', 'webUser', 'webPassword', 'watchExtensions'];
+    const allowed = ['mode', 'host', 'webPort', 'webUser', 'webPassword', 'watchExtensions'];
     for (const [k, v] of Object.entries(fields)) {
       if (allowed.includes(k)) config.ucm[k] = v;
     }
@@ -86,9 +93,6 @@ const config = {
       ucm: {
         mode:             config.ucm.mode,
         host:             config.ucm.host,
-        port:             config.ucm.port,
-        username:         config.ucm.username,
-        secret:           config.ucm.secret,
         webPort:          config.ucm.webPort,
         webUser:          config.ucm.webUser,
         webPassword:      config.ucm.webPassword,

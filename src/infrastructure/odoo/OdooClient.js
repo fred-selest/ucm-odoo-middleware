@@ -140,6 +140,81 @@ class OdooClient {
     return contacts;
   }
 
+  async getContactHistory(contactId, limit = 50) {
+    await this.ensureAuthenticated();
+    
+    // Récupérer les informations complètes du contact
+    const result = await this._callModel('res.partner', 'search_read', [
+      [['id', '=', contactId]]
+    ], {
+      fields: ['id', 'name', 'phone', 'mobile', 'email', 'parent_id', 'is_company', 
+               'street', 'city', 'zip', 'country_id', 'function', 'website', 'comment'],
+      limit: 1,
+    });
+    
+    if (!result || result.length === 0) return null;
+    
+    return this._formatContactFull(result[0]);
+  }
+
+  async createContact(contactData) {
+    await this.ensureAuthenticated();
+    
+    const values = {
+      name: contactData.name,
+      phone: contactData.phone,
+      mobile: contactData.mobile,
+      email: contactData.email,
+      is_company: contactData.is_company || false,
+    };
+    
+    if (contactData.company_id) values.parent_id = contactData.company_id;
+    if (contactData.street) values.street = contactData.street;
+    if (contactData.city) values.city = contactData.city;
+    if (contactData.function) values.function = contactData.function;
+    if (contactData.comment) values.comment = contactData.comment;
+    
+    const ids = await this._callModel('res.partner', 'create', [values]);
+    logger.info('Odoo: contact créé', { id: ids[0], name: contactData.name });
+    
+    return this.getContactById(ids[0]);
+  }
+
+  async updateContact(contactId, contactData) {
+    await this.ensureAuthenticated();
+    
+    const values = {};
+    if (contactData.name !== undefined) values.name = contactData.name;
+    if (contactData.phone !== undefined) values.phone = contactData.phone;
+    if (contactData.mobile !== undefined) values.mobile = contactData.mobile;
+    if (contactData.email !== undefined) values.email = contactData.email;
+    if (contactData.street !== undefined) values.street = contactData.street;
+    if (contactData.city !== undefined) values.city = contactData.city;
+    if (contactData.function !== undefined) values.function = contactData.function;
+    if (contactData.comment !== undefined) values.comment = contactData.comment;
+    if (contactData.company_id !== undefined) values.parent_id = contactData.company_id;
+    
+    await this._callModel('res.partner', 'write', [[contactId, values]]);
+    logger.info('Odoo: contact modifié', { id: contactId });
+    
+    return this.getContactById(contactId);
+  }
+
+  async getContactById(contactId) {
+    await this.ensureAuthenticated();
+    
+    const result = await this._callModel('res.partner', 'search_read', [
+      [['id', '=', contactId]]
+    ], {
+      fields: ['id', 'name', 'phone', 'email', 'mobile', 'parent_id', 'is_company', 
+               'street', 'city', 'function'],
+      limit: 1,
+    });
+    
+    if (!result || result.length === 0) return null;
+    return this._formatContact(result[0]);
+  }
+
   invalidateCache(phone = null) {
     if (phone) this._cache.delete(this._normalizePhone(phone));
     else this._cache.clear();
@@ -401,6 +476,32 @@ class OdooClient {
       function:  partner.function || null,
       street:    partner.street || null,
       city:      partner.city   || null,
+      odooUrl:   `${config.odoo.url}/odoo/contacts/${partner.id}`,
+    };
+  }
+
+  _formatContactFull(partner) {
+    const company = Array.isArray(partner.parent_id) ? partner.parent_id[1] : null;
+    const country = Array.isArray(partner.country_id) ? partner.country_id[1] : null;
+    const name    = partner.is_company || !company
+      ? partner.name
+      : `${partner.name} (${company})`;
+    return {
+      id:        partner.id,
+      name,
+      phone:     partner.phone || null,
+      mobile:    partner.mobile || null,
+      email:     partner.email || null,
+      company,
+      companyId: Array.isArray(partner.parent_id) ? partner.parent_id[0] : null,
+      isCompany: partner.is_company,
+      function:  partner.function || null,
+      street:    partner.street || null,
+      city:      partner.city   || null,
+      zip:       partner.zip    || null,
+      country:   country        || null,
+      website:   partner.website || null,
+      comment:   partner.comment || null,
       odooUrl:   `${config.odoo.url}/odoo/contacts/${partner.id}`,
     };
   }
