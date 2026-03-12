@@ -113,8 +113,17 @@ document.getElementById('popupNoteSaveBtn').addEventListener('click', async () =
     });
     const d = await r.json();
     if (d.ok) {
+      // Poster aussi dans le chatter pour conserver l'historique horodaté
+      if (note.trim()) {
+        await apiFetch(`/api/odoo/contacts/${contactId}/notes`, {
+          method: 'POST',
+          body: JSON.stringify({ note: `📝 ${note.trim()}` })
+        }).catch(() => {});
+      }
       result.innerHTML = '<span class="text-success">Note enregistrée ✓</span>';
       if (_quickContactData) _quickContactData.comment = note;
+      // Recharger l'historique pour afficher la nouvelle note
+      loadQuickHistory(_quickContactData);
       setTimeout(() => { result.innerHTML = ''; }, 3000);
     } else {
       result.innerHTML = `<span class="text-danger">${esc(d.error || 'Erreur')}</span>`;
@@ -153,9 +162,12 @@ async function loadQuickHistory(contact) {
       msgResult.data.forEach(m => {
         const dt = new Date((m.date || '').replace(' ', 'T') + 'Z');
         const preview = m.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+        const isNote = preview.startsWith('📝');
+        const icon = isNote ? '' : '💬 ';
+        const style = isNote ? 'color:#92400e;font-weight:500' : '';
         items.push({ dt, html:
           `<div class="d-flex justify-content-between align-items-start py-1 border-bottom">
-            <span class="me-1 text-secondary">💬 ${esc(preview)}</span>
+            <span class="me-1" style="${style}">${icon}${esc(preview)}</span>
             <span class="text-muted flex-shrink-0">${dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</span>
           </div>` });
       });
