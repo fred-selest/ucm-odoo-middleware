@@ -160,7 +160,7 @@ async function loadFullJournal(page = 1) {
 }
 
 function renderJournalStats(calls, total) {
-  const answered = calls.filter(c => c.status === 'answered').length;
+  const answered = calls.filter(c => c.status === 'answered' || c.status === 'hangup').length;
   const missed   = calls.filter(c => c.status === 'missed').length;
   const withDur  = calls.filter(c => c.duration > 0);
   const avgDur   = withDur.length ? Math.round(withDur.reduce((s, c) => s + c.duration, 0) / withDur.length) : 0;

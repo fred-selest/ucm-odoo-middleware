@@ -432,7 +432,7 @@ class CallHistory {
     const stats = await this.db.get(
       `SELECT 
         COUNT(*) as total,
-        SUM(CASE WHEN status = 'answered' THEN 1 ELSE 0 END) as answered,
+        SUM(CASE WHEN status IN ('answered','hangup') THEN 1 ELSE 0 END) as answered,
         SUM(CASE WHEN status = 'missed' THEN 1 ELSE 0 END) as missed,
         SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
         AVG(CASE WHEN duration > 0 THEN duration END) as avg_duration,
@@ -460,7 +460,7 @@ class CallHistory {
       `SELECT 
         exten,
         COUNT(*) as total,
-        SUM(CASE WHEN status = 'answered' THEN 1 ELSE 0 END) as answered,
+        SUM(CASE WHEN status IN ('answered','hangup') THEN 1 ELSE 0 END) as answered,
         SUM(CASE WHEN status = 'missed' THEN 1 ELSE 0 END) as missed,
         ROUND(AVG(CASE WHEN duration > 0 THEN duration END), 2) as avg_duration,
         SUM(CASE WHEN duration > 0 THEN duration END) as total_duration
@@ -494,7 +494,7 @@ class CallHistory {
         caller_id_name,
         contact_name,
         COUNT(*) as call_count,
-        SUM(CASE WHEN status = 'answered' THEN 1 ELSE 0 END) as answered_count
+        SUM(CASE WHEN status IN ('answered','hangup') THEN 1 ELSE 0 END) as answered_count
        FROM calls
        WHERE started_at >= date('now', '-${days} days') 
          AND caller_id_num IS NOT NULL
@@ -577,7 +577,7 @@ class CallHistory {
          SELECT 
            date(started_at) as date,
            COUNT(*),
-           SUM(CASE WHEN status = 'answered' THEN 1 ELSE 0 END),
+           SUM(CASE WHEN status IN ('answered','hangup') THEN 1 ELSE 0 END),
            SUM(CASE WHEN status = 'missed' THEN 1 ELSE 0 END),
            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END),
            AVG(CASE WHEN duration > 0 THEN duration END),
