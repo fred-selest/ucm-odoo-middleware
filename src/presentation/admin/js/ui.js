@@ -4,9 +4,35 @@
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// ── Son des appels entrants ─────────────────────────────────────────────────
+let soundEnabled = localStorage.getItem('ucm_sound') !== 'off';
+
+function updateSoundToggleUI() {
+  const btn = document.getElementById('soundToggle');
+  if (!btn) return;
+  const icon = btn.querySelector('i');
+  if (soundEnabled) {
+    icon.className = 'bi bi-bell-fill';
+    icon.style.color = '#eab308';
+    btn.title = 'Son activé — cliquer pour désactiver';
+  } else {
+    icon.className = 'bi bi-bell-slash';
+    icon.style.color = '#94a3b8';
+    btn.title = 'Son désactivé — cliquer pour activer';
+  }
+}
+
+document.getElementById('soundToggle').addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem('ucm_sound', soundEnabled ? 'on' : 'off');
+  updateSoundToggleUI();
+});
+
+updateSoundToggleUI();
+
 // ── Keyboard shortcuts ─────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey && e.key === 'k') { e.preventDefault(); document.getElementById('callSearch')?.focus(); }
+  if (e.ctrlKey && e.key === 'k') { e.preventDefault(); (document.getElementById('unifiedSearch') || document.getElementById('callSearch'))?.focus(); }
   if (e.ctrlKey && e.key === 'd') { e.preventDefault(); toggleTheme(); }
 });
 
@@ -137,3 +163,22 @@ function restoreCardOrder() {
 }
 
 setTimeout(restoreCardOrder, 100);
+
+// ── Dial number (depuis bouton Rappeler) ───────────────────────────────────
+function dialNumber(phone) {
+  // Basculer sur l'onglet Live
+  const liveTab = document.getElementById('tab-live-btn');
+  if (liveTab) { bootstrap.Tab.getOrCreateInstance(liveTab).show(); }
+  // Pré-remplir le numéro
+  const dialPhoneEl = document.getElementById('dialPhone');
+  if (dialPhoneEl) dialPhoneEl.value = phone;
+  // Pré-remplir l'extension depuis localStorage
+  const savedExten = localStorage.getItem('ucm_dial_exten') || '';
+  const dialExtenEl = document.getElementById('dialExten');
+  if (dialExtenEl && savedExten) dialExtenEl.value = savedExten;
+  // Focus
+  setTimeout(() => {
+    if (dialExtenEl && !dialExtenEl.value) dialExtenEl.focus();
+    else if (dialPhoneEl) dialPhoneEl.focus();
+  }, 150);
+}

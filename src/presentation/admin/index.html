@@ -74,6 +74,35 @@
     [data-bs-theme="dark"] .theme-toggle:hover { background: #334155; }
     .search-input { max-width: 280px; }
     @media (max-width: 992px) { .stat-card { text-align: center; } .stat-card .icon { margin: 0 auto .75rem; } }
+
+    /* Bandeau appel en cours */
+    #activeCallBanner {
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center; gap: 1rem;
+      padding: .5rem 1.5rem; font-weight: 600; font-size: .9rem;
+    }
+
+    /* Badge manqués navbar */
+    .nav-badge-wrap { position: relative; display: inline-flex; align-items: center; padding: .4rem; border-radius: 6px; cursor: pointer; }
+    .nav-badge-wrap:hover { background: #f1f5f9; }
+    [data-bs-theme="dark"] .nav-badge-wrap:hover { background: #334155; }
+    .nav-badge-pill {
+      position: absolute; top: 0; right: 0;
+      font-size: .6rem; min-width: 16px; height: 16px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 999px; background: #ef4444; color: #fff;
+      font-weight: 700; padding: 0 3px;
+    }
+
+    /* Onglets principaux */
+    #mainTabs .nav-link { color: #64748b; border-radius: 8px; padding: .5rem 1.25rem; font-weight: 500; }
+    #mainTabs .nav-link.active { background: #2563eb; color: #fff; }
+    #mainTabs .nav-link:hover:not(.active) { background: #f1f5f9; color: #1e293b; }
+    [data-bs-theme="dark"] #mainTabs .nav-link:hover:not(.active) { background: #334155; color: #e2e8f0; }
+
+    /* Bouton Rappeler */
+    .btn-callback { font-size: .65rem; padding: .1rem .35rem; line-height: 1.2; vertical-align: middle; }
     
     /* Drag & Drop pour cartes */
     .draggable-main-card, .draggable-sub-card { cursor: grab; transition: transform 0.2s, box-shadow 0.2s; position: relative; }
@@ -139,6 +168,14 @@
   <div class="d-flex align-items-center gap-3 header-actions">
     <span class="text-muted small"><i class="bi bi-person-circle me-1"></i><span id="navUser">—</span></span>
     <span class="badge bg-light text-secondary border" id="uptime" title="Durée de session">—</span>
+    <div class="nav-badge-wrap" id="missedBadgeWrap" title="Appels manqués aujourd'hui"
+         onclick="document.getElementById('tab-historique-btn')?.click();document.getElementById('jStatus').value='missed';loadFullJournal(1);">
+      <i class="bi bi-telephone-x" style="font-size:1.1rem;color:#64748b"></i>
+      <span class="nav-badge-pill d-none" id="missedCallsBadge">0</span>
+    </div>
+    <button class="theme-toggle" id="soundToggle" title="Son des appels entrants">
+      <i class="bi bi-bell-fill" style="color:#eab308"></i>
+    </button>
     <button class="theme-toggle" id="themeToggle" title="Mode clair/sombre (Ctrl+D)">
       <i class="bi bi-moon-stars"></i>
     </button>
@@ -147,6 +184,17 @@
     </button>
   </div>
 </nav>
+
+<!-- ══ Bandeau appel en cours ══════════════════════════════════════════════ -->
+<div id="activeCallBanner" class="d-none">
+  <i class="bi bi-telephone-fill animate-pulse"></i>
+  <span>Appel en cours ·</span>
+  <strong id="activeCallPhone">—</strong>
+  <span class="opacity-75">→ ext.</span>
+  <span id="activeCallExten" class="badge bg-white bg-opacity-25">—</span>
+  <span class="opacity-75 ms-2">Durée :</span>
+  <strong id="activeCallTimer">0:00</strong>
+</div>
 
 <div class="container-fluid px-4">
 
@@ -178,13 +226,36 @@
     </div>
     <div class="col-6 col-md-3">
       <div class="card stat-card">
-        <div class="icon icon-red"><i class="bi bi-people"></i></div>
-        <div class="value text-primary" id="statWsClients">0</div>
-        <div class="label">Agents connectés</div>
+        <div class="icon icon-red"><i class="bi bi-telephone-x"></i></div>
+        <div class="value text-danger" id="statMissedToday">0</div>
+        <div class="label">Manqués aujourd'hui</div>
       </div>
     </div>
   </div>
 
+  <!-- Navigation principale par onglets -->
+  <ul class="nav nav-pills mb-3" id="mainTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="tab-live-btn" data-bs-toggle="pill" data-bs-target="#tab-live" role="tab">
+        <i class="bi bi-telephone-fill me-1"></i>Live
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-historique-btn" data-bs-toggle="pill" data-bs-target="#tab-historique" role="tab">
+        <i class="bi bi-journal-text me-1"></i>Historique
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-logs-btn" data-bs-toggle="pill" data-bs-target="#tab-logs" role="tab">
+        <i class="bi bi-terminal me-1"></i>Logs
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content" id="mainTabContent">
+
+  <!-- ══ Onglet Live ══════════════════════════════════════════════════════ -->
+  <div class="tab-pane fade show active" id="tab-live" role="tabpanel">
   <div class="row g-3 mb-3">
     <!-- Journal d'appels -->
     <div class="col-lg-7">
@@ -206,10 +277,10 @@
           <div class="table-responsive flex-grow-1" style="max-height: 300px; overflow-y:auto">
             <table class="table table-hover table-sm mb-0" id="callTable">
               <thead class="table-light sticky-top">
-                <tr><th style="width:75px">Heure</th><th>De</th><th>Extension</th><th>Contact Odoo</th><th style="width:90px">Statut</th></tr>
+                <tr><th style="width:75px">Heure</th><th style="width:28px"></th><th>De</th><th>Extension</th><th>Contact Odoo</th><th style="width:90px">Statut</th></tr>
               </thead>
               <tbody id="callBody">
-                <tr><td colspan="5" class="text-center text-muted py-4 small">En attente d'appels…</td></tr>
+                <tr><td colspan="6" class="text-center text-muted py-4 small">En attente d'appels…</td></tr>
               </tbody>
             </table>
       </div>
@@ -349,27 +420,16 @@
         </div>
       </div>
 
-      <!-- Recherche contact Odoo -->
+      <!-- Recherche contact Odoo (unifiée) -->
       <div class="card mb-3 draggable-sub-card" draggable="true" data-card="recherche">
         <span class="drag-handle" title="Déplacer"><i class="bi bi-grip-horizontal"></i></span>
         <div class="card-header"><i class="bi bi-search me-1 text-info"></i>Recherche contact Odoo</div>
         <div class="card-body">
-          <!-- Recherche par numéro -->
-          <div class="mb-3">
-            <label class="form-label small text-muted">Par numéro de téléphone</label>
-            <div class="input-group input-group-sm">
-              <input type="text" id="testPhone" class="form-control" placeholder="Numéro de téléphone…">
-              <button class="btn btn-primary" id="testOdooBtn"><i class="bi bi-search"></i></button>
-            </div>
+          <div class="input-group input-group-sm">
+            <input type="text" id="unifiedSearch" class="form-control" placeholder="Numéro ou nom de contact… (Ctrl+K)" autocomplete="off">
+            <button class="btn btn-primary" id="unifiedSearchBtn"><i class="bi bi-search"></i></button>
           </div>
-          <!-- Recherche par nom/société -->
-          <div>
-            <label class="form-label small text-muted">Par nom ou société</label>
-            <div class="input-group input-group-sm">
-              <input type="text" id="testName" class="form-control" placeholder="Nom ou société…">
-              <button class="btn btn-info" id="testNameBtn"><i class="bi bi-search"></i></button>
-            </div>
-          </div>
+          <div class="form-text" style="font-size:.72rem">Numéro → recherche exacte · Texte → recherche nom/société</div>
           <div id="testOdooResult" class="mt-2 small"></div>
         </div>
       </div>
@@ -418,50 +478,57 @@
         </div>
       </div>
 
-      <!-- Statuts Agents (Ringover style) -->
-      <div class="card mb-3 draggable-sub-card" draggable="true" data-card="agents-status">
+      <!-- Agents (Statuts + WS connectés fusionnés) -->
+      <div class="card draggable-sub-card" draggable="true" data-card="agents">
         <span class="drag-handle" title="Déplacer"><i class="bi bi-grip-horizontal"></i></span>
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <span><i class="bi bi-people me-1 text-success"></i>Statuts Agents</span>
-          <button class="btn btn-xs btn-sm btn-outline-secondary" onclick="fetchAgentStatus()">
+        <div class="card-header d-flex justify-content-between align-items-center p-0 ps-2">
+          <ul class="nav nav-tabs card-header-tabs border-0" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active py-2 px-3" data-bs-toggle="tab" data-bs-target="#agentsStatusPane" role="tab">
+                <i class="bi bi-people me-1 text-success"></i>Statuts
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link py-2 px-3" data-bs-toggle="tab" data-bs-target="#agentsWsPane" role="tab">
+                <i class="bi bi-wifi me-1 text-success"></i>WS
+                <span class="badge bg-success bg-opacity-75 ms-1" id="statWsClients">0</span>
+              </button>
+            </li>
+          </ul>
+          <button class="btn btn-sm btn-outline-secondary me-2" style="font-size:.72rem;padding:.2rem .5rem" onclick="fetchAgentStatus()">
             <i class="bi bi-arrow-clockwise"></i>
           </button>
         </div>
-        <div class="card-body p-0">
-          <div style="max-height:180px;overflow-y:auto">
-            <table class="table table-sm mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th>Extension</th>
-                  <th>Statut</th>
-                  <th>Appels</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="agentStatusBody">
-                <tr><td colspan="4" class="text-center text-muted py-3 small">Chargement…</td></tr>
-              </tbody>
-            </table>
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="agentsStatusPane">
+            <div style="max-height:180px;overflow-y:auto">
+              <table class="table table-sm mb-0">
+                <thead class="table-light">
+                  <tr><th>Ext.</th><th>Statut</th><th>Appels</th><th></th></tr>
+                </thead>
+                <tbody id="agentStatusBody">
+                  <tr><td colspan="4" class="text-center text-muted py-3 small">Chargement…</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Agents WebSocket connectés -->
-      <div class="card draggable-sub-card" draggable="true" data-card="agents-ws">
-        <span class="drag-handle" title="Déplacer"><i class="bi bi-grip-horizontal"></i></span>
-        <div class="card-header"><i class="bi bi-wifi me-1 text-success"></i>Agents connectés (WebSocket)</div>
-        <div class="card-body p-0">
-          <div style="max-height:130px;overflow-y:auto">
-            <table class="table table-sm mb-0">
-              <thead class="table-light"><tr><th>Client</th><th>Extensions</th></tr></thead>
-              <tbody id="wsBody"><tr><td colspan="2" class="text-center text-muted py-3 small">Aucun agent</td></tr></tbody>
-            </table>
+          <div class="tab-pane fade" id="agentsWsPane">
+            <div style="max-height:180px;overflow-y:auto">
+              <table class="table table-sm mb-0">
+                <thead class="table-light"><tr><th>Client</th><th>Extensions</th></tr></thead>
+                <tbody id="wsBody"><tr><td colspan="2" class="text-center text-muted py-3 small">Aucun agent</td></tr></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
       </div>
     </div>
   </div>
+  </div><!-- /tab-live -->
+
+  <!-- ══ Onglet Historique ═══════════════════════════════════════════════ -->
+  <div class="tab-pane fade" id="tab-historique" role="tabpanel">
 
   <!-- ══ Journal d'appels complet ══════════════════════════════════════════ -->
   <div class="row g-3 mb-3">
@@ -530,6 +597,10 @@
       </div>
     </div>
   </div>
+  </div><!-- /tab-historique -->
+
+  <!-- ══ Onglet Logs ════════════════════════════════════════════════════ -->
+  <div class="tab-pane fade" id="tab-logs" role="tabpanel">
 
   <div class="row g-3">
     <!-- Logs -->
@@ -600,6 +671,9 @@
       </div>
     </div>
   </div>
+  </div><!-- /tab-logs -->
+
+  </div><!-- /tab-content -->
 
 </div><!-- /container -->
 </div><!-- /mainPage -->
@@ -1096,6 +1170,12 @@
                 <div class="small"><i class="bi bi-building text-muted me-2"></i><span id="incomingCompany">—</span></div>
                 <div class="small"><i class="bi bi-geo-alt text-muted me-2"></i><span id="incomingCity">—</span></div>
               </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="bg-white rounded-3 p-2 border" style="border-color:#e2e8f0!important">
+              <div class="text-muted fw-semibold mb-1" style="font-size:.75rem"><i class="bi bi-clock-history me-1"></i>Derniers appels</div>
+              <div id="incomingCallHistory" style="max-height:90px;overflow-y:auto">—</div>
             </div>
           </div>
         </div>

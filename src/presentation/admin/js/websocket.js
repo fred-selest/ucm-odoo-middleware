@@ -17,11 +17,16 @@ function connectWs() {
     if (msg.type === 'call:incoming') {
       addCallRow(msg.data, 'incoming');
       showIncomingCallPopup(msg.data);
+      if (typeof showActiveCallBanner === 'function') showActiveCallBanner(msg.data);
     }
     if (msg.type === 'call:answered') updateCallRow(msg.data, 'answered');
     if (msg.type === 'call:hangup') {
       updateCallRow(msg.data, 'hangup');
-      setTimeout(() => { loadCallHistory(); loadFullJournal(jPage); }, 500);
+      if (typeof hideActiveCallBanner === 'function') hideActiveCallBanner();
+      if (currentIncomingCall && msg.data.uniqueId === currentIncomingCall.uniqueId) {
+        setTimeout(closeIncomingCallModal, 2000);
+      }
+      setTimeout(() => { loadCallHistory(); loadFullJournal(jPage); fetchMissedCallsToday(); }, 500);
     }
     if (msg.type === 'contact') updateCallContact(msg.data);
     if (msg.type === 'agent:status_changed') fetchAgentStatus();

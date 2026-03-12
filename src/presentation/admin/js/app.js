@@ -15,11 +15,17 @@ function startApp() {
   fetchLogs();
   fetchWebhooks();
   fetchAgentStatus();
+  fetchMissedCallsToday();
   loadCallHistory();
   loadFullJournal(1);
-  setInterval(fetchStatus,   5000);
-  setInterval(fetchLogs,     3000);
-  setInterval(fetchWebhooks, 30000);
+  setInterval(fetchStatus,         5000);
+  setInterval(fetchLogs,           3000);
+  setInterval(fetchWebhooks,       30000);
+  setInterval(fetchMissedCallsToday, 60000);
+  // Mémorisation extension click-to-call
+  const dialExtenEl = document.getElementById('dialExten');
+  dialExtenEl.value = localStorage.getItem('ucm_dial_exten') || '';
+  dialExtenEl.addEventListener('change', () => localStorage.setItem('ucm_dial_exten', dialExtenEl.value.trim()));
 }
 
 // ── Status polling ─────────────────────────────────────────────────────────
@@ -96,6 +102,61 @@ async function fetchWebhooks() {
         <td><span class="badge bg-success bg-opacity-10 text-success">Actif</span></td></tr>`
     ).join('');
   } catch { }
+}
+
+// ── Appels manqués aujourd'hui ──────────────────────────────────────────────
+async function fetchMissedCallsToday() {
+  try {
+    const today = new Date().toISOString().slice(0,10);
+    const r = await apiFetch(`/api/calls/history?startDate=${today}&status=missed&limit=1`);
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.ok) return;
+    const count = d.pagination?.total || 0;
+    const el = document.getElementById('statMissedToday');
+    if (el) el.textContent = count;
+    const badge = document.getElementById('missedCallsBadge');
+    if (badge) {
+      if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.classList.remove('d-none');
+      } else {
+        badge.classList.add('d-none');
+      }
+    }
+  } catch { }
+}
+
+// ── Active Call Banner ──────────────────────────────────────────────────────
+let activeCallTimerInterval = null;
+let activeCallStartTime = null;
+
+function showActiveCallBanner(call) {
+  activeCallStartTime = Date.now();
+  const banner = document.getElementById('activeCallBanner');
+  const phoneEl = document.getElementById('activeCallPhone');
+  const extenEl = document.getElementById('activeCallExten');
+  if (!banner) return;
+  if (phoneEl) phoneEl.textContent = call.callerIdNum || '—';
+  if (extenEl) extenEl.textContent = call.exten || call.agentExten || '—';
+  banner.classList.remove('d-none');
+  if (activeCallTimerInterval) clearInterval(activeCallTimerInterval);
+  activeCallTimerInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - activeCallStartTime) / 1000);
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    const el = document.getElementById('activeCallTimer');
+    if (el) el.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+  }, 1000);
+}
+
+function hideActiveCallBanner() {
+  activeCallStartTime = null;
+  if (activeCallTimerInterval) { clearInterval(activeCallTimerInterval); activeCallTimerInterval = null; }
+  const banner = document.getElementById('activeCallBanner');
+  if (banner) banner.classList.add('d-none');
+  const el = document.getElementById('activeCallTimer');
+  if (el) el.textContent = '0:00';
 }
 
 // ── Agent Status ───────────────────────────────────────────────────────────
@@ -282,7 +343,7 @@ document.getElementById('exportCsvBtn').onclick = () => {
 
 // UI Event handlers
 document.getElementById('clearCalls').onclick = () => {
-  document.getElementById('callBody').innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4 small">Journal vidé.</td></tr>';
+  document.getElementById('callBody').innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4 small">Journal vidé.</td></tr>';
 };
 document.getElementById('clearLogs').onclick  = () => { logLines = []; renderLogs(); };
 document.getElementById('pauseLogs').onclick  = function() {
@@ -292,11 +353,11 @@ document.getElementById('pauseLogs').onclick  = function() {
 };
 document.getElementById('logFilter').onchange = function() { logFilterVal = this.value; renderLogs(); };
 
-// ── Recherche de contact ────────────────────────────────────────────────────
-async function searchByPhone() {
-  const phone = document.getElementById('testPhone').value.trim();
+// ── Recherche de contact (unifiée) ──────────────────────────────────────────
+async function searchByPhone(phoneOverride) {
+  const phone = phoneOverride || document.getElementById('unifiedSearch')?.value.trim();
   const result = document.getElementById('testOdooResult');
-  if (!phone) return;
+  if (!phone || !result) return;
   result.innerHTML = '<span class="text-muted">Recherche…</span>';
   try {
     const r = await apiFetch('/api/odoo/test', { method: 'POST', body: JSON.stringify({ phone }) });
@@ -310,10 +371,10 @@ async function searchByPhone() {
   } catch(e) { result.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`; }
 }
 
-async function searchByName() {
-  const query = document.getElementById('testName').value.trim();
+async function searchByName(queryOverride) {
+  const query = queryOverride || document.getElementById('unifiedSearch')?.value.trim();
   const result = document.getElementById('testOdooResult');
-  if (!query) return;
+  if (!query || !result) return;
   result.innerHTML = '<span class="text-muted">Recherche…</span>';
   try {
     const r = await apiFetch(`/api/odoo/search?q=${encodeURIComponent(query)}`);
@@ -330,10 +391,17 @@ async function searchByName() {
   } catch(e) { result.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`; }
 }
 
-document.getElementById('testOdooBtn').addEventListener('click', searchByPhone);
-document.getElementById('testNameBtn').addEventListener('click', searchByName);
-document.getElementById('testPhone').addEventListener('keydown', e => { if (e.key === 'Enter') searchByPhone(); });
-document.getElementById('testName').addEventListener('keydown', e => { if (e.key === 'Enter') searchByName(); });
+async function unifiedSearch() {
+  const q = document.getElementById('unifiedSearch')?.value.trim();
+  if (!q) return;
+  // Numéro si contient surtout des chiffres / séparateurs téléphoniques
+  const isPhone = /^[\d\s\+\-\.\/\(\)]+$/.test(q);
+  if (isPhone) await searchByPhone(q);
+  else await searchByName(q);
+}
+
+document.getElementById('unifiedSearchBtn').addEventListener('click', unifiedSearch);
+document.getElementById('unifiedSearch').addEventListener('keydown', e => { if (e.key === 'Enter') unifiedSearch(); });
 
 // ── Click-to-call ───────────────────────────────────────────────────────────
 document.getElementById('dialBtn').addEventListener('click', async () => {
