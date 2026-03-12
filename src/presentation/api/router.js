@@ -989,6 +989,37 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
     }
   });
 
+  // ── Synchro CDR UCM ─────────────────────────────────────────────────────────
+  // POST /api/calls/sync-cdr?startTime=...&endTime=...
+  router.post('/api/calls/sync-cdr', async (req, res) => {
+    try {
+      // Par défaut : aujourd'hui de 00:00 à maintenant
+      const now   = new Date();
+      const pad   = n => String(n).padStart(2, '0');
+      const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+      const startTime = req.query.startTime || req.body?.startTime || `${today} 00:00:00`;
+      const endTime   = req.query.endTime   || req.body?.endTime
+        || `${today} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+      logger.info('CDR sync: démarrage', { startTime, endTime });
+      const { records, total } = await ucmHttpClient.fetchCdr(startTime, endTime);
+      logger.info('CDR sync: enregistrements récupérés', { total, fetched: records.length });
+
+      let inserted = 0;
+      for (const cdr of records) {
+        if (!cdr.uniqueid) continue;
+        const ok = await callHistory.createCallFromCdr(cdr);
+        if (ok) inserted++;
+      }
+
+      logger.info('CDR sync: terminée', { inserted, skipped: records.length - inserted });
+      res.json({ ok: true, fetched: records.length, inserted, skipped: records.length - inserted, startTime, endTime });
+    } catch (err) {
+      logger.error('CDR sync: erreur', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
   return router;
 }
 

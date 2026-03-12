@@ -267,7 +267,7 @@ class CallHandler {
   }
 
   async _poll() {
-    if (this._isPolling || !this._http?.isAuthenticated()) return;
+    if (this._isPolling || !this._http) return;
     this._isPolling = true;
     try { await this._doPoll(); } finally { this._isPolling = false; }
   }

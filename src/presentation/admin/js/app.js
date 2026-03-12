@@ -228,6 +228,29 @@ function renderJournalPagination(pagination) {
   pag.innerHTML = pages.join('');
 }
 
+// Sync CDR UCM
+document.getElementById('syncCdrBtn').onclick = async () => {
+  const btn = document.getElementById('syncCdrBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sync...';
+  try {
+    const r = await apiFetch('/api/calls/sync-cdr', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      alert(`Sync terminée : ${d.inserted} appel(s) importé(s), ${d.skipped} déjà présent(s)\n(${d.startTime} → ${d.endTime})`);
+      loadFullJournal(1);
+      loadCallHistory();
+    } else {
+      alert('Erreur sync CDR : ' + (d.error || 'inconnue'));
+    }
+  } catch (e) {
+    alert('Erreur sync CDR : ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cloud-download me-1"></i>Sync UCM';
+  }
+};
+
 // Export CSV
 document.getElementById('exportCsvBtn').onclick = () => {
   if (!jData.length) { alert('Aucune donnée à exporter.'); return; }

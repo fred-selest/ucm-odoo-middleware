@@ -406,6 +406,43 @@ class UcmHttpClient {
   }
 
   /**
+   * Récupère les enregistrements CDR depuis l'API CDR UCM (port 8443)
+   * @param {string} startTime - ISO 8601 ou 'YYYY-MM-DD HH:MM:SS'
+   * @param {string} endTime   - ISO 8601 ou 'YYYY-MM-DD HH:MM:SS'
+   * @param {number} limit     - Max enregistrements par requête (max 1000)
+   * @param {number} offset    - Pagination
+   * @returns {Promise<{records: Array, total: number}>}
+   */
+  async fetchCdr(startTime, endTime, limit = 1000, offset = 0) {
+    if (!this.isAuthenticated()) {
+      await this.connect();
+    }
+    const { host } = config.ucm;
+    const url = `https://${host}:8443/cdrapi`;
+    const params = new URLSearchParams({
+      startTime,
+      endTime,
+      output:  'json',
+      limit:   String(limit),
+      offset:  String(offset),
+      cookie:  this._cookie,
+    });
+    try {
+      const resp = await this._axiosInstance.get(`${url}?${params}`);
+      const data = resp.data;
+      if (data?.status !== undefined && data.status !== 0) {
+        throw new Error(`CDR API error: status ${data.status}`);
+      }
+      const records = data?.cdr_list || data?.data || [];
+      const total   = data?.total_count || data?.total || records.length;
+      return { records, total };
+    } catch (err) {
+      logger.error('UCM CDR: erreur récupération', { error: err.message });
+      throw err;
+    }
+  }
+
+  /**
    * Getter pour le statut d'authentification
    */
   get authenticated() {

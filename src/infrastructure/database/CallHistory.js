@@ -39,6 +39,49 @@ class CallHistory {
     }
   }
 
+  /**
+   * Insère un appel depuis le CDR UCM (historique) — ignore les doublons.
+   * @param {object} cdr - Enregistrement CDR brut Grandstream
+   * @returns {boolean} true si inséré, false si déjà présent
+   */
+  async createCallFromCdr(cdr) {
+    // Parsing CLID : '"Nom" <numéro>' ou juste 'numéro'
+    const clidMatch = String(cdr.clid || '').match(/"([^"]*)" *<([^>]+)>/) || [];
+    const callerIdName = clidMatch[1] || '';
+    const callerIdNum  = cdr.src || clidMatch[2] || '';
+    const exten        = cdr.dst || '';
+
+    const isInternal = n => /^\d{1,5}$/.test(String(n).replace(/\D/g, ''));
+    let direction = 'inbound';
+    if (isInternal(callerIdNum) && !isInternal(exten)) direction = 'outbound';
+    else if (isInternal(callerIdNum) && isInternal(exten)) direction = 'internal';
+
+    const disposition = String(cdr.disposition || '').toUpperCase();
+    const status      = disposition === 'ANSWERED' ? 'hangup' : 'missed';
+    const duration    = disposition === 'ANSWERED' ? (cdr.billsec ?? cdr.duration ?? null) : null;
+
+    // Dates : Grandstream retourne 'YYYY-MM-DD HH:MM:SS' en heure locale UCM
+    const toIso = d => d ? String(d).replace(' ', 'T') : null;
+    const startedAt  = toIso(cdr.start);
+    const answeredAt = disposition === 'ANSWERED' && cdr.answer ? toIso(cdr.answer) : null;
+    const hungUpAt   = toIso(cdr.end);
+
+    try {
+      const result = await this.db.run(
+        `INSERT OR IGNORE INTO calls
+          (unique_id, caller_id_num, caller_id_name, exten, agent_exten, direction,
+           status, started_at, answered_at, hung_up_at, duration)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [cdr.uniqueid, callerIdNum, callerIdName, exten, exten, direction,
+         status, startedAt, answeredAt, hungUpAt, duration]
+      );
+      return result.changes > 0;
+    } catch (err) {
+      logger.error('CDR: erreur insertion', { error: err.message, uniqueid: cdr.uniqueid });
+      return false;
+    }
+  }
+
   async updateCallAnswered(uniqueId, data = {}) {
     try {
       await this.db.run(
