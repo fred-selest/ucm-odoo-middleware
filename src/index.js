@@ -16,6 +16,7 @@ const WebhookManager = require('./application/WebhookManager');
 const CallHistory    = require('./infrastructure/database/CallHistory');
 const createRouter   = require('./presentation/api/router');
 const swaggerSpec    = require('./config/swagger');
+const HealthAgent    = require('./infrastructure/monitoring/HealthAgent');
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 
@@ -54,9 +55,14 @@ async function main() {
   // ── Serveur HTTP + WebSocket ───────────────────────────────────────────────
   const app        = express();
   app.use(express.json());
+  
+  // Servir les fichiers statiques (favicon, etc.)
+  app.use(express.static(__dirname + '/../public'));
 
   // Désactiver X-Powered-By
   app.disable('x-powered-by');
+  
+  // Routes API
 
   // Documentation Swagger
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -89,9 +95,9 @@ async function main() {
     });
   }
 
-  // 2. Démarrer le serveur HTTP
+  // 2. Démarrer le serveur HTTP (réseau Docker)
   await new Promise((resolve, reject) => {
-    httpServer.listen(config.server.port, (err) => {
+    httpServer.listen(config.server.port, '0.0.0.0', (err) => {
       if (err) return reject(err);
       resolve();
     });
@@ -122,9 +128,21 @@ async function main() {
     logger.warn('UCM: le middleware fonctionnera sans connexion UCM (webhook uniquement)');
   }
 
+  // ── Agent de supervision ───────────────────────────────────────────────────
+  const healthAgent = new HealthAgent();
+  healthAgent.start(ucmHttpClient, ucmWsClient, odooClient, wsServer, callHistory);
+  
+  // Exposer l'agent pour l'API
+  app.locals.healthAgent = healthAgent;
+
   // ── Arrêt propre ───────────────────────────────────────────────────────────
   const shutdown = async (signal) => {
     logger.info(`Signal ${signal} reçu — arrêt propre...`);
+    
+    // Arrêt de l'agent de supervision
+    if (healthAgent) {
+      healthAgent.stop();
+    }
     
     // Déconnexion UCM
     try {

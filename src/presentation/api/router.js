@@ -1,10 +1,13 @@
 'use strict';
 
 const path       = require('path');
+const fs         = require('fs');
 const { Router } = require('express');
 const { v4: uuidv4 } = require('uuid');
 const config     = require('../../config');
 const logger     = require('../../logger');
+
+const BUILD_VERSION = Date.now();
 
 // ── Tampon de logs en mémoire ─────────────────────────────────────────────
 const LOG_BUFFER     = [];
@@ -42,12 +45,30 @@ function requireSession(req, res, next) {
   next();
 }
 
+// Middleware pour protéger les routes API (sauf auth et status)
+function apiRequireSession(req, res, next) {
+  if (req.path.startsWith("/auth/") || req.path === "/odoo/test" || req.path === "/status") {
+    return next();
+  }
+  return requireSession(req, res, next);
+}
+
 function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHandler, webhookManager, callHistory }) {
   const router = Router();
 
+  // ── Fichiers JS pour admin (avant autres routes) ─────────────────────────
+  router.get('/admin/js/:file', (req, res) => {
+    res.sendFile(path.join(__dirname, '../admin/js/', req.params.file));
+  });
+  
   // ── Interface admin (sans auth) ─────────────────────────────────────────
   router.get(['/admin', '/admin/'], (req, res) => {
-    res.sendFile(path.join(__dirname, '../admin/index.html'));
+    const htmlPath = path.join(__dirname, '../admin/index.html');
+    let html = fs.readFileSync(htmlPath, 'utf8');
+    html = html.replace(/(src="\/admin\/js\/[^"]+\.js)"/g, `$1?v=${BUILD_VERSION}"`);
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(html);
   });
 
   // ── Webhook UCM (public, protégé par token dans l'URL) ───────────────────
@@ -61,18 +82,78 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
     res.json({ ok: true });
   });
 
-  // ── Healthcheck public ──────────────────────────────────────────────────
-  router.get('/health', (req, res) => {
-    const ucmHttpOk = ucmHttpClient?.authenticated || false;
-    const ucmWsOk = ucmWsClient?.connected || false;
-    const ucmOk = ucmHttpOk && ucmWsOk;
-    res.status(ucmOk ? 200 : 503).json({
-      status: ucmOk ? 'ok' : 'degraded',
-      ucm: ucmOk,
-      ucmHttp: ucmHttpOk,
-      ucmWs: ucmWsOk,
+  // ── Test Odoo (sans auth) ────────────────────────────────────────────────
+  router.post('/api/odoo/test', async (req, res) => {
+    try {
+      const { phone } = req.body || {};
+      if (phone) {
+        const contact = await odooClient.findContactByPhone(phone);
+        return res.json({ ok: true, contact });
+      }
+      await odooClient.ensureAuthenticated();
+      res.json({ ok: true, message: 'Connexion Odoo OK' });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // ── Authentification requise pour /api/* ────────────────────────────────
+  // ── Statut global (sans auth) ──────────────────────────────────────────
+  router.get("/status", (req, res) => {
+    res.json({
+      ucm: {
+        httpConnected: ucmHttpClient?.authenticated || false,
+        wsConnected: ucmWsClient?.connected || false,
+        mode:      config.ucm.mode,
+        host:      config.ucm.host,
+        port:      config.ucm.webPort,
+        watchExtensions: config.ucm.watchExtensions,
+      },
+      odoo: {
+        url:           config.odoo.url,
+        db:            config.odoo.db,
+        authenticated: odooClient?.isAuthenticated?.() || false,
+        cacheSize:     odooClient.cacheSize,
+      },
+      websocket: {
+        clients:       wsServer.connectedCount,
+        subscriptions: wsServer.subscriptions,
+      },
+      calls:     { active: callHandler.activeCallsCount },
+      uptime:    process.uptime(),
+      memory:    process.memoryUsage(),
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // ── Healthcheck public ──────────────────────────────────────────────────
+  router.get('/health', (req, res) => {
+    const healthAgent = req.app.locals.healthAgent;
+    if (healthAgent) {
+      const status = healthAgent.getStatus();
+      const isHealthy = healthAgent.isHealthy();
+      res.status(isHealthy ? 200 : 503).json(status);
+    } else {
+      const ucmHttpOk = ucmHttpClient?.authenticated || false;
+      const ucmWsOk = ucmWsClient?.connected || false;
+      const ucmOk = ucmHttpOk && ucmWsOk;
+      res.status(ucmOk ? 200 : 503).json({
+        status: ucmOk ? 'ok' : 'degraded',
+        ucm: ucmOk,
+        ucmHttp: ucmHttpOk,
+        ucmWs: ucmWsOk,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
+
+  // ── Supervision détaillée ───────────────────────────────────────────────
+  router.get('/api/health/status', requireSession, (req, res) => {
+    const healthAgent = req.app.locals.healthAgent;
+    if (!healthAgent) {
+      return res.status(503).json({ error: 'Agent de supervision non initialisé' });
+    }
+    res.json(healthAgent.getStatus());
   });
 
   // ── Auth : login Odoo ───────────────────────────────────────────────────
@@ -113,34 +194,9 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
   });
 
   // ── Routes protégées (session requise) ──────────────────────────────────
-  router.use('/api', requireSession);
 
-  // ── Statut global ───────────────────────────────────────────────────────
-  router.get('/api/status', (req, res) => {
-    res.json({
-      ucm: {
-        httpConnected: ucmHttpClient?.authenticated || false,
-        wsConnected: ucmWsClient?.connected || false,
-        mode:      config.ucm.mode,
-        host:      config.ucm.host,
-        port:      config.ucm.webPort,
-        watchExtensions: config.ucm.watchExtensions,
-      },
-      odoo: {
-        url:       config.odoo.url,
-        db:        config.odoo.db,
-        cacheSize: odooClient.cacheSize,
-      },
-      websocket: {
-        clients:       wsServer.connectedCount,
-        subscriptions: wsServer.subscriptions,
-      },
-      calls:     { active: callHandler.activeCallsCount },
-      uptime:    process.uptime(),
-      memory:    process.memoryUsage(),
-      timestamp: new Date().toISOString(),
-    });
-  });
+
+  // ── Routes protégées (session requise, sauf auth) ────────────────────────
 
   router.get('/api/calls/active', (req, res) => {
     res.json({ count: callHandler.activeCallsCount, calls: callHandler.getActiveCalls() });
@@ -157,19 +213,6 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
     res.json({ ok: true, message: phone ? `Cache vidé pour ${phone}` : 'Cache entier vidé' });
   });
 
-  router.post('/api/odoo/test', async (req, res) => {
-    try {
-      const { phone } = req.body || {};
-      if (phone) {
-        const contact = await odooClient.findContactByPhone(phone);
-        return res.json({ ok: true, contact });
-      }
-      await odooClient.ensureAuthenticated();
-      res.json({ ok: true, message: 'Connexion Odoo OK' });
-    } catch (err) {
-      res.status(500).json({ ok: false, error: err.message });
-    }
-  });
 
   // GET /api/odoo/search - Recherche de contacts par nom ou société
   router.get('/api/odoo/search', async (req, res) => {
@@ -461,10 +504,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
   });
 
   // ── Gestion des tokens webhook ───────────────────────────────────────────
-  router.get('/api/webhooks', (req, res) => {
-    res.json(webhookManager ? webhookManager.listTokens() : []);
+  router.get("/api/webhooks", (req, res) => {
+    const tokens = webhookManager ? webhookManager.listTokens() : [];
+    res.json({ ok: true, data: tokens });
   });
-
   router.post('/api/webhooks', (req, res) => {
     const { name } = req.body || {};
     if (!name?.trim()) return res.status(400).json({ error: 'name requis' });
@@ -542,6 +585,20 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
         });
       }
 
+      // APPEL RÉEL VIA UCM HTTP API
+      logger.info('Click-to-call: appel UCM en cours...', { phone, exten, uniqueId });
+      
+      // Déterminer si c'est un appel interne ou externe
+      const isInternal = /^[0-9]{3,4}$/.test(phone); // Extension interne (3-4 chiffres)
+      
+      if (isInternal) {
+        await ucmHttpClient.dialExtension(exten, phone);
+        logger.info('Click-to-call: extension dialed', { exten, callee: phone, uniqueId });
+      } else {
+        await ucmHttpClient.dialOutbound(exten, phone);
+        logger.info('Click-to-call: outbound dialed', { exten, outbound: phone, uniqueId });
+      }
+      
       // Diffuser l'événement aux agents
       const callInfo = {
         uniqueId,
@@ -559,11 +616,11 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
       res.json({ 
         ok: true, 
         uniqueId,
-        message: 'Appel initié',
+        message: `Appel en cours vers ${phone}`,
         call: callInfo
       });
     } catch (err) {
-      logger.error('Erreur click-to-call', { error: err.message });
+      logger.error('Erreur click-to-call', { error: err.message, stack: err.stack });
       res.status(500).json({ ok: false, error: err.message });
     }
   });
@@ -806,7 +863,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
       const contactData = req.body;
       
       const contact = await odooClient.updateContact(contactId, contactData);
-      logger.info('Contact modifié via API', { id: contactId, user: req.session.username });
+      logger.info('Contact modifié via API', { id: contactId, user: req.session?.username });
       
       res.json({ ok: true, data: contact });
     } catch (err) {

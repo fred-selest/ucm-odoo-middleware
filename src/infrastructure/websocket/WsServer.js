@@ -57,6 +57,7 @@ class WsServer {
   }
 
   get connectedCount() { return this._clients.size; }
+  getClientCount() { return this._clients.size; }
 
   get subscriptions() {
     const result = {};

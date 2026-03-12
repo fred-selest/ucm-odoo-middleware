@@ -1,38 +1,95 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-bs-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>UCM ↔ Odoo — Admin</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
+    :root { --sidebar-width: 260px; }
     body { background: #f1f5f9; }
+    [data-bs-theme="dark"] body { background: #0f172a; }
+    [data-bs-theme="dark"] .navbar { background: #1e293b !important; border-color: #334155 !important; }
     .navbar { background: #fff !important; border-bottom: 1px solid #e2e8f0; }
     .navbar-brand { font-weight: 700; color: #1e293b !important; }
-    .card { border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
-    .card-header { background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #334155; }
-    .stat-card { text-align: center; padding: 1.2rem 1rem; background: #fff; }
-    .stat-card .value { font-size: 2rem; font-weight: 700; line-height: 1; }
-    .stat-card .label { font-size: .75rem; color: #94a3b8; margin-top: .3rem; text-transform: uppercase; letter-spacing: .5px; }
-    .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .card { border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+    [data-bs-theme="dark"] .card { background: #1e293b; border-color: #334155; }
+    .card-header { background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #334155; padding: .875rem 1rem; }
+    [data-bs-theme="dark"] .card-header { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+    .stat-card { text-align: center; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; transition: transform .2s,box-shadow .2s; }
+    [data-bs-theme="dark"] .stat-card { background: #1e293b; border-color: #334155; }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+    .stat-card .icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin: 0 auto .75rem; }
+    .stat-card .icon-blue { background: #dbeafe; color: #2563eb; }
+    .stat-card .icon-green { background: #dcf7e6; color: #16a34a; }
+    .stat-card .icon-yellow { background: #fef3c7; color: #d97706; }
+    .stat-card .icon-red { background: #fee2e2; color: #dc2626; }
+    .stat-card .value { font-size: 1.75rem; font-weight: 700; line-height: 1; }
+    .stat-card .label { font-size: .75rem; color: #64748b; margin-top: .35rem; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+    [data-bs-theme="dark"] .stat-card .label { color: #94a3b8; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
     .dot-green  { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    .dot-yellow { background: #eab308; box-shadow: 0 0 6px #eab30888; }
     .dot-red    { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
     .dot-gray   { background: #cbd5e1; }
-    #logBox { background: #0f172a; color: #94a3b8; font-family: 'Courier New', monospace;
-              font-size: .76rem; height: 300px; overflow-y: auto; border-radius: 8px; padding: .75rem; }
+    .status-badge { display: inline-flex; align-items: center; gap: .5rem; padding: .375rem .75rem; border-radius: 999px; background: #f1f5f9; font-size: .8rem; font-weight: 500; }
+    [data-bs-theme="dark"] .status-badge { background: #334155; }
+    #logBox { background: #0f172a; color: #94a3b8; font-family: 'Courier New', monospace; font-size: .76rem; height: 250px; overflow-y: auto; border-radius: 8px; padding: .75rem; }
     .log-info  { color: #38bdf8; }
     .log-warn  { color: #fb923c; }
     .log-error { color: #f87171; }
-    .log-debug { color: #475569; }
-    .call-row  { animation: fadeIn .3s ease; }
-    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    .log-debug { color: #64748b; }
+    .call-row { animation: fadeIn .3s ease; }
+    .call-row.incoming { animation: pulse 1.5s infinite; }
+    @keyframes fadeIn { from { opacity:0; transform: translateX(-10px); } to { opacity:1; transform: translateX(0); } }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,.4); } 50% { box-shadow: 0 0 0 10px rgba(59,130,246,0); } }
     .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
     .login-card { width: 380px; border-radius: 12px; }
     .login-logo { font-size: 2rem; color: #4f46e5; }
-    ::-webkit-scrollbar { width: 5px; }
+    .contact-badge { display: inline-flex; align-items: center; gap: .5rem; padding: .25rem .75rem; border-radius: 999px; font-weight: 500; font-size: .85rem; }
+    .contact-badge img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+    .contact-badge-clickable { cursor: pointer; transition: transform .15s; }
+    .contact-badge-clickable:hover { transform: scale(1.05); }
+    .filter-btn { border-radius: 999px; font-size: .8rem; padding: .375rem .875rem; }
+    .filter-btn.active { background: #2563eb; color: #fff; }
+    .table th { font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .5px; color: #64748b; padding: .625rem .75rem; }
+    [data-bs-theme="dark"] .table th { color: #94a3b8; }
+    .table td { vertical-align: middle; padding: .625rem .75rem; font-size: .9rem; }
+    .table-hover tbody tr:hover { background: #f8fafc; }
+    [data-bs-theme="dark"] .table-hover tbody tr:hover { background: #334155; }
+    ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #f1f5f9; }
+    [data-bs-theme="dark"] ::-webkit-scrollbar-track { background: #1e293b; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    #quickContactCard { border: 2px solid #22c55e; background: linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%); }
+    [data-bs-theme="dark"] #quickContactCard { background: linear-gradient(135deg, #14532d 0%, #166534 100%); }
+    .toast-call { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #fff; border: none; box-shadow: 0 10px 40px rgba(59,130,246,.3); }
+    .toast-call .btn-close { filter: invert(1); }
+    .header-actions { display: flex; align-items: center; gap: .5rem; }
+    .theme-toggle { background: none; border: none; font-size: 1.1rem; color: #64748b; cursor: pointer; padding: .5rem; border-radius: 6px; }
+    .theme-toggle:hover { background: #f1f5f9; }
+    [data-bs-theme="dark"] .theme-toggle:hover { background: #334155; }
+    .search-input { max-width: 280px; }
+    @media (max-width: 992px) { .stat-card { text-align: center; } .stat-card .icon { margin: 0 auto .75rem; } }
+    
+    /* Drag & Drop pour cartes */
+    .draggable-main-card, .draggable-sub-card { cursor: grab; transition: transform 0.2s, box-shadow 0.2s; position: relative; }
+    .draggable-main-card:active, .draggable-sub-card:active { cursor: grabbing; }
+    .draggable-main-card.dragging, .draggable-sub-card.dragging { opacity: 0.5; transform: scale(1.02); box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
+    .draggable-main-card.drag-over, .draggable-sub-card.drag-over { border: 2px dashed #3b82f6; }
+    .drag-handle { 
+      position: absolute; top: 0.5rem; right: 0.75rem; 
+      opacity: 0; transition: opacity 0.2s; 
+      color: #94a3b8; cursor: grab; z-index: 10;
+      padding: 0.25rem; border-radius: 4px;
+    }
+    .drag-handle:hover { background: #e2e8f0; color: #3b82f6; }
+    [data-bs-theme="dark"] .drag-handle:hover { background: #334155; }
+    .draggable-main-card:hover .drag-handle, .draggable-sub-card:hover .drag-handle { opacity: 1; }
+    .draggable-column { padding: 0.5rem; }
   </style>
 </head>
 <body>
@@ -69,15 +126,22 @@
 <div id="mainPage" class="d-none">
 
 <nav class="navbar navbar-light px-4 py-2 mb-3">
-  <span class="navbar-brand"><i class="bi bi-telephone-inbound-fill me-2 text-primary"></i>UCM ↔ Odoo Admin</span>
   <div class="d-flex align-items-center gap-3">
-    <span class="d-flex align-items-center gap-2 small">
-      <span class="status-dot dot-gray" id="wsIndicator"></span>
-      <span id="wsLabel" class="text-muted">WebSocket…</span>
-    </span>
-    <span class="badge bg-primary text-white ms-2" id="ucmModeBadge">Webhook</span>
-    <span class="text-muted small"><i class="bi bi-person me-1"></i><span id="navUser">—</span></span>
-    <span class="badge bg-light text-secondary border" id="uptime">—</span>
+    <span class="navbar-brand"><i class="bi bi-telephone-inbound-fill me-2 text-primary"></i>UCM ↔ Odoo Admin</span>
+    <div class="d-flex gap-2">
+      <span class="status-badge">
+        <span class="status-dot dot-gray" id="wsIndicator"></span>
+        <span id="wsLabel">WebSocket…</span>
+      </span>
+      <span class="badge bg-primary text-white" id="ucmModeBadge">Webhook</span>
+    </div>
+  </div>
+  <div class="d-flex align-items-center gap-3 header-actions">
+    <span class="text-muted small"><i class="bi bi-person-circle me-1"></i><span id="navUser">—</span></span>
+    <span class="badge bg-light text-secondary border" id="uptime" title="Durée de session">—</span>
+    <button class="theme-toggle" id="themeToggle" title="Mode clair/sombre (Ctrl+D)">
+      <i class="bi bi-moon-stars"></i>
+    </button>
     <button class="btn btn-sm btn-outline-secondary" id="logoutBtn">
       <i class="bi bi-box-arrow-right me-1"></i>Déconnexion
     </button>
@@ -87,16 +151,19 @@
 <div class="container-fluid px-4">
 
   <!-- Cartes statut -->
-  <div class="row g-3 mb-3">
+  <div class="row g-3 mb-3" id="statCardsContainer">
+    <!-- Cartes statut (FIXES) -->
     <div class="col-6 col-md-3">
       <div class="card stat-card">
+        <div class="icon icon-blue"><i class="bi bi-hdd-network"></i></div>
         <div class="value" id="statUcm"><span class="status-dot dot-gray"></span></div>
-        <div class="label" id="statUcmMode">UCM Webhook</div>
+        <div class="label" id="statUcmMode">UCM</div>
         <div class="text-muted mt-1" style="font-size:.72rem" id="statUcmHost">—</div>
       </div>
     </div>
     <div class="col-6 col-md-3">
       <div class="card stat-card">
+        <div class="icon icon-green"><i class="bi bi-cloud-check"></i></div>
         <div class="value" id="statOdoo"><span class="status-dot dot-gray"></span></div>
         <div class="label">Odoo</div>
         <div class="text-muted mt-1" style="font-size:.72rem;word-break:break-all" id="statOdooUrl">—</div>
@@ -104,12 +171,14 @@
     </div>
     <div class="col-6 col-md-3">
       <div class="card stat-card">
+        <div class="icon icon-yellow"><i class="bi bi-telephone-inbound"></i></div>
         <div class="value text-info" id="statCalls">0</div>
-        <div class="label">Appels actifs</div>
+        <div class="label">Appels en cours</div>
       </div>
     </div>
     <div class="col-6 col-md-3">
       <div class="card stat-card">
+        <div class="icon icon-red"><i class="bi bi-people"></i></div>
         <div class="value text-primary" id="statWsClients">0</div>
         <div class="label">Agents connectés</div>
       </div>
@@ -119,13 +188,22 @@
   <div class="row g-3 mb-3">
     <!-- Journal d'appels -->
     <div class="col-lg-7">
-      <div class="card h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
+      <div class="card draggable-main-card" draggable="true" data-card="journal" style="max-height: 400px;">
+        <span class="drag-handle" title="Déplacer"><i class="bi bi-grip-horizontal"></i></span>
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
           <span><i class="bi bi-telephone-fill me-1 text-primary"></i>Journal d'appels</span>
-          <button class="btn btn-sm btn-outline-secondary" id="clearCalls"><i class="bi bi-trash me-1"></i>Vider</button>
+          <div class="d-flex gap-2 align-items-center">
+            <input type="text" class="form-control form-control-sm search-input" id="callSearch" placeholder="🔍 Rechercher… (Ctrl+K)">
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button" class="btn btn-outline-secondary filter-btn active" data-filter="all">Tous</button>
+              <button type="button" class="btn btn-outline-success filter-btn" data-filter="answered">✓</button>
+              <button type="button" class="btn btn-outline-danger filter-btn" data-filter="missed">✗</button>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" id="clearCalls" title="Vider le journal"><i class="bi bi-trash"></i></button>
+          </div>
         </div>
-        <div class="card-body p-0">
-          <div class="table-responsive" style="max-height:300px;overflow-y:auto">
+        <div class="card-body p-0 d-flex flex-column">
+          <div class="table-responsive flex-grow-1" style="max-height: 300px; overflow-y:auto">
             <table class="table table-hover table-sm mb-0" id="callTable">
               <thead class="table-light sticky-top">
                 <tr><th style="width:75px">Heure</th><th>De</th><th>Extension</th><th>Contact Odoo</th><th style="width:90px">Statut</th></tr>
@@ -134,15 +212,126 @@
                 <tr><td colspan="5" class="text-center text-muted py-4 small">En attente d'appels…</td></tr>
               </tbody>
             </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Modal : Fiche contact (popup au clic) ══════════════════════════════════ -->
+<div class="modal fade" id="modalContactPopup" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius: 16px; overflow: hidden;">
+      <!-- Header avec avatar -->
+      <div class="modal-header border-0" style="background: linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%); padding: 1.5rem;">
+        <div class="d-flex align-items-center gap-3 w-100">
+          <div id="popupContactAvatar" style="width:80px;height:80px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.15);flex-shrink:0;">
+            <i class="bi bi-person-circle" style="font-size:3rem;color:#22c55e;"></i>
+          </div>
+          <div class="flex-grow-1">
+            <h4 class="mb-0 fw-bold text-success" id="popupContactName">—</h4>
+            <div class="text-success opacity-75" id="popupContactFunction">—</div>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-success" id="popupEditBtn">
+            <i class="bi bi-pencil"></i> Modifier
+          </button>
+        </div>
+      </div>
+      
+      <!-- Body avec infos -->
+      <div class="modal-body p-4">
+        <input type="hidden" id="popupContactId">
+        <div class="row g-3">
+          <!-- Coordonnées -->
+          <div class="col-md-6">
+            <div class="bg-light rounded-3 p-3">
+              <h6 class="fw-semibold mb-3"><i class="bi bi-telephone me-2 text-primary"></i>Coordonnées</h6>
+              <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-telephone text-muted me-2" style="width:20px;"></i>
+                <span id="popupContactPhone">—</span>
+              </div>
+              <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-phone text-muted me-2" style="width:20px;"></i>
+                <span id="popupContactMobile">—</span>
+              </div>
+              <div class="d-flex align-items-center">
+                <i class="bi bi-envelope text-muted me-2" style="width:20px;"></i>
+                <span id="popupContactEmail">—</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Adresse -->
+          <div class="col-md-6">
+            <div class="bg-light rounded-3 p-3">
+              <h6 class="fw-semibold mb-3"><i class="bi bi-geo-alt me-2 text-primary"></i>Adresse</h6>
+              <div class="small text-muted" id="popupContactStreet">—</div>
+              <div class="small text-muted" id="popupContactCity">—</div>
+              <div class="small text-muted" id="popupContactCountry">—</div>
+            </div>
+          </div>
+          
+          <!-- Société -->
+          <div class="col-12">
+            <div class="bg-light rounded-3 p-3">
+              <h6 class="fw-semibold mb-3"><i class="bi bi-building me-2 text-primary"></i>Société</h6>
+              <div class="d-flex flex-wrap gap-3">
+                <div>
+                  <span class="text-muted small">Société :</span>
+                  <div id="popupContactCompany" class="fw-semibold">—</div>
+                </div>
+                <div>
+                  <span class="text-muted small">Site web :</span>
+                  <div><a href="#" id="popupContactWebsite" target="_blank" class="text-primary">—</a></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Note interne Odoo -->
+          <div class="col-12">
+            <div class="bg-warning bg-opacity-10 rounded-3 p-3">
+              <h6 class="fw-semibold mb-2"><i class="bi bi-sticky me-2 text-warning"></i>Note interne</h6>
+              <textarea id="popupContactNote" class="form-control form-control-sm bg-transparent border-0 shadow-none" rows="3" placeholder="Aucune note…" style="resize:vertical;"></textarea>
+              <div class="d-flex justify-content-end mt-2">
+                <button class="btn btn-sm btn-warning" id="popupNoteSaveBtn"><i class="bi bi-floppy me-1"></i>Enregistrer</button>
+              </div>
+              <div id="popupNoteResult" class="small mt-1"></div>
+            </div>
+          </div>
+
+          <!-- Historique & Notes -->
+          <div class="col-12">
+            <div class="border rounded-3">
+              <div class="bg-light p-3 border-bottom">
+                <h6 class="fw-semibold mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Historique &amp; Notes</h6>
+              </div>
+              <div id="popupContactHistory" style="max-height:200px;overflow-y:auto" class="p-3">
+                <span class="text-muted">Chargement…</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+      
+      <!-- Footer avec actions -->
+      <div class="modal-footer bg-light py-3">
+        <a href="#" id="popupContactOdooLink" target="_blank" class="btn btn-outline-secondary">
+          <i class="bi bi-box-arrow-up-right"></i> Voir dans Odoo
+        </a>
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+          <i class="bi bi-check-lg"></i> Fermer
+        </button>
+      </div>
     </div>
+  </div>
+</div>
 
       <!-- Colonne droite : Click-to-call + Recherche + Agents -->
     <div class="col-lg-5">
+      <div class="draggable-column" style="max-height: 400px; overflow-y: auto;">
       <!-- Click-to-call (Ringover style) -->
-      <div class="card mb-3 border-primary border-opacity-25">
+      <div class="card mb-3 draggable-sub-card border-primary border-opacity-25" draggable="true" data-card="click-to-call">
+        <span class="drag-handle" title="Déplacer"><i class="bi bi-grip-horizontal"></i></span>
         <div class="card-header bg-primary bg-opacity-10">
           <i class="bi bi-telephone-outbound me-1 text-primary"></i>Click-to-Call
         </div>
@@ -161,7 +350,8 @@
       </div>
 
       <!-- Recherche contact Odoo -->
-      <div class="card mb-3">
+      <div class="card mb-3 draggable-sub-card" draggable="true" data-card="recherche">
+        <span class="drag-handle" title="Déplacer"><i class="bi bi-grip-horizontal"></i></span>
         <div class="card-header"><i class="bi bi-search me-1 text-info"></i>Recherche contact Odoo</div>
         <div class="card-body">
           <!-- Recherche par numéro -->
@@ -184,8 +374,9 @@
         </div>
       </div>
 
-      <!-- Fiche contact rapide (Ringover style) -->
-      <div class="card mb-3" id="quickContactCard" style="display:none;">
+      <!-- Fiche contact (masqué - remplacé par modal) -->
+      <div class="card mb-3 draggable-sub-card" id="quickContactCard" style="display:none;" draggable="true" data-card="contact" hidden>
+        <span class="drag-handle" title="Déplacer"><i class="bi bi-grip-horizontal"></i></span>
         <div class="card-header bg-success bg-opacity-10 d-flex justify-content-between align-items-center">
           <span><i class="bi bi-person-check me-1 text-success"></i><span id="quickContactName">—</span></span>
           <a href="#" id="quickContactOdooLink" target="_blank" class="btn btn-sm btn-outline-secondary py-0">
@@ -228,7 +419,8 @@
       </div>
 
       <!-- Statuts Agents (Ringover style) -->
-      <div class="card mb-3">
+      <div class="card mb-3 draggable-sub-card" draggable="true" data-card="agents-status">
+        <span class="drag-handle" title="Déplacer"><i class="bi bi-grip-horizontal"></i></span>
         <div class="card-header d-flex justify-content-between align-items-center">
           <span><i class="bi bi-people me-1 text-success"></i>Statuts Agents</span>
           <button class="btn btn-xs btn-sm btn-outline-secondary" onclick="fetchAgentStatus()">
@@ -255,7 +447,8 @@
       </div>
 
       <!-- Agents WebSocket connectés -->
-      <div class="card">
+      <div class="card draggable-sub-card" draggable="true" data-card="agents-ws">
+        <span class="drag-handle" title="Déplacer"><i class="bi bi-grip-horizontal"></i></span>
         <div class="card-header"><i class="bi bi-wifi me-1 text-success"></i>Agents connectés (WebSocket)</div>
         <div class="card-body p-0">
           <div style="max-height:130px;overflow-y:auto">
@@ -265,6 +458,7 @@
             </table>
           </div>
         </div>
+      </div>
       </div>
     </div>
   </div>
@@ -716,6 +910,104 @@
   </div>
 </div>
 
+<!-- ══ Modal : Édition rapide (depuis popup appel) ════════════════════════════ -->
+<div class="modal fade" id="modalQuickEdit" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius: 12px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);">
+        <h6 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2 text-primary"></i>Modifier la fiche contact</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <input type="hidden" id="quickEditId">
+        
+        <!-- Identité -->
+        <div class="mb-4">
+          <h6 class="fw-semibold mb-3 text-primary"><i class="bi bi-person-badge me-2"></i>Identité</h6>
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label small fw-semibold">Nom complet *</label>
+              <input type="text" id="quickEditName" class="form-control" placeholder="ex: Jean Dupont">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Fonction</label>
+              <input type="text" id="quickEditFunction" class="form-control" placeholder="ex: Directeur">
+            </div>
+          </div>
+        </div>
+        
+        <!-- Coordonnées -->
+        <div class="mb-4">
+          <h6 class="fw-semibold mb-3 text-primary"><i class="bi bi-telephone me-2"></i>Coordonnées</h6>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Téléphone</label>
+              <input type="text" id="quickEditPhone" class="form-control" placeholder="+33 6 00 00 00 00">
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Email</label>
+              <input type="email" id="quickEditEmail" class="form-control" placeholder="email@exemple.com">
+            </div>
+          </div>
+        </div>
+        
+        <!-- Adresse -->
+        <div class="mb-4">
+          <h6 class="fw-semibold mb-3 text-primary"><i class="bi bi-geo-alt me-2"></i>Adresse</h6>
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Rue</label>
+              <input type="text" id="quickEditStreet" class="form-control" placeholder="N° et nom de rue">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Code postal</label>
+              <input type="text" id="quickEditZip" class="form-control" placeholder="67000">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Ville</label>
+              <input type="text" id="quickEditCity" class="form-control" placeholder="Strasbourg">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Pays</label>
+              <input type="text" id="quickEditCountry" class="form-control" placeholder="France">
+            </div>
+          </div>
+        </div>
+        
+        <!-- Société -->
+        <div class="mb-4">
+          <h6 class="fw-semibold mb-3 text-primary"><i class="bi bi-building me-2"></i>Société</h6>
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label small fw-semibold">Société</label>
+              <input type="text" id="quickEditCompany" class="form-control" placeholder="Nom de la société">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Site web</label>
+              <input type="text" id="quickEditWebsite" class="form-control" placeholder="www.exemple.com">
+            </div>
+          </div>
+        </div>
+        
+        <!-- Notes -->
+        <div class="mb-3">
+          <h6 class="fw-semibold mb-3 text-primary"><i class="bi bi-journal-text me-2"></i>Notes</h6>
+          <textarea id="quickEditComment" class="form-control" rows="3" placeholder="Ajouter une note sur ce contact…"></textarea>
+        </div>
+        
+        <div id="quickEditError" class="text-danger small mt-2 d-none"></div>
+        <div id="quickEditSuccess" class="text-success small mt-2 d-none"></div>
+      </div>
+      <div class="modal-footer bg-light py-3">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-primary" id="saveQuickEditBtn">
+          <i class="bi bi-check-lg me-1"></i>Enregistrer les modifications
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ Modal : Historique contact ════════════════════════════════════════════ -->
 <div class="modal fade" id="modalContactHistory" tabindex="-1">
   <div class="modal-dialog modal-lg">
@@ -766,1259 +1058,77 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-// ── Session ──────────────────────────────────────────────────────────────────
-let SESSION_TOKEN = sessionStorage.getItem('ucm_token') || '';
-
-async function apiFetch(path, opts = {}) {
-  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-  if (SESSION_TOKEN) headers['X-Session-Token'] = SESSION_TOKEN;
-  const r = await fetch(path, { ...opts, headers });
-  if (r.status === 401) { doLogout(); throw new Error('401'); }
-  return r;
-}
-
-// ── Login ────────────────────────────────────────────────────────────────────
-async function tryLogin() {
-  const email = document.getElementById('loginEmail').value.trim();
-  const pass  = document.getElementById('loginPassword').value;
-  const errEl = document.getElementById('loginError');
-  const btn   = document.getElementById('loginBtn');
-  errEl.classList.add('d-none');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Connexion…';
-  try {
-    const r = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: email, password: pass }),
-    });
-    const d = await r.json();
-    if (!r.ok || !d.token) throw new Error(d.error || 'Identifiants incorrects');
-    SESSION_TOKEN = d.token;
-    sessionStorage.setItem('ucm_token', d.token);
-    sessionStorage.setItem('ucm_user', d.username);
-    showMain(d.username);
-  } catch (err) {
-    errEl.textContent = err.message;
-    errEl.classList.remove('d-none');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-box-arrow-in-right me-1"></i>Se connecter';
-  }
-}
-
-function doLogout() {
-  if (SESSION_TOKEN) fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Session-Token': SESSION_TOKEN } });
-  SESSION_TOKEN = '';
-  sessionStorage.removeItem('ucm_token');
-  sessionStorage.removeItem('ucm_user');
-  showLogin();
-}
-
-function showLogin() {
-  document.getElementById('mainPage').classList.add('d-none');
-  document.getElementById('loginPage').classList.remove('d-none');
-  document.getElementById('loginPassword').value = '';
-}
-
-function showMain(username) {
-  document.getElementById('loginPage').classList.add('d-none');
-  document.getElementById('mainPage').classList.remove('d-none');
-  document.getElementById('navUser').textContent = username || sessionStorage.getItem('ucm_user') || '—';
-  startApp();
-}
-
-document.getElementById('loginBtn').onclick = tryLogin;
-document.getElementById('loginEmail').addEventListener('keydown', e => e.key === 'Enter' && document.getElementById('loginPassword').focus());
-document.getElementById('loginPassword').addEventListener('keydown', e => e.key === 'Enter' && tryLogin());
-document.getElementById('logoutBtn').onclick = doLogout;
-
-// ── Init : vérifier session existante ────────────────────────────────────────
-(async () => {
-  if (SESSION_TOKEN) {
-    try {
-      const r = await fetch('/api/auth/me', { headers: { 'X-Session-Token': SESSION_TOKEN } });
-      if (r.ok) { const d = await r.json(); showMain(d.username); return; }
-    } catch { /* ignore */ }
-  }
-  showLogin();
-})();
-
-// ── App principale ────────────────────────────────────────────────────────────
-let appStarted = false;
-function startApp() {
-  if (appStarted) return;
-  appStarted = true;
-  connectWs();
-  fetchStatus();
-  fetchLogs();
-  fetchWebhooks();
-  fetchAgentStatus();
-  loadCallHistory();
-  loadFullJournal(1);
-  setInterval(fetchStatus,   5000);
-  setInterval(fetchLogs,     3000);
-  setInterval(fetchWebhooks, 30000);
-}
-
-async function loadCallHistory() {
-  try {
-    const r = await apiFetch('/api/calls/history?limit=50');
-    if (!r.ok) return;
-    const d = await r.json();
-    if (!d.ok || !d.data || d.data.length === 0) return;
-
-    const tbody = document.getElementById('callBody');
-    tbody.innerHTML = '';
-
-    d.data.forEach(call => {
-      if (call.contact_id) {
-        historyContactMap[call.unique_id] = {
-          id: call.contact_id,
-          name: call.contact_name || '—',
-          phone: call.contact_phone || '—',
-          email: call.contact_email || '—',
-          company: '',
-          odooUrl: call.contact_odoo_url || '#'
-        };
-      }
-      const tr = document.createElement('tr');
-      tr.className = 'call-row';
-      tr.dataset.id = call.unique_id;
-      tr.innerHTML = callHtmlFromHistory(call);
-      tbody.appendChild(tr);
-    });
-  } catch (e) {
-    console.error('Erreur chargement historique:', e);
-  }
-}
-
-function callHtmlFromHistory(call) {
-  let t = '—';
-  if (call.started_at) {
-    const dt = new Date(call.started_at.replace(' ', 'T') + 'Z');
-    const today = new Date();
-    const isToday = dt.toDateString() === today.toDateString();
-    t = isToday
-      ? dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      : dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  }
-  const statusBadges = { ringing: 'bg-primary', answered: 'bg-success', missed: 'bg-danger', hangup: 'bg-secondary' };
-  const statusLabels = { ringing: 'Sonnerie', answered: 'Décroché', missed: 'Manqué', hangup: 'Raccroché' };
-  const exten = call.exten || call.agent_exten || '—';
-  const contactHtml = call.contact_name
-    ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 contact-badge-clickable" data-uid="${esc(call.unique_id)}" style="cursor:pointer" title="Voir la fiche contact">${esc(call.contact_name)}</span>`
-    : '<span class="text-muted">—</span>';
-  return `<td class="text-muted small">${t}</td>
-    <td>${phoneLink(call.caller_id_num)}</td>
-    <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(exten)}</span></td>
-    <td class="td-contact">${contactHtml}</td>
-    <td><span class="badge ${statusBadges[call.status] || 'bg-secondary'}">${statusLabels[call.status] || call.status || '—'}</span></td>`;
-}
-
-// ── WebSocket ────────────────────────────────────────────────────────────────
-let ws;
-function connectWs() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen  = () => {
-    setWsStatus(true);
-    // Auto-subscribe to all extensions when connected
-    subscribeToExtensions();
-  };
-  ws.onclose = () => { setWsStatus(false); setTimeout(connectWs, 3000); };
-  ws.onmessage = ({ data }) => {
-    let msg; try { msg = JSON.parse(data); } catch { return; }
-    if (msg.type === 'call:incoming') {
-      addCallRow(msg.data, 'incoming');
-      if (msg.data.contact) showQuickContact(msg.data.contact);
-    }
-    if (msg.type === 'call:answered') updateCallRow(msg.data, 'answered');
-    if (msg.type === 'call:hangup') {
-      updateCallRow(msg.data, 'hangup');
-      // Rafraîchir le journal et l'historique après un raccroché
-      setTimeout(() => { loadCallHistory(); loadFullJournal(jPage); }, 500);
-    }
-    if (msg.type === 'contact')       updateCallContact(msg.data);
-    if (msg.type === 'agent:status_changed') fetchAgentStatus();
-  };
-}
-
-// Auto-subscribe to extensions from config
-async function subscribeToExtensions() {
-  try {
-    const r = await apiFetch('/api/status');
-    if (!r.ok) return;
-    const d = await r.json();
-    const extensions = d.ucm?.watchExtensions || [];
-    
-    if (extensions.length > 0) {
-      // Subscribe to each configured extension
-      for (const exten of extensions) {
-        ws.send(JSON.stringify({ type: 'subscribe', extension: exten }));
-      }
-      console.log('Subscribed to extensions:', extensions);
-    } else {
-      // Subscribe to all (empty subscription = all extensions)
-      ws.send(JSON.stringify({ type: 'subscribe', extension: '*' }));
-      console.log('Subscribed to all extensions');
-    }
-  } catch (e) {
-    console.error('Failed to subscribe to extensions:', e);
-  }
-}
-
-function setWsStatus(ok) {
-  document.getElementById('wsIndicator').className = 'status-dot ' + (ok ? 'dot-green' : 'dot-red');
-  const lbl = document.getElementById('wsLabel');
-  lbl.textContent = ok ? 'Connecté' : 'Déconnecté';
-  lbl.className = ok ? 'text-success small' : 'text-danger small';
-}
-
-// ── Statut ───────────────────────────────────────────────────────────────────
-let logPaused = false, logFilterVal = 'all', logLines = [];
-const MAX_LOG_LINES = 200, MAX_CALL_ROWS = 50;
-
-async function fetchStatus() {
-  try {
-    const r = await apiFetch('/api/status');
-    const d = await r.json();
-    if (!d?.ucm) return;
-
-    const isWebhook = d.ucm.mode === 'webhook';
-    
-    // Update status dot based on mode
-    let ucmStatusDot = '';
-    if (isWebhook) {
-      // For webhook mode, show green if WebSocket clients are connected (webhook events being received)
-      ucmStatusDot = d.websocket?.clients > 0 ? 'dot-green' : 'dot-gray';
-    } else {
-      // For AMI/WebSocket modes, show status based on UCM connection
-      ucmStatusDot = d.ucm.wsConnected ? 'dot-green' : 'dot-red';
-    }
-    
-    document.getElementById('statUcm').innerHTML = `<span class="status-dot ${ucmStatusDot}"></span>`;
-    document.getElementById('statUcmMode').textContent = isWebhook ? 'UCM Webhook' : (d.ucm.mode === 'websocket' ? 'UCM WebSocket' : 'UCM AMI');
-    
-    // Update UCM host display
-    document.getElementById('statUcmHost').textContent = 
-      isWebhook ? 'Webhook Events' : `${d.ucm.host}:${d.ucm.port}`;
-    
-    document.getElementById('statOdoo').innerHTML =
-      `<span class="status-dot ${d.odoo?.cacheSize >= 0 ? 'dot-green' : 'dot-gray'}"></span>`;
-    document.getElementById('statOdooUrl').textContent = (d.odoo?.url||'').replace('https://','');
-    document.getElementById('statCalls').textContent     = d.calls?.active ?? 0;
-    document.getElementById('statWsClients').textContent = d.websocket?.clients ?? 0;
-
-    const up = Math.round(d.uptime || 0);
-    const h = Math.floor(up/3600), m = Math.floor((up%3600)/60), s = up%60;
-    document.getElementById('uptime').textContent =
-      `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-
-    // Config
-    document.getElementById('configBody').innerHTML = [
-      ['UCM',         `${d.ucm.host}:${d.ucm.port}`],
-      ['Mode',        isWebhook ? 'Webhook (HTTP)' : d.ucm.mode.capitalize()],
-      ['Extensions',  d.ucm.watchExtensions?.join(', ') || 'toutes'],
-      ['Odoo DB',     d.odoo?.db || '—'],
-      ['Cache',       (d.odoo?.cacheSize ?? '—') + ' contacts'],
-      ['Clients WS',  d.websocket?.clients ?? 0],
-      ['Mémoire',     Math.round((d.memory?.heapUsed||0)/1024/1024) + ' MB'],
-    ].map(([k,v]) =>
-      `<tr><td class="text-muted small ps-3">${k}</td><td class="small pe-3 fw-semibold">${v}</td></tr>`
-    ).join('');
-
-    // Agents WS
-    const entries = Object.entries(d.websocket?.subscriptions || {});
-    document.getElementById('wsBody').innerHTML = entries.length
-      ? entries.map(([id, ex]) =>
-          `<tr><td><code class="small">${id}</code></td>
-           <td>${ex.length ? ex.map(e=>`<span class="badge bg-primary bg-opacity-10 text-primary me-1">${e}</span>`).join('') : '<span class="text-muted small">toutes</span>'}</td></tr>`
-         ).join('')
-      : '<tr><td colspan="2" class="text-center text-muted py-3 small">Aucun agent</td></tr>';
-  } catch { /* silencieux */ }
-}
-
-String.prototype.capitalize = function() {
-  return this.charAt(0).toUpperCase() + this.slice(1);
-};
-
-// ── Logs ─────────────────────────────────────────────────────────────────────
-async function fetchLogs() {
-  try {
-    const r = await apiFetch('/api/logs');
-    if (!r.ok) return;
-    logLines = (await r.json()).slice(-MAX_LOG_LINES);
-    if (!logPaused) renderLogs();
-  } catch { }
-}
-
-function renderLogs() {
-  const box = document.getElementById('logBox');
-  const filtered = logLines.filter(l => logFilterVal === 'all' || l.level === logFilterVal);
-  box.innerHTML = filtered.map(l =>
-    `<div class="log-${l.level}"><span style="color:#475569">${l.ts.slice(11,19)}</span> [${l.level.toUpperCase()}] ${esc(l.msg)}</div>`
-  ).join('') || '<span style="color:#475569">Aucun log.</span>';
-  box.scrollTop = box.scrollHeight;
-}
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-// ── Journal d'appels ─────────────────────────────────────────────────────────
-const callRows = {};
-const historyContactMap = {};
-
-function addCallRow(call, status) {
-  const tbody = document.getElementById('callBody');
-  if (tbody.querySelector('[colspan]')) tbody.innerHTML = '';
-  if (tbody.querySelectorAll('tr').length >= MAX_CALL_ROWS)
-    tbody.lastElementChild?.remove();
-  const tr = document.createElement('tr');
-  tr.className = 'call-row'; tr.dataset.id = call.uniqueId;
-  tr.innerHTML = callHtml(call, status);
-  tbody.insertBefore(tr, tbody.firstChild);
-  callRows[call.uniqueId] = tr;
-}
-function updateCallRow(call, status) {
-  const tr = callRows[call.uniqueId];
-  if (tr) tr.innerHTML = callHtml(call, status); else addCallRow(call, status);
-}
-function updateCallContact(data) {
-  const tr = callRows[data.uniqueId];
-  if (tr && data.contact) tr.querySelector('.td-contact').innerHTML =
-    `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 contact-badge-clickable" data-uid="${data.uniqueId}">${data.contact.name}</span>`;
-}
-function phoneLink(phone) {
-  if (!phone) return '<span class="text-muted">—</span>';
-  return `<code class="small phone-link" data-phone="${esc(phone)}" style="cursor:pointer;text-decoration:underline dotted;color:inherit" title="Cliquer pour rechercher / créer le contact">${esc(phone)}</code>`;
-}
-function callHtml(call, status) {
-  const t = new Date().toTimeString().slice(0,8);
-  const badges = { incoming:'bg-primary', answered:'bg-success', hangup:'bg-secondary' };
-  const labels = { incoming:'Entrant', answered:'Décroché', hangup:'Raccroché' };
-  return `<td class="text-muted small">${t}</td>
-    <td>${phoneLink(call.callerIdNum)}</td>
-    <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(call.exten||call.agentExten||'—')}</span></td>
-    <td class="td-contact">${call.contact?`<span class="badge bg-success bg-opacity-10 text-success">${esc(call.contact.name)}</span>`:'<span class="text-muted">—</span>'}</td>
-    <td><span class="badge ${badges[status]}">${labels[status]}</span></td>`;
-}
-
-// Délégation d'événements globale (callBody + journalBody)
-document.addEventListener('click', e => {
-  const phoneEl = e.target.closest('.phone-link');
-  if (phoneEl && phoneEl.dataset.phone) { clickPhone(phoneEl.dataset.phone); return; }
-  const contactEl = e.target.closest('.contact-badge-clickable');
-  if (contactEl && historyContactMap[contactEl.dataset.uid]) {
-    showQuickContact(historyContactMap[contactEl.dataset.uid]);
-  }
-});
-
-// Recherche Odoo par numéro → fiche contact ou création
-async function clickPhone(phone) {
-  if (!phone || phone === '—') return;
-  try {
-    const r = await apiFetch('/api/odoo/test', { method: 'POST', body: JSON.stringify({ phone }) });
-    const d = await r.json();
-    if (d.ok && d.contact) {
-      showQuickContact(d.contact);
-    } else {
-      openCreateContactModal();
-      document.getElementById('newContactPhone').value = phone;
-    }
-  } catch(e) { console.error('clickPhone error:', e); }
-}
-
-// ── Journal d'appels complet ──────────────────────────────────────────────────
-let jPage = 1;
-const jLimit = 50;
-let jData = [];
-
-const J_STATUS_BADGES = { ringing:'bg-primary', answered:'bg-success', missed:'bg-danger', hangup:'bg-secondary' };
-const J_STATUS_LABELS = { ringing:'Sonnerie', answered:'Décroché', missed:'Manqué', hangup:'Raccroché' };
-
-async function loadFullJournal(page = 1) {
-  jPage = page;
-  const params = new URLSearchParams({ limit: jLimit, offset: (page - 1) * jLimit });
-  const v = id => document.getElementById(id).value;
-  if (v('jDateFrom')) params.set('startDate', v('jDateFrom'));
-  if (v('jDateTo'))   params.set('endDate',   v('jDateTo') + 'T23:59:59');
-  if (v('jStatus'))   params.set('status',    v('jStatus'));
-  if (v('jExten').trim())  params.set('exten',  v('jExten').trim());
-  if (v('jSearch').trim()) params.set('search', v('jSearch').trim());
-
-  const tbody = document.getElementById('journalBody');
-  tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Chargement…</td></tr>';
-
-  try {
-    const r = await apiFetch('/api/calls/history?' + params.toString());
-    const d = await r.json();
-    if (!d.ok) { tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">${esc(d.error)}</td></tr>`; return; }
-    jData = d.data;
-    renderJournalStats(d.data, d.pagination.total);
-    renderJournalTable(d.data, tbody);
-    renderJournalPagination(d.pagination);
-  } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">${esc(e.message)}</td></tr>`;
-  }
-}
-
-function renderJournalStats(calls, total) {
-  const answered = calls.filter(c => c.status === 'answered').length;
-  const missed   = calls.filter(c => c.status === 'missed').length;
-  const withDur  = calls.filter(c => c.duration > 0);
-  const avgDur   = withDur.length ? Math.round(withDur.reduce((s, c) => s + c.duration, 0) / withDur.length) : 0;
-  const pct      = calls.length ? Math.round(answered / calls.length * 100) : 0;
-  document.getElementById('jTotal').textContent    = total;
-  document.getElementById('jAnswered').textContent = answered + (calls.length ? ' (' + pct + '%)' : '');
-  document.getElementById('jMissed').textContent   = missed;
-  document.getElementById('jAvgDur').textContent   = avgDur ? (avgDur >= 60 ? Math.floor(avgDur/60) + 'min' : avgDur + 's') : '—';
-}
-
-function renderJournalTable(calls, tbody) {
-  if (!calls.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4 small">Aucun appel trouvé.</td></tr>';
-    return;
-  }
-  tbody.innerHTML = calls.map(c => {
-    // Stocker le contact dans historyContactMap pour les clics
-    if (c.contact_id) {
-      historyContactMap[c.unique_id] = { id: c.contact_id, name: c.contact_name || '—',
-        phone: c.contact_phone || '—', email: c.contact_email || '—', company: '',
-        odooUrl: c.contact_odoo_url || '#' };
-    }
-    const dt  = new Date(c.started_at.replace(' ', 'T') + 'Z');
-    const dateStr = dt.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit' });
-    const timeStr = dt.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
-    const dir = c.direction === 'outbound'
-      ? '<i class="bi bi-telephone-outbound text-warning" title="Sortant"></i>'
-      : '<i class="bi bi-telephone-inbound text-info"    title="Entrant"></i>';
-    const exten = c.exten || c.agent_exten || '—';
-    const contact = c.contact_name
-      ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 contact-badge-clickable" data-uid="${esc(c.unique_id)}" style="cursor:pointer">${esc(c.contact_name)}</span>`
-      : (c.caller_id_name ? `<span class="text-muted small">${esc(c.caller_id_name)}</span>` : '<span class="text-muted">—</span>');
-    const dur = c.duration != null && c.duration > 0
-      ? (c.duration >= 60 ? Math.floor(c.duration/60) + 'min ' + (c.duration % 60) + 's' : c.duration + 's')
-      : '—';
-    return `<tr>
-      <td class="text-muted small" style="white-space:nowrap">${dateStr} <strong>${timeStr}</strong></td>
-      <td>${dir}</td>
-      <td>${phoneLink(c.caller_id_num)}</td>
-      <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(exten)}</span></td>
-      <td>${contact}</td>
-      <td class="small text-nowrap">${dur}</td>
-      <td><span class="badge ${J_STATUS_BADGES[c.status]||'bg-secondary'}">${J_STATUS_LABELS[c.status]||c.status||'—'}</span></td>
-    </tr>`;
-  }).join('');
-}
-
-function renderJournalPagination(pagination) {
-  const { total, limit, offset } = pagination;
-  const totalPages  = Math.ceil(total / limit);
-  const currentPage = Math.floor(offset / limit) + 1;
-  document.getElementById('jPaginationInfo').textContent =
-    total ? `${offset + 1}–${Math.min(offset + limit, total)} sur ${total} appels` : 'Aucun appel';
-  const pag = document.getElementById('jPagination');
-  if (totalPages <= 1) { pag.innerHTML = ''; return; }
-  const pages = [];
-  if (currentPage > 1) pages.push(`<button class="btn btn-sm btn-outline-secondary" onclick="loadFullJournal(${currentPage-1})"><i class="bi bi-chevron-left"></i></button>`);
-  let start = Math.max(1, currentPage - 2), end = Math.min(totalPages, start + 4);
-  if (end - start < 4) start = Math.max(1, end - 4);
-  for (let p = start; p <= end; p++)
-    pages.push(`<button class="btn btn-sm ${p===currentPage?'btn-primary':'btn-outline-secondary'}" onclick="loadFullJournal(${p})">${p}</button>`);
-  if (currentPage < totalPages) pages.push(`<button class="btn btn-sm btn-outline-secondary" onclick="loadFullJournal(${currentPage+1})"><i class="bi bi-chevron-right"></i></button>`);
-  pag.innerHTML = pages.join('');
-}
-
-// Export CSV
-document.getElementById('exportCsvBtn').onclick = () => {
-  if (!jData.length) { alert('Aucune donnée à exporter.'); return; }
-  const rows = [['Date','Heure','Direction','De','Extension','Contact','Durée(s)','Statut']];
-  jData.forEach(c => {
-    const dt = new Date(c.started_at.replace(' ', 'T') + 'Z');
-    rows.push([
-      dt.toLocaleDateString('fr-FR'),
-      dt.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}),
-      c.direction === 'outbound' ? 'Sortant' : 'Entrant',
-      c.caller_id_num || '',
-      c.exten || c.agent_exten || '',
-      c.contact_name || '',
-      c.duration || '',
-      J_STATUS_LABELS[c.status] || c.status || '',
-    ]);
-  });
-  const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g,'""') + '"').join(',')).join('\n');
-  const a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
-  a.download = 'journal_appels_' + new Date().toISOString().slice(0,10) + '.csv';
-  a.click();
-};
-
-// Enter sur les champs de filtre
-['jDateFrom','jDateTo','jStatus','jExten','jSearch'].forEach(id =>
-  document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') loadFullJournal(1); })
-);
-
-// ── Événements UI ─────────────────────────────────────────────────────────────
-document.getElementById('clearCalls').onclick = () => {
-  document.getElementById('callBody').innerHTML =
-    '<tr><td colspan="5" class="text-center text-muted py-4 small">Journal vidé.</td></tr>';
-};
-document.getElementById('clearLogs').onclick  = () => { logLines = []; renderLogs(); };
-document.getElementById('pauseLogs').onclick  = function() {
-  logPaused = !logPaused;
-  this.innerHTML = logPaused ? '<i class="bi bi-play-fill"></i>' : '<i class="bi bi-pause-fill"></i>';
-  if (!logPaused) renderLogs();
-};
-document.getElementById('logFilter').onchange = function() { logFilterVal = this.value; renderLogs(); };
-
-document.getElementById('testOdooBtn').onclick = async () => {
-  const phone = document.getElementById('testPhone').value.trim();
-  if (!phone) return;
-  const res = document.getElementById('testOdooResult');
-  res.innerHTML = '<span class="text-muted">Recherche…</span>';
-  try {
-    const r = await apiFetch('/api/odoo/test', {
-      method:'POST', body: JSON.stringify({ phone }),
-    });
-    const d = await r.json();
-    if (d.ok && d.contact)
-      res.innerHTML = `<div class="p-2 rounded border border-success border-opacity-25 bg-success bg-opacity-10 mt-1">
-        <strong>${d.contact.name}</strong> — <span class="text-muted">${d.contact.email||''}</span><br>
-        <a href="${d.contact.odooUrl}" target="_blank" class="small">Voir dans Odoo →</a></div>`;
-    else if (d.ok) res.innerHTML = '<span class="text-muted">Aucun contact trouvé.</span>';
-    else res.innerHTML = `<span class="text-danger">${d.error}</span>`;
-  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
-};
-document.getElementById('testPhone').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('testOdooBtn').click();
-});
-
-// Recherche par nom/société
-document.getElementById('testNameBtn').onclick = async () => {
-  const query = document.getElementById('testName').value.trim();
-  if (!query || query.length < 2) {
-    document.getElementById('testOdooResult').innerHTML = '<span class="text-warning">Minimum 2 caractères requis.</span>';
-    return;
-  }
-  const res = document.getElementById('testOdooResult');
-  res.innerHTML = '<span class="text-muted">Recherche…</span>';
-  try {
-    const r = await apiFetch(`/api/odoo/search?q=${encodeURIComponent(query)}&limit=10`);
-    const d = await r.json();
-    if (d.ok && d.data && d.data.length > 0) {
-      const contactsHtml = d.data.map(c => `
-        <div class="p-2 rounded border border-success border-opacity-25 bg-success bg-opacity-10 mt-1">
-          <strong>${esc(c.name)}</strong>
-          ${c.company ? `<span class="text-muted"> — ${esc(c.company)}</span>` : ''}
-          <br>
-          <span class="text-muted small">
-            ${c.phone ? `<i class="bi bi-telephone me-1"></i>${esc(c.phone)}` : ''}
-            ${c.email ? `<i class="bi bi-envelope ms-2 me-1"></i>${esc(c.email)}` : ''}
-          </span>
-          <br>
-          <a href="${c.odooUrl}" target="_blank" class="small">Voir dans Odoo →</a>
+<!-- ══ Modal : Appel entrant ════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalIncomingCall" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+      <!-- Header avec animation pulsée -->
+      <div class="modal-header border-0" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 1.5rem;">
+        <div class="d-flex align-items-center gap-3 w-100">
+          <div id="incomingAvatar" style="width:80px;height:80px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.15);flex-shrink:0;">
+            <i class="bi bi-person-circle" style="font-size:3rem;color:#3b82f6;"></i>
+          </div>
+          <div class="text-white flex-grow-1">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span class="badge bg-white text-primary animate-pulse">🔔 APPEL ENTRANT</span>
+            </div>
+            <h4 class="mb-0 fw-bold" id="incomingCallerName">—</h4>
+            <div class="opacity-75" id="incomingCallerPhone">—</div>
+          </div>
         </div>
-      `).join('');
-      res.innerHTML = `<div class="text-muted small mb-2">${d.count} résultat(s) :</div>${contactsHtml}`;
-    } else if (d.ok) {
-      res.innerHTML = '<span class="text-muted">Aucun contact trouvé.</span>';
-    } else {
-      res.innerHTML = `<span class="text-danger">${esc(d.error || 'Erreur')}</span>`;
-    }
-  } catch(e) { res.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`; }
-};
-document.getElementById('testName').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('testNameBtn').click();
-});
-
-// ══ Click-to-Call (Ringover style) ════════════════════════════════════════════
-document.getElementById('dialBtn').onclick = async () => {
-  const phone = document.getElementById('dialPhone').value.trim();
-  const exten = document.getElementById('dialExten').value.trim();
-  const res = document.getElementById('dialResult');
-  
-  if (!phone) { res.innerHTML = '<span class="text-warning">Numéro requis.</span>'; return; }
-  if (!exten) { res.innerHTML = '<span class="text-warning">Extension requise.</span>'; return; }
-  
-  res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Appel en cours…</span>';
-  try {
-    const r = await apiFetch('/api/calls/dial', {
-      method: 'POST',
-      body: JSON.stringify({ phone, exten })
-    });
-    const d = await r.json();
-    if (d.ok) {
-      res.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>Appel initié (${d.uniqueId.slice(-8)})</span>`;
-      document.getElementById('dialPhone').value = '';
-    } else {
-      res.innerHTML = `<span class="text-danger">${esc(d.error)}</span>`;
-    }
-  } catch(e) { res.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`; }
-};
-document.getElementById('dialPhone').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('dialBtn').click();
-});
-
-// ══ Statuts Agents ═══════════════════════════════════════════════════════════
-const AGENT_STATUS_LABELS = {
-  available: { label: 'Disponible', class: 'bg-success' },
-  busy: { label: 'Occupé', class: 'bg-warning' },
-  on_call: { label: 'En appel', class: 'bg-danger' },
-  pause: { label: 'Pause', class: 'bg-secondary' },
-  offline: { label: 'Hors ligne', class: 'bg-dark' }
-};
-
-async function fetchAgentStatus() {
-  try {
-    const r = await apiFetch('/api/agents/status');
-    if (!r.ok) return;
-    const d = await r.json();
-    const tbody = document.getElementById('agentStatusBody');
-    if (!d.data || d.data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3 small">Aucun agent enregistré</td></tr>';
-      return;
-    }
-    tbody.innerHTML = d.data.map(a => {
-      const status = AGENT_STATUS_LABELS[a.status] || AGENT_STATUS_LABELS.offline;
-      return `
-        <tr>
-          <td><code>${esc(a.exten)}</code></td>
-          <td><span class="badge ${status.class}">${status.label}</span></td>
-          <td class="small">${a.total_calls_today || 0} / ${Math.round((a.total_duration_today || 0) / 60)}min</td>
-          <td>
-            <select class="form-select form-select-sm" style="width:auto" onchange="updateAgentStatus('${esc(a.exten)}', this.value)">
-              <option value="available" ${a.status === 'available' ? 'selected' : ''}>Disponible</option>
-              <option value="pause" ${a.status === 'pause' ? 'selected' : ''}>Pause</option>
-              <option value="busy" ${a.status === 'busy' ? 'selected' : ''}>Occupé</option>
-              <option value="offline" ${a.status === 'offline' ? 'selected' : ''}>Hors ligne</option>
-            </select>
-          </td>
-        </tr>
-      `;
-    }).join('');
-  } catch { 
-    document.getElementById('agentStatusBody').innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3 small">Erreur de chargement</td></tr>';
-  }
-}
-
-async function updateAgentStatus(exten, status) {
-  try {
-    const r = await apiFetch(`/api/agents/${exten}/status`, {
-      method: 'PUT',
-      body: JSON.stringify({ status })
-    });
-    const d = await r.json();
-    if (d.ok) {
-      fetchAgentStatus();
-    }
-  } catch(e) { alert('Erreur: ' + e.message); }
-}
-
-// Charger les statuts des agents toutes les 30 secondes
-setInterval(fetchAgentStatus, 30000);
-
-document.getElementById('clearCacheBtn').onclick = async () => {
-  const r = await apiFetch('/api/cache/clear', { method:'POST' });
-  const d = await r.json();
-  document.getElementById('actionResult').innerHTML =
-    `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${d.message}</span>`;
-};
-document.getElementById('broadcastBtn').onclick = async () => {
-  const r = await apiFetch('/api/ws/broadcast', {
-    method:'POST', body: JSON.stringify({ type:'test', data:{ ts: Date.now() } }),
-  });
-  const d = await r.json();
-  document.getElementById('actionResult').innerHTML =
-    `<span class="text-info"><i class="bi bi-broadcast me-1"></i>Envoyé à ${d.sent} client(s)</span>`;
-};
-
-// ── Configuration ─────────────────────────────────────────────────────────────
-function onUcmModeChange() {
-  const mode = document.querySelector('input[name="ucmMode"]:checked')?.value || 'webhook';
-  const isWebhook = mode === 'webhook';
-  
-  // Webhook mode: show host only, hide WebSocket config
-  if (isWebhook) {
-    document.getElementById('cfgUcmHost').parentElement.classList.remove('d-none');
-    ['wsPortField','wsUserField','wsPasswordField'].forEach(id =>
-      document.getElementById(id).classList.add('d-none'));
-  } 
-  // WebSocket mode: show host + WebSocket fields
-  else {
-    document.getElementById('cfgUcmHost').parentElement.classList.remove('d-none');
-    ['wsPortField','wsUserField','wsPasswordField'].forEach(id =>
-      document.getElementById(id).classList.remove('d-none'));
-  }
-}
-
-async function loadConfig() {
-  try {
-    const r = await apiFetch('/api/config');
-    if (!r.ok) return;
-    const d = await r.json();
-    const mode = d.ucm?.mode || 'webhook';
-    
-    // Default to webhook if mode is not explicitly set
-    if (mode === 'webhook') {
-      document.getElementById('cfgModeWebhook').checked = true;
-    } else if (mode === 'websocket') {
-      document.getElementById('cfgModeWs').checked = true;
-    }
-    
-    onUcmModeChange();
-    document.getElementById('cfgUcmHost').value    = d.ucm?.host     || '';
-    document.getElementById('cfgUcmWebPort').value = d.ucm?.webPort  || 8089;
-    document.getElementById('cfgUcmWebUser').value = d.ucm?.webUser  || '';
-    document.getElementById('cfgUcmExten').value   = (d.ucm?.watchExtensions || []).join(',');
-    document.getElementById('cfgOdooUrl').value    = d.odoo?.url     || '';
-    document.getElementById('cfgOdooDb').value     = d.odoo?.db      || '';
-    document.getElementById('cfgOdooUser').value   = d.odoo?.username || '';
-  } catch { /* silencieux */ }
-}
-
-document.getElementById('modalConfig').addEventListener('show.bs.modal', loadConfig);
-
-function togglePwd(id) {
-  const el = document.getElementById(id);
-  el.type = el.type === 'password' ? 'text' : 'password';
-}
-
-async function saveUcmConfig() {
-  const res = document.getElementById('cfgUcmResult');
-  res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Sauvegarde…</span>';
-  try {
-    const mode = document.querySelector('input[name="ucmMode"]:checked')?.value || 'webhook';
-    const body = {
-      mode,
-      host:            document.getElementById('cfgUcmHost').value.trim(),
-      watchExtensions: document.getElementById('cfgUcmExten').value,
-    };
-    if (mode === 'websocket') {
-      body.webPort     = parseInt(document.getElementById('cfgUcmWebPort').value) || 8089;
-      body.webUser     = document.getElementById('cfgUcmWebUser').value.trim();
-      body.webPassword = document.getElementById('cfgUcmWebPwd').value;
-    }
-    const r = await apiFetch('/api/config/ucm', { method: 'POST', body: JSON.stringify(body) });
-    const d = await r.json();
-    res.innerHTML = `<span class="${d.ok!==false?'text-success':'text-warning'}"><i class="bi bi-check-circle me-1"></i>${d.message}</span>`;
-    setTimeout(fetchStatus, 1500);
-  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
-}
-
-async function testUcmConnection() {
-  const res = document.getElementById('cfgUcmResult');
-  res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Test…</span>';
-  try {
-    const r = await apiFetch('/api/status');
-    const d = await r.json();
-    const isWebhook = d.ucm.mode === 'webhook';
-    let ok;
-    
-    if (isWebhook) {
-      // For webhook mode, check if WebSocket clients are connected (webhook events being received)
-      ok = d.websocket?.clients > 0;
-    } else {
-      // For AMI/WebSocket modes, check actual connection
-      ok = d.ucm?.connected;
-    }
-    
-    if (isWebhook) {
-      res.innerHTML = ok
-        ? `<span class="text-success"><i class="bi bi-check-circle me-1"></i>Webhook mode — ${d.websocket?.clients} client(s) WebSocket connecté(s)</span>`
-        : `<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Webhook mode — aucune connexion WebSocket (vérifiez les clients)</span>`;
-    } else {
-      res.innerHTML = ok
-        ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>UCM connecté et authentifié</span>'
-        : '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>UCM non connecté — vérifiez les paramètres</span>';
-    }
-  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
-}
-
-async function saveOdooConfig() {
-  const res = document.getElementById('cfgOdooResult');
-  res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Sauvegarde…</span>';
-  try {
-    const body = {
-      url:      document.getElementById('cfgOdooUrl').value.trim(),
-      db:       document.getElementById('cfgOdooDb').value.trim(),
-      username: document.getElementById('cfgOdooUser').value.trim(),
-      apiKey:   document.getElementById('cfgOdooKey').value,
-    };
-    const r = await apiFetch('/api/config/odoo', { method: 'POST', body: JSON.stringify(body) });
-    const d = await r.json();
-    res.innerHTML = `<span class="${d.ok!==false?'text-success':'text-warning'}"><i class="bi bi-${d.ok!==false?'check':'exclamation'}-circle me-1"></i>${d.message}</span>`;
-  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
-}
-
-// ── Webhooks ───────────────────────────────────────────────────────────────────
-const bsModalNewWebhook    = new bootstrap.Modal(document.getElementById('modalNewWebhook'));
-const bsModalWebhookConfig = new bootstrap.Modal(document.getElementById('modalWebhookConfig'));
-
-async function fetchWebhooks() {
-  try {
-    const r = await apiFetch('/api/webhooks');
-    if (!r.ok) return;
-    const list = await r.json();
-    webhookCache = list;
-    const tbody = document.getElementById('webhookBody');
-    if (!list.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4 small">Aucun client — cliquez sur "Nouveau client" pour commencer.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = list.map(w => `
-      <tr>
-        <td class="ps-3">
-          <div class="fw-semibold">${esc(w.name)}</div>
-          ${w.ucmHost ? `<div class="text-muted small"><i class="bi bi-hdd-network me-1"></i>${esc(w.ucmHost)}:${w.ucmWebPort||8089}</div>` : ''}
-          ${w.notes   ? `<div class="text-muted small fst-italic">${esc(w.notes)}</div>` : ''}
-        </td>
-        <td class="text-muted small">${w.createdAt ? new Date(w.createdAt).toLocaleDateString('fr') : '—'}</td>
-        <td class="text-muted small">${w.lastUsed ? new Date(w.lastUsed).toLocaleString('fr') : 'Jamais'}</td>
-        <td><span class="badge bg-info bg-opacity-10 text-info border">${w.callCount || 0}</span></td>
-        <td>
-          <button class="btn btn-sm btn-outline-primary py-0 me-1" onclick='openWebhookConfig(${JSON.stringify(w)})'>
-            <i class="bi bi-gear"></i> Config
-          </button>
-          <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteWebhook('${esc(w.token)}','${esc(w.name)}')">
-            <i class="bi bi-trash"></i>
-          </button>
-        </td>
-      </tr>`).join('');
-  } catch { /* silencieux */ }
-}
-
-function buildWebhookUrl(token, event) {
-  const base = `${location.protocol}//${location.host}`;
-  const vars = event === 'ring'
-    ? `event=ring&caller=\${CALLERID(num)}&callerid_name=\${CALLERID(name)}&exten=\${EXTEN}&uniqueid=\${UNIQUEID}`
-    : event === 'answer'
-    ? `event=answer&caller=\${CALLERID(num)}&exten=\${EXTEN}&uniqueid=\${UNIQUEID}`
-    : `event=hangup&caller=\${CALLERID(num)}&exten=\${EXTEN}&uniqueid=\${UNIQUEID}`;
-  return `${base}/webhook/${token}?${vars}`;
-}
-
-function showWebhookUrls(token, name) {
-  // Compatibilité : redirige vers le modal config
-  openWebhookConfig(webhookCache?.find(w => w.token === token) || { token, name });
-}
-
-let webhookCache = [];
-
-function openWebhookConfig(w) {
-  document.getElementById('whCfgTitle').textContent   = w.name;
-  document.getElementById('whCfgToken').value         = w.token;
-  document.getElementById('whCfgName').value          = w.name        || '';
-  document.getElementById('whCfgUcmHost').value       = w.ucmHost     || '';
-  document.getElementById('whCfgUcmPort').value       = w.ucmWebPort  || 8089;
-  document.getElementById('whCfgUcmUser').value       = w.ucmWebUser  || '';
-  document.getElementById('whCfgUcmPwd').value        = '';
-  document.getElementById('whCfgNotes').value         = w.notes       || '';
-  document.getElementById('whCfgResult').innerHTML    = '';
-  document.getElementById('urlRing').value            = buildWebhookUrl(w.token, 'ring');
-  document.getElementById('urlAnswer').value          = buildWebhookUrl(w.token, 'answer');
-  document.getElementById('urlHangup').value          = buildWebhookUrl(w.token, 'hangup');
-  bsModalWebhookConfig.show();
-}
-
-function copyUrl(inputId) {
-  const el = document.getElementById(inputId);
-  navigator.clipboard.writeText(el.value).then(() => el.select());
-}
-
-function copyAllUrls() {
-  const txt = ['urlRing','urlAnswer','urlHangup']
-    .map(id => `${id.replace('url','').toUpperCase()}: ${document.getElementById(id).value}`)
-    .join('\n');
-  navigator.clipboard.writeText(txt);
-}
-
-async function saveWebhookConfig() {
-  const token = document.getElementById('whCfgToken').value;
-  const res   = document.getElementById('whCfgResult');
-  res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Sauvegarde…</span>';
-  try {
-    const body = {
-      name:           document.getElementById('whCfgName').value.trim(),
-      ucmHost:        document.getElementById('whCfgUcmHost').value.trim(),
-      ucmWebPort:     document.getElementById('whCfgUcmPort').value,
-      ucmWebUser:     document.getElementById('whCfgUcmUser').value.trim(),
-      ucmWebPassword: document.getElementById('whCfgUcmPwd').value,
-      notes:          document.getElementById('whCfgNotes').value.trim(),
-    };
-    const r = await apiFetch(`/api/webhooks/${token}`, { method: 'PATCH', body: JSON.stringify(body) });
-    if (!r.ok) throw new Error((await r.json()).error);
-    const updated = await r.json();
-    document.getElementById('whCfgTitle').textContent = updated.name;
-    res.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Sauvegardé</span>';
-    fetchWebhooks();
-  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
-}
-
-async function testWebhookUcm() {
-  const token = document.getElementById('whCfgToken').value;
-  const res   = document.getElementById('whCfgResult');
-  res.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Test…</span>';
-  try {
-    const r = await apiFetch(`/api/webhooks/${token}/test-ucm`, { method: 'POST' });
-    const d = await r.json();
-    res.innerHTML = `<span class="${d.ok ? 'text-success' : 'text-danger'}"><i class="bi bi-${d.ok ? 'check' : 'x'}-circle me-1"></i>${d.message}</span>`;
-  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
-}
-
-async function deleteWebhook(token, name) {
-  if (!confirm(`Supprimer le client "${name}" ? Les URLs ne fonctionneront plus.`)) return;
-  try {
-    await apiFetch(`/api/webhooks/${token}`, { method: 'DELETE' });
-    fetchWebhooks();
-  } catch(e) { alert(e.message); }
-}
-
-document.getElementById('newWebhookBtn').onclick = () => {
-  document.getElementById('newWebhookName').value = '';
-  document.getElementById('newWebhookError').classList.add('d-none');
-  bsModalNewWebhook.show();
-  setTimeout(() => document.getElementById('newWebhookName').focus(), 300);
-};
-
-document.getElementById('createWebhookBtn').onclick = async () => {
-  const name = document.getElementById('newWebhookName').value.trim();
-  const errEl = document.getElementById('newWebhookError');
-  if (!name) { errEl.textContent = 'Nom requis.'; errEl.classList.remove('d-none'); return; }
-  try {
-    const r = await apiFetch('/api/webhooks', { method:'POST', body: JSON.stringify({ name }) });
-    const w = await r.json();
-    if (!r.ok) throw new Error(w.error || 'Erreur');
-    bsModalNewWebhook.hide();
-    fetchWebhooks();
-    setTimeout(() => openWebhookConfig(w), 400);
-  } catch(e) { errEl.textContent = e.message; errEl.classList.remove('d-none'); }
-};
-
-document.getElementById('newWebhookName').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('createWebhookBtn').click();
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// ══ GESTION DES CONTACTS (Ringover style) ═══════════════════════════════════
-// ═══════════════════════════════════════════════════════════════════════════
-
-let currentContactId = null;
-let _quickContactData = null;
-const bsModalEditContact = new bootstrap.Modal(document.getElementById('modalEditContact'));
-const bsModalCreateContact = new bootstrap.Modal(document.getElementById('modalCreateContact'));
-const bsModalContactHistory = new bootstrap.Modal(document.getElementById('modalContactHistory'));
-
-// Afficher la fiche contact rapide
-function showQuickContact(contact) {
-  _quickContactData = contact;
-  currentContactId = contact.id;
-  document.getElementById('quickContactId').value = contact.id;
-  document.getElementById('quickContactName').textContent = contact.name;
-  document.getElementById('quickContactPhone').textContent = contact.phone || '—';
-  document.getElementById('quickContactEmail').textContent = contact.email || '—';
-  document.getElementById('quickContactCompany').textContent = contact.company || '—';
-  document.getElementById('quickContactOdooLink').href = contact.odooUrl || '#';
-
-  // Avatar : photo base64 si disponible, sinon initiales
-  const avatarEl = document.getElementById('quickContactAvatar');
-  if (contact.avatar) {
-    avatarEl.innerHTML = `<img src="${contact.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
-    avatarEl.style.background = 'none';
-    avatarEl.style.color = 'transparent';
-  } else {
-    const initials = (contact.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-    avatarEl.textContent = initials;
-    avatarEl.style.background = '#e2e8f0';
-    avatarEl.style.color = '#64748b';
-  }
-
-  document.getElementById('quickContactHistory').textContent = 'Chargement…';
-  document.getElementById('quickContactCard').style.display = 'block';
-  loadQuickHistory(contact);
-}
-
-async function loadQuickHistory(contact) {
-  const el = document.getElementById('quickContactHistory');
-  el.textContent = 'Chargement…';
-  try {
-    const requests = [
-      contact.id ? apiFetch(`/api/odoo/contacts/${contact.id}/messages`).then(r => r.json()).catch(() => ({ ok: false })) : Promise.resolve({ ok: false }),
-      contact.phone ? apiFetch(`/api/calls/history?caller=${encodeURIComponent(contact.phone)}&limit=10`).then(r => r.json()).catch(() => ({ ok: false })) : Promise.resolve({ ok: false }),
-    ];
-    const [msgResult, callResult] = await Promise.all(requests);
-
-    const items = [];
-
-    // Appels depuis la DB locale
-    if (callResult.ok && callResult.data) {
-      const icons  = { answered:'📞', missed:'📵', hangup:'📴', ringing:'🔔' };
-      const labels = { answered:'Décroché', missed:'Manqué', hangup:'Raccroché', ringing:'Sonnerie' };
-      callResult.data.forEach(c => {
-        const dt  = new Date(c.started_at.replace(' ', 'T') + 'Z');
-        const dur = c.duration > 0 ? ` · ${c.duration >= 60 ? Math.floor(c.duration/60)+'min ' : ''}${c.duration%60}s` : '';
-        items.push({ dt, html:
-          `<div class="d-flex justify-content-between py-1 border-bottom">
-            <span>${icons[c.status]||'📞'} ${labels[c.status]||c.status}${dur}</span>
-            <span class="text-muted">${dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</span>
-          </div>` });
-      });
-    }
-
-    // Notes Odoo chatter
-    if (msgResult.ok && msgResult.data) {
-      msgResult.data.forEach(m => {
-        const dt = new Date((m.date || '').replace(' ', 'T') + 'Z');
-        const preview = m.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
-        items.push({ dt, html:
-          `<div class="d-flex justify-content-between align-items-start py-1 border-bottom">
-            <span class="me-1 text-secondary">💬 ${esc(preview)}</span>
-            <span class="text-muted flex-shrink-0">${dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</span>
-          </div>` });
-      });
-    }
-
-    if (!items.length) { el.innerHTML = '<span class="text-muted">Aucun historique</span>'; return; }
-    items.sort((a, b) => b.dt - a.dt);
-    el.innerHTML = items.slice(0, 10).map(i => i.html).join('');
-  } catch { el.innerHTML = '<span class="text-muted text-danger">Erreur chargement</span>'; }
-}
-
-// Sauvegarder une note dans le chatter Odoo
-document.getElementById('quickNoteSaveBtn').onclick = async () => {
-  const contactId = document.getElementById('quickContactId').value;
-  const note = document.getElementById('quickNoteInput').value.trim();
-  const res  = document.getElementById('quickNoteResult');
-  if (!contactId || !note) return;
-  document.getElementById('quickNoteSaveBtn').disabled = true;
-  try {
-    const r = await apiFetch(`/api/odoo/contacts/${contactId}/notes`, {
-      method: 'POST', body: JSON.stringify({ note }),
-    });
-    const d = await r.json();
-    if (d.ok) {
-      document.getElementById('quickNoteInput').value = '';
-      res.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Note ajoutée dans Odoo</span>';
-      setTimeout(() => { res.innerHTML = ''; loadQuickHistory(_quickContactData); }, 2000);
-    } else {
-      res.innerHTML = `<span class="text-danger">${esc(d.error)}</span>`;
-    }
-  } catch(e) { res.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`; }
-  finally { document.getElementById('quickNoteSaveBtn').disabled = false; }
-};
-document.getElementById('quickNoteInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('quickNoteSaveBtn').click();
-});
-
-// Mettre à jour la fiche contact quand un appel arrive
-function updateCallContactWithDetails(data) {
-  const tr = callRows[data.uniqueId];
-  if (tr && data.contact) {
-    tr.querySelector('.td-contact').innerHTML =
-      `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">${data.contact.name}</span>`;
-    showQuickContact(data.contact);
-  }
-}
-
-// Ouvrir la modale d'édition — utilise les données déjà en mémoire (pas de fetch)
-function openEditContactModal() {
-  const contactId = document.getElementById('quickContactId').value;
-  if (!contactId) return;
-  const c = _quickContactData || {};
-  document.getElementById('editContactError').classList.add('d-none');
-  document.getElementById('editContactId').value = contactId;
-  document.getElementById('editContactName').value = c.name || '';
-  document.getElementById('editContactPhone').value = c.phone || '';
-
-  document.getElementById('editContactEmail').value = c.email || '';
-  document.getElementById('editContactFunction').value = c.function || '';
-  document.getElementById('saveEditContactBtn').disabled = false;
-  document.getElementById('saveEditContactBtn').innerHTML = '<i class="bi bi-save me-1"></i>Enregistrer';
-  bsModalEditContact.show();
-}
-
-// Sauvegarder la modification du contact
-document.getElementById('saveEditContactBtn').onclick = async () => {
-  const contactId = document.getElementById('editContactId').value;
-  const body = {
-    name: document.getElementById('editContactName').value.trim(),
-    phone: document.getElementById('editContactPhone').value.trim(),
-    email: document.getElementById('editContactEmail').value.trim(),
-    function: document.getElementById('editContactFunction').value.trim(),
-  };
-  
-  if (!body.name) {
-    document.getElementById('editContactError').textContent = 'Nom requis';
-    document.getElementById('editContactError').classList.remove('d-none');
-    return;
-  }
-  
-  try {
-    const r = await apiFetch(`/api/odoo/contacts/${contactId}`, {
-      method: 'PUT',
-      body: JSON.stringify(body)
-    });
-    const d = await r.json();
-    if (d.ok) {
-      bsModalEditContact.hide();
-      showQuickContact(d.data);
-      // Rafraîchir la recherche si le contact était affiché
-      if (document.getElementById('testOdooResult').innerHTML.includes(d.data.name)) {
-        document.getElementById('testOdooBtn').click();
-      }
-    } else {
-      document.getElementById('editContactError').textContent = d.error;
-      document.getElementById('editContactError').classList.remove('d-none');
-    }
-  } catch(e) {
-    document.getElementById('editContactError').textContent = e.message;
-    document.getElementById('editContactError').classList.remove('d-none');
-  }
-};
-
-// Ouvrir la modale de création
-function openCreateContactModal() {
-  document.getElementById('newContactName').value = '';
-  document.getElementById('newContactPhone').value = '';
-  document.getElementById('newContactEmail').value = '';
-  document.getElementById('newContactCompany').value = '';
-  document.getElementById('newContactFunction').value = '';
-  document.getElementById('createContactError').classList.add('d-none');
-  bsModalCreateContact.show();
-  setTimeout(() => document.getElementById('newContactName').focus(), 300);
-}
-
-// Créer un nouveau contact
-document.getElementById('createContactBtn').onclick = async () => {
-  const body = {
-    name: document.getElementById('newContactName').value.trim(),
-    phone: document.getElementById('newContactPhone').value.trim(),
-    email: document.getElementById('newContactEmail').value.trim(),
-    is_company: !document.getElementById('newContactCompany').value.trim(),
-    function: document.getElementById('newContactFunction').value.trim(),
-  };
-  
-  if (!body.name) {
-    document.getElementById('createContactError').textContent = 'Nom requis';
-    document.getElementById('createContactError').classList.remove('d-none');
-    return;
-  }
-  
-  const company = document.getElementById('newContactCompany').value.trim();
-  if (company) {
-    // Chercher la société pour l'associer
-    try {
-      const r = await apiFetch(`/api/odoo/search?q=${encodeURIComponent(company)}&limit=1`);
-      const d = await r.json();
-      if (d.ok && d.data && d.data.length > 0 && d.data[0].isCompany) {
-        body.company_id = d.data[0].id;
-      }
-    } catch { /* ignore */ }
-  }
-  
-  try {
-    const r = await apiFetch('/api/odoo/contacts', {
-      method: 'POST',
-      body: JSON.stringify(body)
-    });
-    const d = await r.json();
-    if (d.ok) {
-      bsModalCreateContact.hide();
-      showQuickContact(d.data);
-      document.getElementById('testOdooResult').innerHTML = 
-        `<div class="p-2 rounded border border-success border-opacity-25 bg-success bg-opacity-10 mt-1">
-          <strong>Contact créé : ${esc(d.data.name)}</strong><br>
-          <a href="${d.data.odooUrl}" target="_blank" class="small">Voir dans Odoo →</a>
-        </div>`;
-    } else {
-      document.getElementById('createContactError').textContent = d.error;
-      document.getElementById('createContactError').classList.remove('d-none');
-    }
-  } catch(e) {
-    document.getElementById('createContactError').textContent = e.message;
-    document.getElementById('createContactError').classList.remove('d-none');
-  }
-};
-
-// Ouvrir l'historique des appels d'un contact
-function openContactHistory() {
-  const contactId = document.getElementById('quickContactId').value;
-  if (!contactId) return;
-  
-  document.getElementById('contactHistoryBody').innerHTML = 
-    '<tr><td colspan="5" class="text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Chargement…</td></tr>';
-  bsModalContactHistory.show();
-  
-  apiFetch(`/api/odoo/contacts/${contactId}/history`)
-    .then(r => r.json())
-    .then(d => {
-      if (!d.ok || !d.data) return;
+      </div>
       
-      const { contact, calls, stats } = d.data;
-      document.getElementById('historyContactName').textContent = contact.name;
-      document.getElementById('statTotalCalls').textContent = stats.totalCalls;
-      document.getElementById('statAnsweredCalls').textContent = stats.answeredCalls;
-      document.getElementById('statMissedCalls').textContent = stats.missedCalls;
-      document.getElementById('statTotalDuration').textContent = Math.round(stats.totalDuration / 60);
+      <!-- Body avec infos contact -->
+      <div class="modal-body p-4" style="background: #f8fafc;">
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="d-flex align-items-center gap-2 text-muted mb-2">
+              <i class="bi bi-telephone-inbound-fill text-primary"></i>
+              <span class="small">Appel vers l'extension</span>
+              <span class="badge bg-primary" id="incomingExten">—</span>
+            </div>
+          </div>
+          <div class="col-12" id="incomingContactDetails">
+            <div class="bg-white rounded-3 p-3 border">
+              <div class="d-flex flex-column gap-2">
+                <div class="small"><i class="bi bi-envelope text-muted me-2"></i><span id="incomingEmail">—</span></div>
+                <div class="small"><i class="bi bi-building text-muted me-2"></i><span id="incomingCompany">—</span></div>
+                <div class="small"><i class="bi bi-geo-alt text-muted me-2"></i><span id="incomingCity">—</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       
-      const tbody = document.getElementById('contactHistoryBody');
-      if (calls.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4 small">Aucun appel pour ce contact</td></tr>';
-        return;
-      }
-      
-      tbody.innerHTML = calls.map(c => {
-        const statusClass = c.status === 'answered' ? 'bg-success' : (c.status === 'missed' ? 'bg-danger' : 'bg-secondary');
-        const statusLabel = c.status === 'answered' ? 'Décroché' : (c.status === 'missed' ? 'Manqué' : 'Terminé');
-        const direction = c.direction === 'outbound' ? 'sortant' : 'entrant';
-        return `
-          <tr>
-            <td class="small">${new Date(c.started_at).toLocaleString('fr-FR')}</td>
-            <td><span class="badge bg-${direction === 'entrant' ? 'info' : 'warning'} bg-opacity-10 text-${direction === 'entrant' ? 'info' : 'warning'}">${direction}</span></td>
-            <td><span class="badge bg-primary bg-opacity-10 text-primary">${c.exten || c.agent_exten || '—'}</span></td>
-            <td>${c.duration ? Math.round(c.duration) + 's' : '—'}</td>
-            <td><span class="badge ${statusClass}">${statusLabel}</span></td>
-          </tr>
-        `;
-      }).join('');
-    });
-}
-
-// Recherche par numéro - afficher la fiche contact si trouvé
-const originalTestOdoo = document.getElementById('testOdooBtn').onclick;
-document.getElementById('testOdooBtn').onclick = async () => {
-  const phone = document.getElementById('testPhone').value.trim();
-  if (!phone) return;
-  const res = document.getElementById('testOdooResult');
-  res.innerHTML = '<span class="text-muted">Recherche…</span>';
-  try {
-    const r = await apiFetch('/api/odoo/test', {
-      method:'POST', body: JSON.stringify({ phone }),
-    });
-    const d = await r.json();
-    if (d.ok && d.contact) {
-      res.innerHTML = `<div class="p-2 rounded border border-success border-opacity-25 bg-success bg-opacity-10 mt-1">
-        <strong>${d.contact.name}</strong> — <span class="text-muted">${d.contact.email||''}</span><br>
-        <a href="${d.contact.odooUrl}" target="_blank" class="small">Voir dans Odoo →</a>
-        <button class="btn btn-sm btn-outline-primary ms-2" onclick="showQuickContact(${JSON.stringify(d.contact).replace(/"/g, '&quot;')}); return false;">
-          <i class="bi bi-person-check"></i> Voir fiche
+      <!-- Footer avec actions -->
+      <div class="modal-footer border-0 justify-content-between pb-4 px-4">
+        <button class="btn btn-outline-primary" id="incomingEditBtn" style="display:none;">
+          <i class="bi bi-pencil"></i> Modifier la fiche
         </button>
-      </div>`;
-      showQuickContact(d.contact);
-    } else if (d.ok) {
-      res.innerHTML = `<span class="text-muted">Aucun contact trouvé.</span>
-        <button class="btn btn-sm btn-outline-success ms-2" onclick="openCreateContactModal(); return false;">
-          <i class="bi bi-plus-lg"></i> Créer un contact
-        </button>`;
-    } else {
-      res.innerHTML = `<span class="text-danger">${d.error}</span>`;
-    }
-  } catch(e) { res.innerHTML = `<span class="text-danger">${e.message}</span>`; }
-};
+        <div class="d-flex gap-2 ms-auto">
+          <a href="#" id="incomingOdooLink" target="_blank" class="btn btn-outline-secondary">
+            <i class="bi bi-box-arrow-up-right"></i> Voir Odoo
+          </a>
+          <button class="btn btn-primary" data-bs-dismiss="modal" onclick="closeIncomingCallModal()">
+            <i class="bi bi-check-lg"></i> Compris
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-// Remplacer la fonction updateCallContact pour utiliser la nouvelle version
-window.updateCallContact = updateCallContactWithDetails;
+<style>
+@keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.8; } }
+.animate-pulse { animation: pulse 1.5s infinite; }
+#modalIncomingCall .modal-dialog { max-width: 500px; }
+</style>
 
-</script>
-</body>
-</html>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/websocket.js"></script>
+<script src="/admin/js/calls.js"></script>
+<script src="/admin/js/contacts.js"></script>
+<script src="/admin/js/ui.js"></script>
+<script src="/admin/js/app.js"></script>
+</body></html>

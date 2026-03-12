@@ -115,7 +115,10 @@ class CallHistory {
       await this.db.run(
         `UPDATE calls 
          SET contact_id = ?, contact_name = ?, contact_phone = ?, 
-             contact_email = ?, contact_odoo_url = ?, odoo_partner_id = ?
+             contact_email = ?, contact_odoo_url = ?, odoo_partner_id = ?, 
+             contact_avatar = ?, contact_street = ?, contact_city = ?,
+             contact_company = ?, contact_zip = ?, contact_country = ?,
+             contact_website = ?, contact_function = ?, contact_mobile = ?
          WHERE unique_id = ?`,
         [
           contact.id,
@@ -124,6 +127,15 @@ class CallHistory {
           contact.email,
           contact.odooUrl,
           contact.partnerId,
+          contact.avatar,
+          contact.street || null,
+          contact.city || null,
+          contact.company || null,
+          contact.zip || null,
+          contact.country || null,
+          contact.website || null,
+          contact.function || null,
+          contact.mobile || null,
           uniqueId
         ]
       );
@@ -600,6 +612,32 @@ class CallHistory {
     } catch (err) {
       logger.error('Erreur nettoyage anciens appels', { error: err.message });
       throw err;
+    }
+  }
+
+  // ── Méthodes pour HealthAgent ────────────────────────────────────────────
+
+  async getTodayCount() {
+    try {
+      const result = await this.db.get(
+        "SELECT COUNT(*) as count FROM calls WHERE date(started_at) = date('now')"
+      );
+      return result?.count || 0;
+    } catch (err) {
+      logger.error('Erreur getTodayCount', { error: err.message });
+      return 0;
+    }
+  }
+
+  async getLastCallTime() {
+    try {
+      const result = await this.db.get(
+        "SELECT started_at FROM calls ORDER BY started_at DESC LIMIT 1"
+      );
+      return result?.started_at || null;
+    } catch (err) {
+      logger.error('Erreur getLastCallTime', { error: err.message });
+      return null;
     }
   }
 }
