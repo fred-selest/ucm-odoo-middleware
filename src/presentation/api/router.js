@@ -767,6 +767,66 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
     }
   });
 
+  // POST /api/agents/:exten/dnd - Activer/désactiver DND
+  router.post('/api/agents/:exten/dnd', async (req, res) => {
+    try {
+      const enable = !!req.body?.enable;
+      await ucmHttpClient.doNotDisturb(req.params.exten, enable);
+      wsServer.broadcast('agent:dnd_changed', { exten: req.params.exten, dnd: enable });
+      logger.info('DND mis à jour', { exten: req.params.exten, dnd: enable, user: req.session.username });
+      res.json({ ok: true, dnd: enable });
+    } catch (err) {
+      logger.error('Erreur DND', { error: err.message, exten: req.params.exten });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // GET /api/extensions - Liste des extensions UCM
+  router.get('/api/extensions', async (req, res) => {
+    try {
+      const result = await ucmHttpClient.listExtensions();
+      res.json({ ok: true, data: result || [] });
+    } catch (err) {
+      logger.error('Erreur liste extensions', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // POST /api/calls/:uniqueId/transfer - Transférer un appel
+  router.post('/api/calls/:uniqueId/transfer', async (req, res) => {
+    try {
+      const { extension } = req.body || {};
+      if (!extension) return res.status(400).json({ ok: false, error: 'extension requise' });
+
+      // Chercher le channel dans les appels actifs
+      const activeCall = callHandler.getActiveCalls().find(c => c.uniqueId === req.params.uniqueId);
+
+      let channel = activeCall?.channel;
+
+      // Fallback : chercher le channel en live dans l'UCM
+      if (!channel) {
+        const [bridged, unbridged] = await Promise.all([
+          ucmHttpClient.listBridgedChannels().catch(() => []),
+          ucmHttpClient.listUnBridgedChannels().catch(() => []),
+        ]);
+        const all = [...bridged, ...unbridged];
+        const match = all.find(ch =>
+          (ch.uniqueid || ch.UniqueID || ch.callid || ch.id) === req.params.uniqueId
+        );
+        channel = match?.channel || match?.Channel;
+      }
+
+      if (!channel) return res.status(404).json({ ok: false, error: 'Channel introuvable pour cet appel' });
+
+      await ucmHttpClient.callTransfer(channel, extension);
+      logger.info('Appel transféré', { uniqueId: req.params.uniqueId, extension, user: req.session.username });
+      res.json({ ok: true, message: `Appel transféré vers ${extension}` });
+    } catch (err) {
+      logger.error('Erreur transfert', { error: err.message, uniqueId: req.params.uniqueId });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
   // ═══════════════════════════════════════════════════════════════════════════
   // ══ GESTION DES CONTACTS ODOO (Ringover style) ═════════════════════════════
   // ═══════════════════════════════════════════════════════════════════════════

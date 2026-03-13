@@ -29,6 +29,10 @@ class CallHandler {
     // Registre des appels actifs : uniqueId → callInfo enrichi
     this._activeCalls = new Map();
 
+    // Lock anti-doublon pour la création automatique de contacts Odoo
+    // (évite 2 créations si polling + WS arrivent en même temps pour le même numéro)
+    this._autoCreatingPhones = new Set();
+
     // Binder les événements WebSocket UCM6300
     if (ucmWsClient) {
       this._bindSource(ucmWsClient, 'UCM');
@@ -123,6 +127,27 @@ class CallHandler {
         contact = await this._odoo.findContactByPhone(callerIdNum);
       } catch (err) {
         logger.error('Odoo: échec recherche contact', { phone: callerIdNum, error: err.message });
+      }
+
+      // Création automatique si aucun contact trouvé et numéro valide
+      if (!contact) {
+        const digits = callerIdNum.replace(/\D/g, '');
+        const isValidExternal = digits.length > 5 && !/^(anonymous|unknown|restricted|s)$/i.test(callerIdNum);
+        if (isValidExternal && !this._autoCreatingPhones.has(callerIdNum)) {
+          this._autoCreatingPhones.add(callerIdNum);
+          try {
+            this._odoo.invalidateCache(callerIdNum);
+            contact = await this._odoo.createContact({
+              name:  `Inconnu ${callerIdNum}`,
+              phone: callerIdNum,
+            });
+            logger.info('Odoo: contact auto-créé', { callerIdNum, id: contact?.id });
+          } catch (err) {
+            logger.error('Odoo: échec création contact auto', { phone: callerIdNum, error: err.message });
+          } finally {
+            setTimeout(() => this._autoCreatingPhones.delete(callerIdNum), 10000);
+          }
+        }
       }
     }
 

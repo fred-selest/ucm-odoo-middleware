@@ -18,6 +18,7 @@ function connectWs() {
       addCallRow(msg.data, 'incoming');
       showIncomingCallPopup(msg.data);
       if (typeof showActiveCallBanner === 'function') showActiveCallBanner(msg.data);
+      triggerBrowserNotification(msg.data);
     }
     if (msg.type === 'call:answered') updateCallRow(msg.data, 'answered');
     if (msg.type === 'call:hangup') {
@@ -28,8 +29,16 @@ function connectWs() {
       }
       setTimeout(() => { loadCallHistory(); loadFullJournal(jPage); fetchMissedCallsToday(); }, 500);
     }
-    if (msg.type === 'contact') updateCallContact(msg.data);
+    if (msg.type === 'contact') {
+      updateCallContact(msg.data);
+      // Mettre à jour la popup si elle est ouverte pour cet appel
+      if (currentIncomingCall && msg.data.uniqueId === currentIncomingCall.uniqueId && msg.data.contact) {
+        currentIncomingCall = { ...currentIncomingCall, contact: msg.data.contact };
+        updateIncomingCallPopupContact(msg.data.contact);
+      }
+    }
     if (msg.type === 'agent:status_changed') fetchAgentStatus();
+    if (msg.type === 'agent:dnd_changed') fetchAgentStatus();
   };
 }
 
@@ -59,4 +68,23 @@ function setWsStatus(ok) {
   const lbl = document.getElementById('wsLabel');
   lbl.textContent = ok ? 'Connecté' : 'Déconnecté';
   lbl.className = ok ? 'text-success small' : 'text-danger small';
+}
+
+// ── Notifications navigateur ────────────────────────────────────────────────
+function triggerBrowserNotification(call) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const title = call.contact?.name || call.callerIdName || call.callerIdNum || 'Appel entrant';
+  const body  = `Poste ${call.exten || call.agentExten || '—'} — ${call.callerIdNum || ''}`;
+  const n = new Notification(title, { body, icon: '/favicon.ico', tag: call.uniqueId });
+  setTimeout(() => n.close(), 8000);
+}
+
+function requestNotifPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    Notification.requestPermission().then(p => {
+      const btn = document.getElementById('notifPermBtn');
+      if (btn) btn.style.display = p === 'granted' ? 'none' : '';
+    });
+  }
 }

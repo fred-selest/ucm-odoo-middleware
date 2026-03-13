@@ -387,6 +387,17 @@ class UcmHttpClient {
   }
 
   /**
+   * Active ou désactive le mode Ne-Pas-Déranger d'une extension
+   * @param {string} extension
+   * @param {boolean} enable
+   * @returns {Promise<boolean>}
+   */
+  async doNotDisturb(extension, enable) {
+    await this.request('doNotDisturb', { extension, dnd: enable ? '1' : '0' });
+    return true;
+  }
+
+  /**
    * Récupère les statistiques d'une file d'attente
    * @param {string} queue
    * @param {string} startTime
@@ -427,10 +438,24 @@ class UcmHttpClient {
    * @param {number} offset     - Pagination
    * @returns {Promise<{records: Array, total: number}>}
    */
-  async fetchCdr(startTime, endTime, numRecords = 1000, offset = 0) {
-    if (!this.isAuthenticated()) {
-      await this.connect();
+  async fetchCdr(startTime, endTime, numRecords = 1000) {
+    const first = await this._fetchCdrPage(startTime, endTime, numRecords, 0);
+    const allRecords = [...first];
+    const MAX_PAGES = 50;
+    let page = 1;
+    while (first.length === numRecords && page < MAX_PAGES) {
+      const next = await this._fetchCdrPage(startTime, endTime, numRecords, page * numRecords);
+      if (!next.length) break;
+      allRecords.push(...next);
+      page++;
+      if (next.length < numRecords) break;
     }
+    if (page > 1) logger.info('UCM CDR: pagination', { pages: page, total: allRecords.length });
+    return { records: allRecords, total: allRecords.length };
+  }
+
+  async _fetchCdrPage(startTime, endTime, numRecords, offset) {
+    if (!this.isAuthenticated()) await this.connect();
     const params = {
       format:     'json',
       numRecords: String(numRecords),
@@ -438,22 +463,17 @@ class UcmHttpClient {
     };
     if (startTime) params.startTime = startTime;
     if (endTime)   params.endTime   = endTime;
-
     try {
       // cdrapi retourne {"cdr_root":[...]} sans wrapper "response" ni "status"
-      // On contourne request() pour gérer ce format spécial
       const payload = { request: { action: 'cdrapi', cookie: this._cookie, ...params } };
       const resp = await this._axiosInstance.post(this._baseUrl, payload);
       const data = resp.data;
-
       if (data?.status !== undefined && data.status !== 0) {
         throw new Error(`CDR API error: status ${data.status}`);
       }
-
-      const records = data?.cdr_root || [];
-      return { records, total: records.length };
+      return data?.cdr_root || [];
     } catch (err) {
-      logger.error('UCM CDR: erreur récupération', { error: err.message });
+      logger.error('UCM CDR: erreur récupération page', { error: err.message, offset });
       throw err;
     }
   }

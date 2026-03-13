@@ -19,16 +19,25 @@ function startApp() {
   fetchMissedCallsToday();
   loadCallHistory();
   loadFullJournal(1);
-  setInterval(fetchStatus,         5000);
-  setInterval(fetchLogs,           3000);
-  setInterval(fetchWebhooks,       30000);
-  setInterval(fetchAgentStatus,    10000);
-  setInterval(fetchWsClients,      5000);
-  setInterval(fetchMissedCallsToday, 60000);
+  loadBlacklist();
+  loadStatsTab();
+  loadExtensionsList();
+  setInterval(fetchStatus,          5000);
+  setInterval(fetchLogs,            3000);
+  setInterval(fetchWebhooks,        30000);
+  setInterval(fetchAgentStatus,     10000);
+  setInterval(fetchWsClients,       5000);
+  setInterval(fetchMissedCallsToday,60000);
+  setInterval(loadStatsTab,         60000);
   // Mémorisation extension click-to-call
   const dialExtenEl = document.getElementById('dialExten');
   dialExtenEl.value = localStorage.getItem('ucm_dial_exten') || '';
   dialExtenEl.addEventListener('change', () => localStorage.setItem('ucm_dial_exten', dialExtenEl.value.trim()));
+  // Afficher bouton permission notifications si nécessaire
+  if ('Notification' in window && Notification.permission === 'default') {
+    const btn = document.getElementById('notifPermBtn');
+    if (btn) btn.style.display = '';
+  }
 }
 
 // ── Status polling ─────────────────────────────────────────────────────────
@@ -205,11 +214,18 @@ async function fetchAgentStatus() {
     }
     tbody.innerHTML = d.data.map(a => {
       const s = AGENT_STATUS_LABELS[a.status] || { label: a.status, class: 'bg-secondary' };
+      const dndOn = !!a.dnd;
       return `<tr>
         <td><code>${esc(a.id)}</code></td>
         <td><span class="badge ${s.class}">${s.label}</span></td>
         <td class="small text-muted">${a.activeCalls || 0}</td>
-        <td><button class="btn btn-xs btn-sm btn-outline-primary" onclick="alert('Fonction à implémenter')">📞</button></td>
+        <td>
+          <button class="btn btn-xs btn-sm ${dndOn ? 'btn-warning' : 'btn-outline-secondary'}"
+                  onclick="toggleDnd('${esc(a.id)}', ${!dndOn})"
+                  title="${dndOn ? 'Désactiver DND' : 'Activer DND'}">
+            <i class="bi bi-moon${dndOn ? '-fill' : ''}"></i>
+          </button>
+        </td>
       </tr>`;
     }).join('');
   } catch { }
@@ -519,6 +535,99 @@ async function testUcmConnection() {
   } catch(e) {
     result.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;
   }
+}
+
+// ── DND toggle ──────────────────────────────────────────────────────────────
+async function toggleDnd(exten, enable) {
+  try {
+    await apiFetch(`/api/agents/${exten}/dnd`, {
+      method: 'POST', body: JSON.stringify({ enable }),
+    });
+    fetchAgentStatus();
+    showToast(enable ? `DND activé pour ${exten}` : `DND désactivé pour ${exten}`);
+  } catch { }
+}
+
+// ── Stats / graphiques ──────────────────────────────────────────────────────
+let _chartHourly = null;
+let _chartStatus = null;
+
+async function loadStatsTab() {
+  try {
+    const [sRes, hRes, eRes] = await Promise.all([
+      apiFetch('/api/stats?period=today').then(r => r.json()).catch(() => ({})),
+      apiFetch('/api/stats/hourly').then(r => r.json()).catch(() => ({})),
+      apiFetch('/api/stats/extensions?days=7').then(r => r.json()).catch(() => ({})),
+    ]);
+
+    // KPIs
+    const s = sRes.data || {};
+    const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setEl('statTotal',      s.total      || 0);
+    setEl('statAnswered',   s.answered   || 0);
+    setEl('statMissed',     s.missed     || 0);
+    setEl('statAnswerRate', s.answerRate != null ? Math.round(s.answerRate) + '%' : '—');
+    const avg = s.avgDuration || 0;
+    setEl('statAvgDur', avg ? (avg >= 60 ? Math.floor(avg/60) + 'min ' + (avg%60) + 's' : avg + 's') : '—');
+
+    // Chart horaire
+    const hourlyData = Array.from({ length: 24 }, (_, h) => {
+      const found = (hRes.data || []).find(d => parseInt(d.hour) === h);
+      return found ? (found.count || found.total || 0) : 0;
+    });
+    const ctxH = document.getElementById('chartHourly');
+    if (ctxH && typeof Chart !== 'undefined') {
+      if (_chartHourly) { _chartHourly.data.datasets[0].data = hourlyData; _chartHourly.update(); }
+      else {
+        _chartHourly = new Chart(ctxH, {
+          type: 'bar',
+          data: {
+            labels: Array.from({ length: 24 }, (_, h) => h + 'h'),
+            datasets: [{ label: 'Appels', data: hourlyData,
+              backgroundColor: 'rgba(37,99,235,0.7)', borderRadius: 4 }],
+          },
+          options: { responsive: true, plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
+        });
+      }
+    }
+
+    // Chart donut décroché/manqué
+    const answered = s.answered || 0;
+    const missed   = s.missed   || 0;
+    const ctxS = document.getElementById('chartStatus');
+    if (ctxS && typeof Chart !== 'undefined' && (answered + missed) > 0) {
+      if (_chartStatus) {
+        _chartStatus.data.datasets[0].data = [answered, missed]; _chartStatus.update();
+      } else {
+        _chartStatus = new Chart(ctxS, {
+          type: 'doughnut',
+          data: {
+            labels: ['Décroché', 'Manqué'],
+            datasets: [{ data: [answered, missed],
+              backgroundColor: ['rgba(22,163,74,0.8)', 'rgba(220,38,38,0.8)'],
+              borderWidth: 0 }],
+          },
+          options: { responsive: true, cutout: '65%',
+            plugins: { legend: { position: 'bottom' } } },
+        });
+      }
+    }
+
+    // Top extensions
+    const extData = eRes.data || [];
+    const extTbody = document.getElementById('statsExtBody');
+    if (extTbody) {
+      extTbody.innerHTML = extData.length
+        ? extData.slice(0, 10).map(e => `<tr>
+            <td><code class="small">${esc(e.exten || e.extension || '—')}</code></td>
+            <td class="small">${e.total || 0}</td>
+            <td class="small text-success">${e.answered || 0}</td>
+            <td class="small text-danger">${e.missed || 0}</td>
+          </tr>`).join('')
+        : '<tr><td colspan="4" class="text-center text-muted py-3 small">Aucune donnée</td></tr>';
+    }
+  } catch { }
 }
 
 async function saveOdooConfig() {
