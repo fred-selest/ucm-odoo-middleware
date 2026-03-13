@@ -62,16 +62,21 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
   // ── Authentification obligatoire sur toutes les routes /api/* ────────────
   router.use(apiRequireSession);
 
-  // ── Fichiers JS pour admin (avant autres routes) ─────────────────────────
+  // ── Fichiers JS/CSS pour admin (avant autres routes) ─────────────────────
   router.get('/admin/js/:file', (req, res) => {
     res.sendFile(path.join(__dirname, '../admin/js/', req.params.file));
   });
-  
+  router.get('/admin/css/:file', (req, res) => {
+    res.setHeader('Content-Type', 'text/css');
+    res.sendFile(path.join(__dirname, '../admin/css/', req.params.file));
+  });
+
   // ── Interface admin (sans auth) ─────────────────────────────────────────
   router.get(['/admin', '/admin/'], (req, res) => {
     const htmlPath = path.join(__dirname, '../admin/index.html');
     let html = fs.readFileSync(htmlPath, 'utf8');
     html = html.replace(/(src="\/admin\/js\/[^"]+\.js)"/g, `$1?v=${BUILD_VERSION}"`);
+    html = html.replace(/(href="\/admin\/css\/[^"]+\.css)"/g, `$1?v=${BUILD_VERSION}"`);
     res.setHeader('Content-Type', 'text/html');
     res.setHeader('Cache-Control', 'no-store');
     res.send(html);

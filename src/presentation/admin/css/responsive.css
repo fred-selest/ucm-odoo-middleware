@@ -1,0 +1,58 @@
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVE — Media queries (mobile, tablette, desktop)
+═══════════════════════════════════════════════════════ */
+
+/* Mobile < 768px */
+@media (max-width: 767px) {
+  .navbar { padding: .5rem .75rem !important; }
+  .navbar-brand { font-size: .9rem; }
+  .status-badge  { display: none !important; }
+  #ucmModeBadge  { display: none !important; }
+  #navUser       { display: none; }
+  #uptime        { display: none !important; }
+
+  .container-fluid { padding-left: .5rem !important; padding-right: .5rem !important; }
+
+  .stat-card        { padding: .875rem .75rem; }
+  .stat-card .icon  { width: 44px; height: 44px; font-size: 1.2rem; margin-bottom: .625rem; }
+  .stat-card .value { font-size: 1.5rem; }
+  .stat-card .label { font-size: .65rem; }
+
+  #mainTabs { gap: .125rem; }
+  #mainTabs .nav-link { padding: .5rem .75rem; font-size: .82rem; }
+  #mainTabs .nav-link .tab-text-full  { display: none; }
+  #mainTabs .nav-link .tab-text-short { display: inline; }
+
+  .table-responsive { -webkit-overflow-scrolling: touch; }
+  .table td, .table th { padding: .75rem .625rem; }
+
+  #journalFilters .row > [class*="col-"] { margin-bottom: .5rem; }
+  #journalFilters .col-md-1 { max-width: 100%; }
+
+  #modalIncomingCall .modal-dialog  { margin: 0; max-width: 100%; min-height: 100%; }
+  #modalIncomingCall .modal-content { border-radius: 0; min-height: 100dvh; }
+
+  .btn    { min-height: 38px; }
+  .btn-sm { min-height: 34px; }
+
+  #activeCallBanner { font-size: .8rem; gap: .5rem; padding: .5rem .75rem; }
+  #activeCallBanner .opacity-75:first-of-type { display: none; }
+
+  .drag-handle { display: none; }
+  .search-input { max-width: 100%; }
+  #callSearch   { max-width: 140px; }
+  #chartHourly  { max-height: 200px; }
+}
+
+/* Tablette 768–991px */
+@media (min-width: 768px) and (max-width: 991px) {
+  #mainTabs .nav-link { padding: .5rem .875rem; font-size: .875rem; }
+  .stat-card { padding: 1rem; }
+}
+
+/* Desktop ≥ 768px */
+@media (min-width: 768px) {
+  #mainTabs .nav-link .tab-text-short { display: none; }
+  #mainTabs .nav-link .tab-text-full  { display: inline; }
+  #logoutBtn .btn-text { display: inline; }
+}

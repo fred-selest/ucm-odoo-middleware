@@ -1,0 +1,41 @@
+/* ═══════════════════════════════════════════════════════
+   THEME — Variables CSS palette claire / sombre
+   Palette sombre : GitHub Dark Dimmed
+═══════════════════════════════════════════════════════ */
+:root {
+  --accent:          #2563eb;
+  --accent-dark:     #1d4ed8;
+  --bg:              #f1f5f9;
+  --bg-card:         #ffffff;
+  --bg-card-header:  #f8fafc;
+  --bg-input:        #ffffff;
+  --bg-input-addon:  #f1f5f9;
+  --bg-table-head:   #f8fafc;
+  --bg-hover:        #f1f5f9;
+  --bg-modal:        #ffffff;
+  --bg-modal-footer: #f8fafc;
+  --border:          #e2e8f0;
+  --text:            #1e293b;
+  --text-muted:      #64748b;
+  --text-heading:    #334155;
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
+}
+
+[data-bs-theme="dark"] {
+  --bg:              #0d1117;
+  --bg-card:         #161b22;
+  --bg-card-header:  #1c2128;
+  --bg-input:        #0d1117;
+  --bg-input-addon:  #21262d;
+  --bg-table-head:   #1c2128;
+  --bg-hover:        #21262d;
+  --bg-modal:        #161b22;
+  --bg-modal-footer: #1c2128;
+  --border:          #30363d;
+  --text:            #e6edf3;
+  --text-muted:      #8b949e;
+  --text-heading:    #c9d1d9;
+  --scrollbar-track: #0d1117;
+  --scrollbar-thumb: #30363d;
+}

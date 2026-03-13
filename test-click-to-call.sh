@@ -1,0 +1,22 @@
+#!/bin/bash
+# Test Click-to-Call - À exécuter DEPUIS L'INTERFACE ADMIN
+
+echo "╔════════════════════════════════════════════════╗"
+echo "║  Test Click-to-Call                            ║"
+echo "╚════════════════════════════════════════════════╝"
+echo ""
+echo "1. Ouvrez https://ucm.selest.info/admin"
+echo "2. Connectez-vous avec Odoo"
+echo "3. Recherchez un contact"
+echo "4. Cliquez sur l'icône téléphone (click-to-call)"
+echo ""
+echo "OU testez avec l'API:"
+echo ""
+echo "  curl -sk https://ucm.selest.info/api/calls/dial \\"
+echo "    -H 'X-Session-Token: VOTRE_TOKEN' \\"
+echo "    -H 'Content-Type: application/json' \\"
+echo "    -d '{\"phone\":\"0695516169\",\"exten\":\"1000\"}'"
+echo ""
+echo "Logs en temps réel:"
+echo "  docker logs -f ucm_odoo_middleware | grep -i 'click-to-call\|dial'"
+echo ""

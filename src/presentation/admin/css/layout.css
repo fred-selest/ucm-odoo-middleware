@@ -1,0 +1,39 @@
+/* ═══════════════════════════════════════════════════════
+   LAYOUT — Body, navbar, login, bandeau, onglets
+═══════════════════════════════════════════════════════ */
+
+body { background: var(--bg); font-family: 'Inter', sans-serif; color: var(--text); }
+
+/* Navbar */
+.navbar       { background: var(--bg-card) !important; border-bottom: 1px solid var(--border); box-shadow: 0 1px 8px rgba(0,0,0,.06); }
+.navbar-brand { font-weight: 700; color: var(--text) !important; letter-spacing: -0.3px; }
+.navbar-brand i { background: linear-gradient(135deg, #2563eb, #4f46e5); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.header-actions { display: flex; align-items: center; gap: .375rem; }
+.theme-toggle { background: none; border: none; font-size: 1.1rem; color: var(--text-muted); cursor: pointer; padding: .5rem; border-radius: 8px; min-width: 38px; min-height: 38px; display: inline-flex; align-items: center; justify-content: center; }
+.theme-toggle:hover { background: var(--bg-hover); }
+.search-input { max-width: 240px; }
+
+/* Page login */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg,#0d1117 0%,#1a2744 50%,#0d1117 100%); position: relative; overflow: hidden; }
+.login-wrap::before { content:''; position:absolute; width:500px; height:500px; border-radius:50%; background:radial-gradient(circle,rgba(37,99,235,.15),transparent 70%); top:-150px; left:-150px; pointer-events:none; }
+.login-wrap::after  { content:''; position:absolute; width:400px; height:400px; border-radius:50%; background:radial-gradient(circle,rgba(99,102,241,.12),transparent 70%); bottom:-100px; right:-100px; pointer-events:none; }
+.login-card { width: min(420px, calc(100vw - 2rem)); border-radius: 20px !important; border: none !important; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5) !important; background: #fff; }
+.login-card-header { background: linear-gradient(135deg,#2563eb,#4f46e5); padding: 2rem 2rem 1.5rem; text-align: center; }
+.login-logo { width:72px; height:72px; border-radius:20px; background:rgba(255,255,255,.15); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; margin:0 auto 1rem; font-size:2rem; color:#fff; box-shadow:0 8px 24px rgba(0,0,0,.2); }
+.login-card .card-body { background: #fff !important; }
+
+/* Bandeau appel en cours */
+#activeCallBanner { background:linear-gradient(135deg,#1d4ed8,#2563eb,#4f46e5); background-size:200% 200%; animation:bannerShimmer 3s ease infinite; color:#fff; display:flex; align-items:center; justify-content:center; gap:.75rem; flex-wrap:wrap; padding:.625rem 1rem; font-weight:600; font-size:.875rem; box-shadow:0 4px 16px rgba(37,99,235,.35); }
+@keyframes bannerShimmer { 0%,100%{background-position:0% 50%;} 50%{background-position:100% 50%;} }
+
+/* Badge manqués navbar */
+.nav-badge-wrap { position:relative; display:inline-flex; align-items:center; padding:.4rem; border-radius:8px; cursor:pointer; min-width:38px; min-height:38px; justify-content:center; }
+.nav-badge-wrap:hover { background: var(--bg-hover); }
+.nav-badge-pill { position:absolute; top:0; right:0; font-size:.6rem; min-width:16px; height:16px; display:flex; align-items:center; justify-content:center; border-radius:999px; background:#ef4444; color:#fff; font-weight:700; padding:0 3px; }
+
+/* Onglets principaux */
+#mainTabs { flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding-bottom:2px; }
+#mainTabs::-webkit-scrollbar { display: none; }
+#mainTabs .nav-link { color:var(--text-muted); border-radius:10px; padding:.5rem 1rem; font-weight:500; transition:all .15s; white-space:nowrap; }
+#mainTabs .nav-link.active { background:linear-gradient(135deg,#2563eb,#1d4ed8); color:#fff; box-shadow:0 4px 12px rgba(37,99,235,.3); }
+#mainTabs .nav-link:hover:not(.active) { background:var(--bg-hover); color:var(--text); }
