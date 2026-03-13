@@ -162,7 +162,6 @@ class UcmHttpClient {
         action: 'login',
         user: username,
         token: token,
-        version: '1.0'
       }
     };
 
@@ -292,21 +291,36 @@ class UcmHttpClient {
   }
 
   /**
-   * Récupère les appels en cours (bridged)
+   * Récupère toutes les pages d'une action retournant des canaux
+   * @param {string} action
    * @returns {Promise<Array>}
+   * @private
    */
-  async listBridgedChannels() {
-    const result = await this.request('listBridgedChannels');
-    return result.channel || [];
+  async _fetchAllChannelPages(action) {
+    const first = await this.request(action);
+    const channels = [...(first.channel || [])];
+    const totalPages = first.total_page || 1;
+    for (let page = 2; page <= totalPages; page++) {
+      const result = await this.request(action, { page });
+      channels.push(...(result.channel || []));
+    }
+    return channels;
   }
 
   /**
-   * Récupère les appels en sonnerie (unbridged)
+   * Récupère les appels en cours (bridged) — toutes pages
+   * @returns {Promise<Array>}
+   */
+  async listBridgedChannels() {
+    return this._fetchAllChannelPages('listBridgedChannels');
+  }
+
+  /**
+   * Récupère les appels en sonnerie (unbridged) — toutes pages
    * @returns {Promise<Array>}
    */
   async listUnBridgedChannels() {
-    const result = await this.request('listUnBridgedChannels');
-    return result.channel || [];
+    return this._fetchAllChannelPages('listUnBridgedChannels');
   }
 
   /**
@@ -406,36 +420,38 @@ class UcmHttpClient {
   }
 
   /**
-   * Récupère les enregistrements CDR depuis l'API CDR UCM (port 8443)
-   * @param {string} startTime - ISO 8601 ou 'YYYY-MM-DD HH:MM:SS'
-   * @param {string} endTime   - ISO 8601 ou 'YYYY-MM-DD HH:MM:SS'
-   * @param {number} limit     - Max enregistrements par requête (max 1000)
-   * @param {number} offset    - Pagination
+   * Récupère les enregistrements CDR via l'API officielle (POST /api, action cdrapi)
+   * @param {string} startTime  - 'YYYY-MM-DD HH:MM:SS'
+   * @param {string} endTime    - 'YYYY-MM-DD HH:MM:SS'
+   * @param {number} numRecords - Max enregistrements (max 1000, défaut 1000)
+   * @param {number} offset     - Pagination
    * @returns {Promise<{records: Array, total: number}>}
    */
-  async fetchCdr(startTime, endTime, limit = 1000, offset = 0) {
+  async fetchCdr(startTime, endTime, numRecords = 1000, offset = 0) {
     if (!this.isAuthenticated()) {
       await this.connect();
     }
-    const { host } = config.ucm;
-    const url = `https://${host}:8443/cdrapi`;
-    const params = new URLSearchParams({
-      startTime,
-      endTime,
-      output:  'json',
-      limit:   String(limit),
-      offset:  String(offset),
-      cookie:  this._cookie,
-    });
+    const params = {
+      format:     'json',
+      numRecords: String(numRecords),
+      offset:     String(offset),
+    };
+    if (startTime) params.startTime = startTime;
+    if (endTime)   params.endTime   = endTime;
+
     try {
-      const resp = await this._axiosInstance.get(`${url}?${params}`);
+      // cdrapi retourne {"cdr_root":[...]} sans wrapper "response" ni "status"
+      // On contourne request() pour gérer ce format spécial
+      const payload = { request: { action: 'cdrapi', cookie: this._cookie, ...params } };
+      const resp = await this._axiosInstance.post(this._baseUrl, payload);
       const data = resp.data;
+
       if (data?.status !== undefined && data.status !== 0) {
         throw new Error(`CDR API error: status ${data.status}`);
       }
-      const records = data?.cdr_list || data?.data || [];
-      const total   = data?.total_count || data?.total || records.length;
-      return { records, total };
+
+      const records = data?.cdr_root || [];
+      return { records, total: records.length };
     } catch (err) {
       logger.error('UCM CDR: erreur récupération', { error: err.message });
       throw err;

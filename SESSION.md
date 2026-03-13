@@ -90,14 +90,14 @@ ucm-odoo-middleware/
 
 ---
 
-## 📊 État actuel (11 Mars 2026 00:45)
+## 📊 État actuel (11 Mars 2026 15:30)
 
 | Composant | Statut | Détails |
 |-----------|--------|---------|
 | **Middleware** | ✅ UP | Port 3000 |
 | **Odoo** | ✅ Connecté | uid:2 |
 | **UCM HTTP API** | ✅ Authentifié | Cookie valide 10 min |
-| **UCM WebSocket** | ❌ Échec 400 | Endpoint peut-être différent |
+| **UCM WebSocket** | ✅ Connecté | `/websockify`, keep-alive 15s |
 | **Webhooks HTTP** | ✅ Prêts | 2 tokens configurés |
 | **Interface Admin** | ✅ Accessible | https://ucm.selest.info/admin |
 
@@ -121,9 +121,9 @@ Cookie: sid2098382197-... (valable 10 min)
 
 ---
 
-## 🐛 Problème en cours
+## ✅ Problème résolu (11 Mars 2026)
 
-### WebSocket UCM6300 - Erreur 400
+### WebSocket UCM6300 - Résolu
 
 **Symptôme** :
 ```

@@ -7,27 +7,29 @@
   <title>UCM ↔ Odoo — Admin</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root { --sidebar-width: 260px; }
-    body { background: #f1f5f9; }
+    :root { --sidebar-width: 260px; --accent: #2563eb; --accent-dark: #1d4ed8; }
+    body { background: #f1f5f9; font-family: 'Inter', sans-serif; }
     [data-bs-theme="dark"] body { background: #0f172a; }
     [data-bs-theme="dark"] .navbar { background: #1e293b !important; border-color: #334155 !important; }
-    .navbar { background: #fff !important; border-bottom: 1px solid #e2e8f0; }
-    .navbar-brand { font-weight: 700; color: #1e293b !important; }
-    .card { border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
-    [data-bs-theme="dark"] .card { background: #1e293b; border-color: #334155; }
+    .navbar { background: #fff !important; border-bottom: 1px solid #e2e8f0; box-shadow: 0 1px 8px rgba(0,0,0,.06); }
+    .navbar-brand { font-weight: 700; color: #1e293b !important; letter-spacing: -0.3px; }
+    .navbar-brand i { background: linear-gradient(135deg, #2563eb, #4f46e5); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .card { border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.04); transition: box-shadow .2s; }
+    [data-bs-theme="dark"] .card { background: #1e293b; border-color: #334155; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
     .card-header { background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #334155; padding: .875rem 1rem; }
     [data-bs-theme="dark"] .card-header { background: #0f172a; border-color: #334155; color: #e2e8f0; }
-    .stat-card { text-align: center; padding: 1.25rem; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; transition: transform .2s,box-shadow .2s; }
+    .stat-card { text-align: center; padding: 1.25rem; background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; transition: transform .2s, box-shadow .2s; }
     [data-bs-theme="dark"] .stat-card { background: #1e293b; border-color: #334155; }
-    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
-    .stat-card .icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin: 0 auto .75rem; }
-    .stat-card .icon-blue { background: #dbeafe; color: #2563eb; }
-    .stat-card .icon-green { background: #dcf7e6; color: #16a34a; }
-    .stat-card .icon-yellow { background: #fef3c7; color: #d97706; }
-    .stat-card .icon-red { background: #fee2e2; color: #dc2626; }
-    .stat-card .value { font-size: 1.75rem; font-weight: 700; line-height: 1; }
-    .stat-card .label { font-size: .75rem; color: #64748b; margin-top: .35rem; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.10); }
+    .stat-card .icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin: 0 auto .875rem; }
+    .stat-card .icon-blue { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #2563eb; box-shadow: 0 4px 12px rgba(37,99,235,.2); }
+    .stat-card .icon-green { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #16a34a; box-shadow: 0 4px 12px rgba(22,163,74,.2); }
+    .stat-card .icon-yellow { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; box-shadow: 0 4px 12px rgba(217,119,6,.2); }
+    .stat-card .icon-red { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #dc2626; box-shadow: 0 4px 12px rgba(220,38,38,.2); }
+    .stat-card .value { font-size: 1.875rem; font-weight: 700; line-height: 1; letter-spacing: -0.5px; }
+    .stat-card .label { font-size: .7rem; color: #64748b; margin-top: .4rem; text-transform: uppercase; letter-spacing: .7px; font-weight: 600; }
     [data-bs-theme="dark"] .stat-card .label { color: #94a3b8; }
     .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
     .dot-green  { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
@@ -45,9 +47,31 @@
     .call-row.incoming { animation: pulse 1.5s infinite; }
     @keyframes fadeIn { from { opacity:0; transform: translateX(-10px); } to { opacity:1; transform: translateX(0); } }
     @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,.4); } 50% { box-shadow: 0 0 0 10px rgba(59,130,246,0); } }
-    .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .login-card { width: 380px; border-radius: 12px; }
-    .login-logo { font-size: 2rem; color: #4f46e5; }
+    .login-wrap {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      position: relative; overflow: hidden;
+    }
+    .login-wrap::before {
+      content: ''; position: absolute; width: 500px; height: 500px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(37,99,235,.12), transparent 70%);
+      top: -150px; left: -150px; pointer-events: none;
+    }
+    .login-wrap::after {
+      content: ''; position: absolute; width: 400px; height: 400px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(99,102,241,.10), transparent 70%);
+      bottom: -100px; right: -100px; pointer-events: none;
+    }
+    .login-card { width: 420px; border-radius: 20px !important; border: none !important; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.4) !important; }
+    .login-card-header { background: linear-gradient(135deg, #2563eb, #4f46e5); padding: 2rem 2rem 1.5rem; text-align: center; }
+    .login-logo {
+      width: 72px; height: 72px; border-radius: 20px;
+      background: rgba(255,255,255,.15); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,.2);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1rem; font-size: 2rem; color: #fff;
+      box-shadow: 0 8px 24px rgba(0,0,0,.2);
+    }
     .contact-badge { display: inline-flex; align-items: center; gap: .5rem; padding: .25rem .75rem; border-radius: 999px; font-weight: 500; font-size: .85rem; }
     .contact-badge img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
     .contact-badge-clickable { cursor: pointer; transition: transform .15s; }
@@ -77,11 +101,15 @@
 
     /* Bandeau appel en cours */
     #activeCallBanner {
-      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      background: linear-gradient(135deg, #1d4ed8, #2563eb, #4f46e5);
+      background-size: 200% 200%;
+      animation: bannerShimmer 3s ease infinite;
       color: #fff;
       display: flex; align-items: center; justify-content: center; gap: 1rem;
-      padding: .5rem 1.5rem; font-weight: 600; font-size: .9rem;
+      padding: .625rem 1.5rem; font-weight: 600; font-size: .9rem;
+      box-shadow: 0 4px 16px rgba(37,99,235,.35);
     }
+    @keyframes bannerShimmer { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
 
     /* Badge manqués navbar */
     .nav-badge-wrap { position: relative; display: inline-flex; align-items: center; padding: .4rem; border-radius: 6px; cursor: pointer; }
@@ -96,8 +124,8 @@
     }
 
     /* Onglets principaux */
-    #mainTabs .nav-link { color: #64748b; border-radius: 8px; padding: .5rem 1.25rem; font-weight: 500; }
-    #mainTabs .nav-link.active { background: #2563eb; color: #fff; }
+    #mainTabs .nav-link { color: #64748b; border-radius: 10px; padding: .5rem 1.25rem; font-weight: 500; transition: all .15s; }
+    #mainTabs .nav-link.active { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,.3); }
     #mainTabs .nav-link:hover:not(.active) { background: #f1f5f9; color: #1e293b; }
     [data-bs-theme="dark"] #mainTabs .nav-link:hover:not(.active) { background: #334155; color: #e2e8f0; }
 
@@ -125,27 +153,36 @@
 
 <!-- ══ Page login (cachée par défaut) ══════════════════════════════════════ -->
 <div id="loginPage" class="login-wrap d-none">
-  <div class="card login-card shadow">
+  <div class="card login-card">
+    <!-- Header coloré -->
+    <div class="login-card-header">
+      <div class="login-logo"><i class="bi bi-telephone-inbound-fill"></i></div>
+      <h5 class="fw-bold text-white mb-1 mt-2" style="letter-spacing:-.3px">UCM ↔ Odoo</h5>
+      <p class="text-white-50 small mb-0">Interface d'administration</p>
+    </div>
+    <!-- Body formulaire -->
     <div class="card-body p-4">
-      <div class="text-center mb-4">
-        <div class="login-logo mb-2"><i class="bi bi-telephone-inbound-fill"></i></div>
-        <h5 class="fw-bold mb-0">UCM ↔ Odoo Middleware</h5>
-        <p class="text-muted small mt-1">Connectez-vous avec votre compte Odoo</p>
-      </div>
       <div id="loginError" class="alert alert-danger py-2 small d-none"></div>
       <div class="mb-3">
-        <label class="form-label small fw-semibold">Email</label>
-        <input type="email" id="loginEmail" class="form-control" placeholder="admin@exemple.com" autocomplete="username">
+        <label class="form-label small fw-semibold text-secondary">Adresse email</label>
+        <div class="input-group">
+          <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted" style="font-size:.85rem"></i></span>
+          <input type="email" id="loginEmail" class="form-control border-start-0 ps-0" placeholder="admin@exemple.com" autocomplete="username">
+        </div>
       </div>
       <div class="mb-4">
-        <label class="form-label small fw-semibold">Mot de passe</label>
-        <input type="password" id="loginPassword" class="form-control" autocomplete="current-password">
+        <label class="form-label small fw-semibold text-secondary">Mot de passe</label>
+        <div class="input-group">
+          <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock text-muted" style="font-size:.85rem"></i></span>
+          <input type="password" id="loginPassword" class="form-control border-start-0 ps-0" placeholder="••••••••" autocomplete="current-password">
+        </div>
       </div>
-      <button class="btn btn-primary w-100" id="loginBtn">
-        <i class="bi bi-box-arrow-in-right me-1"></i>Se connecter
+      <button class="btn btn-primary w-100 py-2 fw-semibold" id="loginBtn"
+              style="background:linear-gradient(135deg,#2563eb,#1d4ed8);border:none;border-radius:10px;box-shadow:0 4px 14px rgba(37,99,235,.4);">
+        <i class="bi bi-box-arrow-in-right me-2"></i>Se connecter
       </button>
       <p class="text-center text-muted small mt-3 mb-0">
-        Authentification via <strong>Odoo</strong>
+        <i class="bi bi-shield-check me-1 text-success"></i>Authentification via <strong>Odoo</strong>
       </p>
     </div>
   </div>

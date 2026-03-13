@@ -45,16 +45,22 @@ function requireSession(req, res, next) {
   next();
 }
 
-// Middleware pour protéger les routes API (sauf auth et status)
+// Middleware pour protéger les routes /api/* (sauf auth, test et santé)
 function apiRequireSession(req, res, next) {
-  if (req.path.startsWith("/auth/") || req.path === "/odoo/test" || req.path === "/status") {
-    return next();
-  }
+  const p = req.path;
+  const isPublic =
+    !p.startsWith('/api/') ||
+    p.startsWith('/api/auth/') ||
+    p === '/api/odoo/test';
+  if (isPublic) return next();
   return requireSession(req, res, next);
 }
 
 function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHandler, webhookManager, callHistory }) {
   const router = Router();
+
+  // ── Authentification obligatoire sur toutes les routes /api/* ────────────
+  router.use(apiRequireSession);
 
   // ── Fichiers JS pour admin (avant autres routes) ─────────────────────────
   router.get('/admin/js/:file', (req, res) => {

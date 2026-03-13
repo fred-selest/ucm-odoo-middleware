@@ -15,12 +15,15 @@ function startApp() {
   fetchLogs();
   fetchWebhooks();
   fetchAgentStatus();
+  fetchWsClients();
   fetchMissedCallsToday();
   loadCallHistory();
   loadFullJournal(1);
   setInterval(fetchStatus,         5000);
   setInterval(fetchLogs,           3000);
   setInterval(fetchWebhooks,       30000);
+  setInterval(fetchAgentStatus,    10000);
+  setInterval(fetchWsClients,      5000);
   setInterval(fetchMissedCallsToday, 60000);
   // Mémorisation extension click-to-call
   const dialExtenEl = document.getElementById('dialExten');
@@ -157,6 +160,28 @@ function hideActiveCallBanner() {
   if (banner) banner.classList.add('d-none');
   const el = document.getElementById('activeCallTimer');
   if (el) el.textContent = '0:00';
+}
+
+// ── WS Clients ─────────────────────────────────────────────────────────────
+async function fetchWsClients() {
+  try {
+    const r = await apiFetch('/api/ws/clients');
+    if (!r.ok) return;
+    const d = await r.json();
+    const tbody = document.getElementById('wsBody');
+    const subs = d.subscriptions || {};
+    const entries = Object.entries(subs);
+    if (!entries.length) {
+      tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted py-3 small">Aucun agent connecté</td></tr>';
+      return;
+    }
+    tbody.innerHTML = entries.map(([id, exts]) =>
+      `<tr>
+        <td><code class="small">${esc(id)}</code></td>
+        <td><span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">${exts.length ? exts.map(e => esc(e)).join(', ') : '—'}</span></td>
+      </tr>`
+    ).join('');
+  } catch { }
 }
 
 // ── Agent Status ───────────────────────────────────────────────────────────

@@ -240,6 +240,20 @@ class CallHandler {
     const contact = enriched.contact;
     if (contact?.id && this._odoo) {
       const callStatus = enriched.answeredAt ? 'answered' : 'missed';
+
+      // Ne pas logger "missed" si un autre appel actif existe pour le même contact
+      // (cas des canaux Asterisk internes créés lors du routing qui disparaissent rapidement)
+      if (callStatus === 'missed') {
+        const hasOtherActiveCall = [...this._activeCalls.values()].some(
+          c => c.contact?.id === contact.id
+        );
+        if (hasOtherActiveCall) {
+          logger.info('Canal intermédiaire ignoré (autre appel actif pour même contact)', { uniqueId, contactId: contact.id });
+          logger.info('Appel raccroché', { uniqueId, target, duration });
+          return;
+        }
+      }
+
       this._odoo.logCallActivity(contact.id, {
         direction: enriched.direction || 'inbound',
         status:    callStatus,
@@ -286,7 +300,7 @@ class CallHandler {
 
     // ── 1. Traitement des canaux unbridged (sonnerie) ───────────────────────
     for (const ch of (unbridgedChannels || [])) {
-      const uniqueId     = ch.uniqueid || ch.UniqueID || ch.callid || ch.id;
+      const uniqueId     = ch.uniqueid || ch.UniqueID || ch.callid || ch.id || ch.channel;
       if (!uniqueId) continue;
       seenIds.add(uniqueId);
 

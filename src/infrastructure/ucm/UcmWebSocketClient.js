@@ -65,6 +65,10 @@ class UcmWebSocketClient extends EventEmitter {
             this._handleMessage(data);
           });
 
+          this._ws.on('pong', () => {
+            this._handlePong();
+          });
+
           this._ws.on('close', (code, reason) => {
             logger.warn('UCM WS: déconnecté', { code, reason: reason?.toString() });
             this._connected = false;
@@ -220,7 +224,7 @@ class UcmWebSocketClient extends EventEmitter {
           this._ws.terminate();
         }, 10000);
       }
-    }, 30000);
+    }, 8000);
   }
 
   /**
