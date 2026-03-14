@@ -8,8 +8,8 @@ const swaggerUi    = require('swagger-ui-express');
 const config       = require('./config');
 const logger       = require('./logger');
 const UcmHttpClient  = require('./infrastructure/ucm/UcmHttpClient');
-const UcmWsClient        = require('./infrastructure/ucm/UcmWsClient');
-const OdooClient     = require('./infrastructure/odoo/OdooClient');
+const UcmWsClient    = require('./infrastructure/ucm/UcmWsClient');
+const CrmFactory     = require('./infrastructure/crm/CrmFactory');
 const WsServer       = require('./infrastructure/websocket/WsServer');
 const CallHandler    = require('./application/CallHandler');
 const WebhookManager = require('./application/WebhookManager');
@@ -27,7 +27,8 @@ async function main() {
   logger.info('Config', {
     ucmHost:   config.ucm.host,
     ucmPort:   config.ucm.port,
-    odooUrl:   config.odoo.url,
+    crmType:   config.crm.type,
+    crmUrl:    config.crm.type === 'dolibarr' ? config.dolibarr.url : config.odoo.url,
     port:      config.server.port,
     nodeEnv:   config.app.nodeEnv,
     logLevel:  config.app.logLevel,
@@ -38,9 +39,9 @@ async function main() {
   const ucmMode    = config.ucm.mode || 'websocket';
   logger.info(`UCM: mode ${ucmMode.toUpperCase()}`);
   
-  const ucmHttpClient = new UcmHttpClient();
-  const ucmWsClient   = new UcmWsClient();
-  const odooClient    = new OdooClient();
+  const ucmHttpClient  = new UcmHttpClient();
+  const ucmWsClient    = new UcmWsClient();
+  const crmClient      = CrmFactory.create();
   const webhookManager = new WebhookManager();
   
   // ── Base de données / Historique ───────────────────────────────────────────
@@ -75,10 +76,10 @@ async function main() {
   const wsServer   = new WsServer(httpServer);
 
   // ── Application ────────────────────────────────────────────────────────────
-  const callHandler = new CallHandler(ucmHttpClient, ucmWsClient, odooClient, wsServer, webhookManager, callHistory);
+  const callHandler = new CallHandler(ucmHttpClient, ucmWsClient, crmClient, wsServer, webhookManager, callHistory);
 
   // ── Routes ─────────────────────────────────────────────────────────────────
-  const apiRouter = createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHandler, webhookManager, callHistory });
+  const apiRouter = createRouter({ ucmHttpClient, ucmWsClient, crmClient, wsServer, callHandler, webhookManager, callHistory });
   app.use('/', apiRouter);
 
   // 404 catch-all
@@ -86,11 +87,11 @@ async function main() {
 
   // ── Démarrage ──────────────────────────────────────────────────────────────
 
-  // 1. Pré-authentifier Odoo (optionnel, fail silencieux)
+  // 1. Pré-authentifier le CRM (optionnel, fail silencieux)
   try {
-    await odooClient.authenticate();
+    await crmClient.authenticate();
   } catch (err) {
-    logger.warn('Odoo: pré-authentification échouée (sera retentée à la demande)', {
+    logger.warn(`${crmClient.crmType}: pré-authentification échouée (sera retentée à la demande)`, {
       error: err.message,
     });
   }
@@ -130,7 +131,7 @@ async function main() {
 
   // ── Agent de supervision ───────────────────────────────────────────────────
   const healthAgent = new HealthAgent();
-  healthAgent.start(ucmHttpClient, ucmWsClient, odooClient, wsServer, callHistory);
+  healthAgent.start(ucmHttpClient, ucmWsClient, crmClient, wsServer, callHistory);
   
   // Exposer l'agent pour l'API
   app.locals.healthAgent = healthAgent;

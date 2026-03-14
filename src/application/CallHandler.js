@@ -12,17 +12,17 @@ const logger = require('../logger');
  */
 class CallHandler {
   /**
-   * @param {UcmHttpClient}       ucmHttpClient   Client HTTP API UCM6300
-   * @param {UcmWebSocketClient}  ucmWsClient     Client WebSocket UCM6300
-   * @param {OdooClient}          odooClient
-   * @param {WsServer}            wsServer
-   * @param {WebhookManager|null} webhookManager  Webhook manager (optionnel)
-   * @param {CallHistory|null}    callHistory     Service d'historique (optionnel)
+   * @param {UcmHttpClient}         ucmHttpClient   Client HTTP API UCM6300
+   * @param {UcmWebSocketClient}    ucmWsClient     Client WebSocket UCM6300
+   * @param {CrmClientInterface}    crmClient       Adaptateur CRM (Odoo, Dolibarr…)
+   * @param {WsServer}              wsServer
+   * @param {WebhookManager|null}   webhookManager  Webhook manager (optionnel)
+   * @param {CallHistory|null}      callHistory     Service d'historique (optionnel)
    */
-  constructor(ucmHttpClient, ucmWsClient, odooClient, wsServer, webhookManager = null, callHistory = null) {
+  constructor(ucmHttpClient, ucmWsClient, crmClient, wsServer, webhookManager = null, callHistory = null) {
     this._http = ucmHttpClient;
     this._wsClient = ucmWsClient;
-    this._odoo = odooClient;
+    this._odoo = crmClient;   // alias conservé pour compatibilité interne
     this._ws   = wsServer;
     this._callHistory = callHistory;
 

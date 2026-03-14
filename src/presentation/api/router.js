@@ -56,7 +56,9 @@ function apiRequireSession(req, res, next) {
   return requireSession(req, res, next);
 }
 
-function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHandler, webhookManager, callHistory }) {
+function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsServer, callHandler, webhookManager, callHistory }) {
+  // Rétrocompatibilité : accepter odooClient ou crmClient
+  const crm = crmClient || odooClient;
   const router = Router();
 
   // ── Authentification obligatoire sur toutes les routes /api/* ────────────
@@ -98,10 +100,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
     try {
       const { phone } = req.body || {};
       if (phone) {
-        const contact = await odooClient.findContactByPhone(phone);
+        const contact = await crm.findContactByPhone(phone);
         return res.json({ ok: true, contact });
       }
-      await odooClient.ensureAuthenticated();
+      await crm.ensureAuthenticated();
       res.json({ ok: true, message: 'Connexion Odoo OK' });
     } catch (err) {
       res.status(500).json({ ok: false, error: err.message });
@@ -120,11 +122,15 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
         port:      config.ucm.webPort,
         watchExtensions: config.ucm.watchExtensions,
       },
+      crm: {
+        type:          crm.crmType || config.crm?.type || 'odoo',
+        authenticated: crm.isAuthenticated() || false,
+        cacheSize:     crm.cacheSize,
+      },
       odoo: {
         url:           config.odoo.url,
         db:            config.odoo.db,
-        authenticated: odooClient?.isAuthenticated?.() || false,
-        cacheSize:     odooClient.cacheSize,
+        authenticated: config.crm?.type !== 'dolibarr' ? (crm.isAuthenticated() || false) : null,
       },
       websocket: {
         clients:       wsServer.connectedCount,
@@ -219,7 +225,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
 
   router.post('/api/cache/clear', (req, res) => {
     const { phone } = req.body || {};
-    odooClient.invalidateCache(phone || null);
+    crm.invalidateCache(phone || null);
     logger.info('Cache contacts vidé', { phone: phone || 'all' });
     res.json({ ok: true, message: phone ? `Cache vidé pour ${phone}` : 'Cache entier vidé' });
   });
@@ -237,7 +243,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
         });
       }
 
-      const contacts = await odooClient.searchContactsByNameOrCompany(
+      const contacts = await crm.searchContacts(
         q.trim(), 
         parseInt(limit) || 20
       );
@@ -443,6 +449,9 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
   // ── Configuration UCM / Odoo ────────────────────────────────────────────
   router.get('/api/config', (req, res) => {
     res.json({
+      crm: {
+        type: config.crm?.type || 'odoo',
+      },
       ucm: {
         mode:            config.ucm.mode,
         host:            config.ucm.host,
@@ -456,6 +465,12 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
         url:      config.odoo.url,
         db:       config.odoo.db,
         username: config.odoo.username,
+        // apiKey non exposée
+      },
+      dolibarr: {
+        url:      config.dolibarr?.url      || '',
+        userId:   config.dolibarr?.userId   || 1,
+        entityId: config.dolibarr?.entityId || null,
         // apiKey non exposée
       },
     });
@@ -504,11 +519,32 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
     config.applyOdoo(fields);
     logger.info('Admin: config Odoo mise à jour', { user: req.session.username, fields: Object.keys(fields) });
 
-    // Ré-authentification Odoo
-    odooClient._uid = null;
+    // Ré-authentification
+    crm.invalidateCache();
     try {
-      await odooClient.authenticate();
+      await crm.authenticate();
       res.json({ ok: true, message: 'Configuration Odoo sauvegardée — authentification OK' });
+    } catch (err) {
+      res.json({ ok: false, message: `Sauvegardé mais auth échouée : ${err.message}` });
+    }
+  });
+
+  // POST /api/config/dolibarr — Configurer l'adaptateur Dolibarr
+  router.post('/api/config/dolibarr', async (req, res) => {
+    const { url, apiKey, userId, entityId } = req.body || {};
+    const fields = {};
+    if (url)      fields.url      = url.trim();
+    if (apiKey)   fields.apiKey   = apiKey.trim();
+    if (userId)   fields.userId   = parseInt(userId, 10);
+    if (entityId) fields.entityId = entityId;
+
+    config.applyDolibarr(fields);
+    logger.info('Admin: config Dolibarr mise à jour', { user: req.session.username, fields: Object.keys(fields) });
+
+    crm.invalidateCache();
+    try {
+      await crm.authenticate();
+      res.json({ ok: true, message: 'Configuration Dolibarr sauvegardée — authentification OK' });
     } catch (err) {
       res.json({ ok: false, message: `Sauvegardé mais auth échouée : ${err.message}` });
     }
@@ -839,7 +875,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
   // GET /api/odoo/contacts/:id - Détails d'un contact
   router.get('/api/odoo/contacts/:id', async (req, res) => {
     try {
-      const contact = await odooClient.getContactById(parseInt(req.params.id));
+      const contact = await crm.getContactById(parseInt(req.params.id));
       if (!contact) {
         return res.status(404).json({ ok: false, error: 'Contact non trouvé' });
       }
@@ -854,7 +890,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
   router.get('/api/odoo/contacts/:id/history', async (req, res) => {
     try {
       const contactId = parseInt(req.params.id);
-      const contact = await odooClient.getContactById(contactId);
+      const contact = await crm.getContactById(contactId);
       if (!contact) {
         return res.status(404).json({ ok: false, error: 'Contact non trouvé' });
       }
@@ -888,7 +924,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
   // GET /api/odoo/contacts/:id/messages - Messages chatter Odoo
   router.get('/api/odoo/contacts/:id/messages', async (req, res) => {
     try {
-      const messages = await odooClient.getContactMessages(parseInt(req.params.id), 20);
+      const messages = await crm.getContactMessages(parseInt(req.params.id), 20);
       res.json({ ok: true, data: messages });
     } catch (err) {
       res.status(500).json({ ok: false, error: err.message });
@@ -900,7 +936,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
     try {
       const { note } = req.body || {};
       if (!note?.trim()) return res.status(400).json({ ok: false, error: 'Note requise' });
-      await odooClient.addContactNote(parseInt(req.params.id), note.trim());
+      await crm.addContactNote(parseInt(req.params.id), note.trim());
       logger.info('Note ajoutée sur contact Odoo', { id: req.params.id, user: req.session?.username });
       res.json({ ok: true });
     } catch (err) {
@@ -917,7 +953,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
         return res.status(400).json({ ok: false, error: 'Nom requis' });
       }
       
-      const contact = await odooClient.createContact(contactData);
+      const contact = await crm.createContact(contactData);
       logger.info('Contact créé via API', { id: contact.id, name: contact.name, user: req.session.username });
       
       res.json({ ok: true, data: contact });
@@ -933,7 +969,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
       const contactId = parseInt(req.params.id);
       const contactData = req.body;
       
-      const contact = await odooClient.updateContact(contactId, contactData);
+      const contact = await crm.updateContact(contactId, contactData);
       logger.info('Contact modifié via API', { id: contactId, user: req.session?.username });
       
       res.json({ ok: true, data: contact });
@@ -956,7 +992,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHa
         return res.status(404).json({ ok: false, error: 'Appel non trouvé' });
       }
 
-      const contact = await odooClient.getContactById(parseInt(contactId));
+      const contact = await crm.getContactById(parseInt(contactId));
       if (!contact) {
         return res.status(404).json({ ok: false, error: 'Contact non trouvé' });
       }

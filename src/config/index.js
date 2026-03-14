@@ -28,6 +28,12 @@ function saveOverrides(overrides) {
 const ov = loadOverrides();
 
 const config = {
+
+  // ── Sélection du CRM ────────────────────────────────────────────────────────
+  crm: {
+    type: ov.crm?.type ?? process.env.CRM_TYPE ?? 'odoo',  // 'odoo' | 'dolibarr'
+  },
+
   ucm: {
     mode:              ov.ucm?.mode        ?? process.env.UCM_MODE            ?? 'websocket',
     host:              ov.ucm?.host        ?? process.env.UCM_HOST            ?? 'localhost',
@@ -56,6 +62,16 @@ const config = {
     apiKey:          ov.odoo?.apiKey   ?? process.env.ODOO_API_KEY  ?? '',
     timeout:         parseInt(process.env.ODOO_TIMEOUT       || '8000', 10),
     cacheContactTtl: parseInt(process.env.CACHE_CONTACT_TTL  || '300',  10),
+  },
+
+  // ── Dolibarr ────────────────────────────────────────────────────────────────
+  dolibarr: {
+    url:            ov.dolibarr?.url      ?? process.env.DOLIBARR_URL      ?? 'http://localhost:80',
+    apiKey:         ov.dolibarr?.apiKey   ?? process.env.DOLIBARR_API_KEY  ?? '',
+    userId:         ov.dolibarr?.userId   ?? parseInt(process.env.DOLIBARR_USER_ID || '1', 10),
+    entityId:       ov.dolibarr?.entityId ?? process.env.DOLIBARR_ENTITY_ID ?? null,
+    timeout:        parseInt(process.env.DOLIBARR_TIMEOUT || '8000', 10),
+    cacheContactTtl: parseInt(process.env.CACHE_CONTACT_TTL || '300', 10),
   },
 
   server: {
@@ -88,8 +104,27 @@ const config = {
     this._persist();
   },
 
+  applyDolibarr(fields) {
+    const allowed = ['url', 'apiKey', 'userId', 'entityId'];
+    for (const [k, v] of Object.entries(fields)) {
+      if (allowed.includes(k)) config.dolibarr[k] = v;
+    }
+    this._persist();
+  },
+
+  applyCrm(fields) {
+    const allowed = ['type'];
+    for (const [k, v] of Object.entries(fields)) {
+      if (allowed.includes(k)) config.crm[k] = v;
+    }
+    this._persist();
+  },
+
   _persist() {
     const overrides = {
+      crm: {
+        type: config.crm.type,
+      },
       ucm: {
         mode:             config.ucm.mode,
         host:             config.ucm.host,
@@ -103,6 +138,12 @@ const config = {
         db:       config.odoo.db,
         username: config.odoo.username,
         apiKey:   config.odoo.apiKey,
+      },
+      dolibarr: {
+        url:      config.dolibarr.url,
+        apiKey:   config.dolibarr.apiKey,
+        userId:   config.dolibarr.userId,
+        entityId: config.dolibarr.entityId,
       },
     };
     saveOverrides(overrides);
