@@ -129,7 +129,7 @@ document.getElementById('popupNoteSaveBtn').addEventListener('click', async () =
       result.innerHTML = `<span class="text-danger">${esc(d.error || 'Erreur')}</span>`;
     }
   } catch (e) {
-    result.innerHTML = `<span class="text-danger">Erreur réseau</span>`;
+    result.innerHTML = '<span class="text-danger">Erreur réseau</span>';
   }
 });
 
@@ -149,11 +149,11 @@ async function loadQuickHistory(contact) {
       const labels = { answered:'Décroché', missed:'Manqué', hangup:'Raccroché', ringing:'Sonnerie' };
       callResult.data.forEach(c => {
         const dt  = new Date(c.started_at.replace(' ', 'T') + 'Z');
-        const dur = c.duration > 0 ? ` · ${c.duration >= 60 ? Math.floor(c.duration/60)+'min ' : ''}${c.duration%60}s` : '';
+        const dur = c.duration > 0 ? ` · ${c.duration >= 60 ? Math.floor(c.duration / 60) + 'min ' : ''}${c.duration % 60}s` : '';
         items.push({ dt, html:
           `<div class="d-flex justify-content-between py-1 border-bottom">
-            <span>${icons[c.status]||'📞'} ${labels[c.status]||c.status}${dur}</span>
-            <span class="text-muted">${dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</span>
+            <span>${icons[c.status] || '📞'} ${labels[c.status] || c.status}${dur}</span>
+            <span class="text-muted">${dt.toLocaleDateString('fr-FR',{ day:'2-digit',month:'2-digit' })}</span>
           </div>` });
       });
     }
@@ -168,7 +168,7 @@ async function loadQuickHistory(contact) {
         items.push({ dt, html:
           `<div class="d-flex justify-content-between align-items-start py-1 border-bottom">
             <span class="me-1" style="${style}">${icon}${esc(preview)}</span>
-            <span class="text-muted flex-shrink-0">${dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</span>
+            <span class="text-muted flex-shrink-0">${dt.toLocaleDateString('fr-FR',{ day:'2-digit',month:'2-digit' })}</span>
           </div>` });
       });
     }
@@ -395,7 +395,7 @@ async function openContactHistory() {
     const STATUS = { answered: '<span class="badge bg-success">Décroché</span>', missed: '<span class="badge bg-danger">Manqué</span>', hangup: '<span class="badge bg-secondary">Raccroché</span>' };
     document.getElementById('contactHistoryBody').innerHTML = calls.map(c => {
       const dt = new Date(c.timestamp || c.startTime).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-      const dur = c.duration > 0 ? (c.duration >= 60 ? Math.floor(c.duration/60)+'min '+c.duration%60+'s' : c.duration+'s') : '—';
+      const dur = c.duration > 0 ? (c.duration >= 60 ? Math.floor(c.duration / 60) + 'min ' + c.duration % 60 + 's' : c.duration + 's') : '—';
       return `<tr>
         <td class="small">${esc(dt)}</td>
         <td class="small">${c.direction === 'outbound' ? '↗ Sortant' : '↘ Entrant'}</td>

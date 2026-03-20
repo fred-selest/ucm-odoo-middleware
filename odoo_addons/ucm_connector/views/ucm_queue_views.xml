@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Vue arbre -->
+    <record id="ucm_queue_view_tree" model="ir.ui.view">
+        <field name="name">ucm.queue.view.tree</field>
+        <field name="model">ucm.queue</field>
+        <field name="arch" type="xml">
+            <tree string="Files d'attente">
+                <field name="queue_number"/>
+                <field name="name"/>
+                <field name="active_calls" decoration-bf="1"/>
+                <field name="waiting_calls" decoration-warning="waiting_calls > 0"/>
+                <field name="avg_wait_time" optional="show"/>
+                <field name="total_calls_today" optional="show"/>
+                <field name="answered_calls_today" optional="show"/>
+                <field name="missed_calls_today" optional="show"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Vue formulaire -->
+    <record id="ucm_queue_view_form" model="ir.ui.view">
+        <field name="name">ucm.queue.view.form</field>
+        <field name="model">ucm.queue</field>
+        <field name="arch" type="xml">
+            <form string="File d'attente">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_active_calls" type="object"
+                                class="oe_stat_button" icon="fa-phone">
+                            <string>Appels en cours</string>
+                        </button>
+                    </div>
+                    
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    
+                    <group>
+                        <group string="Configuration">
+                            <field name="queue_number"/>
+                            <field name="description"/>
+                            <field name="max_wait_time"/>
+                            <field name="max_queue_size"/>
+                        </group>
+                        <group string="Statistiques temps réel">
+                            <field name="active_calls"/>
+                            <field name="waiting_calls"/>
+                            <field name="avg_wait_time"/>
+                            <field name="avg_talk_time"/>
+                        </group>
+                    </group>
+                    
+                    <group string="Statistiques du jour">
+                        <field name="total_calls_today"/>
+                        <field name="answered_calls_today"/>
+                        <field name="missed_calls_today"/>
+                        <field name="abandoned_calls_today"/>
+                    </group>
+                    
+                    <group string="Agents">
+                        <field name="agent_ids" widget="many2many_tags"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Action -->
+    <record id="ucm_queue_action" model="ir.actions.act_window">
+        <field name="name">Files d'attente</field>
+        <field name="res_model">ucm.queue</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Aucune file d'attente configurée
+            </p>
+        </field>
+    </record>
+    
+    <!-- Menu -->
+    <menuitem id="ucm_menu_queue"
+              name="Files d'attente"
+              parent="ucm_menu_root"
+              action="ucm_queue_action"
+              sequence="30"/>
+</odoo>

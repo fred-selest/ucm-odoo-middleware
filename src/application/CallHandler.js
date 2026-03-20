@@ -56,39 +56,39 @@ class CallHandler {
     const { type, data } = event;
     
     switch (type) {
-      case 'call:incoming':
-        this._onIncoming({
-          uniqueId: data.uniqueId,
-          callerIdNum: data.callerIdNum,
-          callerIdName: data.callerIdName,
-          exten: data.exten,
-          channel: data.channel,
-          direction: data.direction,
-          timestamp: data.timestamp,
-        });
-        break;
+    case 'call:incoming':
+      this._onIncoming({
+        uniqueId: data.uniqueId,
+        callerIdNum: data.callerIdNum,
+        callerIdName: data.callerIdName,
+        exten: data.exten,
+        channel: data.channel,
+        direction: data.direction,
+        timestamp: data.timestamp,
+      });
+      break;
 
-      case 'call:answered':
-        this._onAnswered({
-          uniqueId: data.uniqueId,
-          exten: data.exten,
-          channel: data.channel,
-          answerTime: data.answerTime,
-        });
-        break;
+    case 'call:answered':
+      this._onAnswered({
+        uniqueId: data.uniqueId,
+        exten: data.exten,
+        channel: data.channel,
+        answerTime: data.answerTime,
+      });
+      break;
 
-      case 'call:hangup':
-        this._onHangup({
-          uniqueId: data.uniqueId,
-          channel: data.channel,
-          duration: data.duration,
-          disposition: data.disposition,
-          hangupTime: data.hangupTime,
-        });
-        break;
+    case 'call:hangup':
+      this._onHangup({
+        uniqueId: data.uniqueId,
+        channel: data.channel,
+        duration: data.duration,
+        disposition: data.disposition,
+        hangupTime: data.hangupTime,
+      });
+      break;
 
-      default:
-        logger.debug('CallHandler: événement non géré', { type, data });
+    default:
+      logger.debug('CallHandler: événement non géré', { type, data });
     }
   }
 
@@ -107,7 +107,15 @@ class CallHandler {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   async _onIncoming(call) {
-    const { uniqueId, callerIdNum, callerIdName, exten, agentExten } = call;
+    const { uniqueId } = call;
+    
+    // Eviter les duplication si l'appel est déjà en cours
+    if (this._activeCalls.has(uniqueId)) {
+      logger.debug('Appel déjà en cours (doublon ignoré)', { uniqueId });
+      return;
+    }
+    
+    const { callerIdNum, callerIdName, exten, agentExten } = call;
     logger.info('Appel entrant', { from: callerIdNum, to: exten || agentExten, uniqueId });
 
     // Vérifier si le numéro est blacklisté
@@ -262,7 +270,7 @@ class CallHandler {
     }
     
     // Log automatique dans Odoo si un contact est associé
-    const contact = enriched.contact;
+    const { contact } = enriched;
     if (contact?.id && this._odoo) {
       const callStatus = enriched.answeredAt ? 'answered' : 'missed';
 
@@ -404,6 +412,18 @@ class CallHandler {
 
   getActiveCalls() {
     return [...this._activeCalls.values()];
+  }
+
+  // ── Nettoyage ──────────────────────────────────────────────────────────────
+
+  disconnect() {
+    if (this._pollInterval) {
+      clearInterval(this._pollInterval);
+      this._pollInterval = null;
+    }
+    this._polledCalls.clear();
+    this._autoCreatingPhones.clear();
+    this._activeCalls.clear();
   }
 }
 

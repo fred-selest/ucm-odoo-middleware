@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_ucm_call_log_user,ucm.call_log.user,model_ucm_call_log,base.group_user,1,0,0,0
+access_ucm_call_log_manager,ucm.call_log.manager,model_ucm_call_log,base.group_system,1,1,1,1
+access_ucm_agent_status_user,ucm.agent_status.user,model_ucm_agent_status,base.group_user,1,0,0,0
+access_ucm_agent_status_manager,ucm.agent_status.manager,model_ucm_agent_status,base.group_system,1,1,1,1
+access_ucm_queue_user,ucm.queue.user,model_ucm_queue,base.group_user,1,0,0,0
+access_ucm_queue_manager,ucm.queue.manager,model_ucm_queue,base.group_system,1,1,1,1
+access_ucm_connector_user,ucm.connector.user,model_ucm_connector,base.group_system,1,1,1,1

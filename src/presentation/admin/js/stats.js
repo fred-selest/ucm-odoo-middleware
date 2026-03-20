@@ -21,7 +21,7 @@ async function loadStatsTab() {
     setEl('statMissed',     s.missed     || 0);
     setEl('statAnswerRate', s.answerRate != null ? Math.round(s.answerRate) + '%' : '—');
     const avg = s.avgDuration || 0;
-    setEl('statAvgDur', avg ? (avg >= 60 ? Math.floor(avg/60) + 'min ' + (avg%60) + 's' : avg + 's') : '—');
+    setEl('statAvgDur', avg ? (avg >= 60 ? Math.floor(avg / 60) + 'min ' + (avg % 60) + 's' : avg + 's') : '—');
 
     // Chart horaire
     const hourlyData = Array.from({ length: 24 }, (_, h) => {

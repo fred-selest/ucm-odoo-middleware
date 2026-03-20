@@ -204,45 +204,45 @@ class UcmWsClient extends EventEmitter {
     logger.debug('UCM WS: événement extension', { exten, status, trackingKey, callInfo });
 
     switch (status) {
-      case 'ringing':
-      case 'ring':
-        if (!this._activeCalls.has(trackingKey)) {
-          this._activeCalls.set(trackingKey, { ...callInfo, trackingKey });
-          logger.info('UCM WS: appel entrant', { from: callInfo.callerIdNum, exten });
-          this.emit('call:incoming', callInfo);
-        }
-        break;
+    case 'ringing':
+    case 'ring':
+      if (!this._activeCalls.has(trackingKey)) {
+        this._activeCalls.set(trackingKey, { ...callInfo, trackingKey });
+        logger.info('UCM WS: appel entrant', { from: callInfo.callerIdNum, exten });
+        this.emit('call:incoming', callInfo);
+      }
+      break;
 
-      case 'inuse':
-      case 'busy':
-      case 'answered':
-        if (this._activeCalls.has(trackingKey)) {
-          const enriched = { ...this._activeCalls.get(trackingKey), ...callInfo, answeredAt: new Date().toISOString() };
-          this._activeCalls.set(trackingKey, enriched);
-          logger.info('UCM WS: appel décroché', { exten });
-          this.emit('call:answered', enriched);
-        }
-        break;
+    case 'inuse':
+    case 'busy':
+    case 'answered':
+      if (this._activeCalls.has(trackingKey)) {
+        const enriched = { ...this._activeCalls.get(trackingKey), ...callInfo, answeredAt: new Date().toISOString() };
+        this._activeCalls.set(trackingKey, enriched);
+        logger.info('UCM WS: appel décroché', { exten });
+        this.emit('call:answered', enriched);
+      }
+      break;
 
-      case 'idle':
-      case 'hungup':
-      case 'unavailable':
-        if (this._activeCalls.has(trackingKey)) {
-          const existing = this._activeCalls.get(trackingKey);
-          const duration = existing.answeredAt
-            ? Math.round((Date.now() - new Date(existing.answeredAt).getTime()) / 1000)
-            : existing.timestamp
-              ? Math.round((Date.now() - new Date(existing.timestamp).getTime()) / 1000)
-              : null;
-          const enriched = { ...existing, ...callInfo, hungUpAt: new Date().toISOString(), duration };
-          this._activeCalls.delete(trackingKey);
-          logger.info('UCM WS: appel raccroché', { exten, duration });
-          this.emit('call:hangup', enriched);
-        }
-        break;
+    case 'idle':
+    case 'hungup':
+    case 'unavailable':
+      if (this._activeCalls.has(trackingKey)) {
+        const existing = this._activeCalls.get(trackingKey);
+        const duration = existing.answeredAt
+          ? Math.round((Date.now() - new Date(existing.answeredAt).getTime()) / 1000)
+          : existing.timestamp
+            ? Math.round((Date.now() - new Date(existing.timestamp).getTime()) / 1000)
+            : null;
+        const enriched = { ...existing, ...callInfo, hungUpAt: new Date().toISOString(), duration };
+        this._activeCalls.delete(trackingKey);
+        logger.info('UCM WS: appel raccroché', { exten, duration });
+        this.emit('call:hangup', enriched);
+      }
+      break;
 
-      default:
-        logger.debug('UCM WS: statut inconnu', { status, exten });
+    default:
+      logger.debug('UCM WS: statut inconnu', { status, exten });
     }
   }
 

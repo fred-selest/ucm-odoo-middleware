@@ -67,7 +67,7 @@ function callHtml(call, status) {
   return `<td class="text-muted small">${t}</td>
     <td class="text-center">${dir}</td>
     <td>${phoneLink(call.callerIdNum)}</td>
-    <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(call.exten||call.agentExten||'—')}</span></td>
+    <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(call.exten || call.agentExten || '—')}</span></td>
     <td class="td-contact">${contactBadge}</td>
     <td><span class="badge ${badges[status]}">${labels[status]}</span></td>`;
 }
@@ -113,12 +113,12 @@ function showIncomingCallPopup(call) {
         const statLabels = { answered:'Décroché', missed:'Manqué', hangup:'Raccroché', ringing:'Sonnerie' };
         const statClass  = { answered:'text-success', missed:'text-danger', hangup:'text-muted', ringing:'text-primary' };
         historyEl.innerHTML = d.data.map(c => {
-          const dt = new Date(c.started_at.replace(' ','T')+'Z');
-          const ts = dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}) + ' ' +
-                     dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+          const dt = new Date(c.started_at.replace(' ','T') + 'Z');
+          const ts = dt.toLocaleDateString('fr-FR',{ day:'2-digit',month:'2-digit' }) + ' ' +
+                     dt.toLocaleTimeString('fr-FR',{ hour:'2-digit',minute:'2-digit' });
           return `<div class="d-flex justify-content-between border-bottom py-1" style="font-size:.78rem">
             <span class="text-muted">${ts}</span>
-            <span class="${statClass[c.status]||'text-muted'}">${statLabels[c.status]||c.status}</span>
+            <span class="${statClass[c.status] || 'text-muted'}">${statLabels[c.status] || c.status}</span>
           </div>`;
         }).join('');
       } else {

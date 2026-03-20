@@ -1,0 +1,76 @@
+.ucm_call_popup {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    
+    .ucm_call_popup_content {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        width: 350px;
+        overflow: hidden;
+        animation: slideIn 0.3s ease-out;
+        
+        .ucm_call_popup_header {
+            background: linear-gradient(135deg, #00A09D 0%, #00847C 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            
+            i {
+                animation: ring 1s ease-in-out infinite;
+            }
+            
+            h2 {
+                margin: 10px 0 0 0;
+                font-size: 1.5rem;
+            }
+        }
+        
+        .ucm_call_popup_body {
+            padding: 20px;
+            
+            h3 {
+                margin: 0 0 10px 0;
+                color: #333;
+            }
+            
+            p {
+                margin: 5px 0;
+                color: #666;
+            }
+        }
+        
+        .ucm_call_popup_footer {
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            
+            button {
+                flex: 1;
+                padding: 10px 20px;
+                font-size: 1rem;
+            }
+        }
+    }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes ring {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(15deg); }
+    50% { transform: rotate(0deg); }
+    75% { transform: rotate(-15deg); }
+}

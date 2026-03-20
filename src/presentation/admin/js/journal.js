@@ -44,7 +44,7 @@ function renderJournalStats(calls, total) {
   document.getElementById('jTotal').textContent    = total;
   document.getElementById('jAnswered').textContent = answered + (calls.length ? ' (' + pct + '%)' : '');
   document.getElementById('jMissed').textContent   = missed;
-  document.getElementById('jAvgDur').textContent   = avgDur ? (avgDur >= 60 ? Math.floor(avgDur/60) + 'min' : avgDur + 's') : '—';
+  document.getElementById('jAvgDur').textContent   = avgDur ? (avgDur >= 60 ? Math.floor(avgDur / 60) + 'min' : avgDur + 's') : '—';
 }
 
 function renderJournalTable(calls, tbody) {
@@ -72,7 +72,7 @@ function renderJournalTable(calls, tbody) {
       ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 contact-badge-clickable" data-uid="${esc(c.unique_id)}" style="cursor:pointer;display:flex;align-items:center">${avatarHtml}${esc(c.contact_name)}</span>`
       : (c.caller_id_name ? `<span class="text-muted small">${esc(c.caller_id_name)}</span>` : '<span class="text-muted">—</span>');
     const dur = c.duration != null && c.duration > 0
-      ? (c.duration >= 60 ? Math.floor(c.duration/60) + 'min ' + (c.duration % 60) + 's' : c.duration + 's')
+      ? (c.duration >= 60 ? Math.floor(c.duration / 60) + 'min ' + (c.duration % 60) + 's' : c.duration + 's')
       : '—';
     return `<tr>
       <td class="text-muted small" style="white-space:nowrap">${dateStr} <strong>${timeStr}</strong></td>
@@ -81,7 +81,7 @@ function renderJournalTable(calls, tbody) {
       <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(exten)}</span></td>
       <td>${contact}</td>
       <td class="small text-nowrap">${dur}</td>
-      <td><span class="badge ${J_STATUS_BADGES[c.status]||'bg-secondary'}">${J_STATUS_LABELS[c.status]||c.status||'—'}</span></td>
+      <td><span class="badge ${J_STATUS_BADGES[c.status] || 'bg-secondary'}">${J_STATUS_LABELS[c.status] || c.status || '—'}</span></td>
     </tr>`;
   }).join('');
 }
@@ -95,12 +95,12 @@ function renderJournalPagination(pagination) {
   const pag = document.getElementById('jPagination');
   if (totalPages <= 1) { pag.innerHTML = ''; return; }
   const pages = [];
-  if (currentPage > 1) pages.push(`<button class="btn btn-sm btn-outline-secondary" onclick="loadFullJournal(${currentPage-1})"><i class="bi bi-chevron-left"></i></button>`);
+  if (currentPage > 1) pages.push(`<button class="btn btn-sm btn-outline-secondary" onclick="loadFullJournal(${currentPage - 1})"><i class="bi bi-chevron-left"></i></button>`);
   let start = Math.max(1, currentPage - 2), end = Math.min(totalPages, start + 4);
   if (end - start < 4) start = Math.max(1, end - 4);
   for (let p = start; p <= end; p++)
-    pages.push(`<button class="btn btn-sm ${p===currentPage?'btn-primary':'btn-outline-secondary'}" onclick="loadFullJournal(${p})">${p}</button>`);
-  if (currentPage < totalPages) pages.push(`<button class="btn btn-sm btn-outline-secondary" onclick="loadFullJournal(${currentPage+1})"><i class="bi bi-chevron-right"></i></button>`);
+    pages.push(`<button class="btn btn-sm ${p === currentPage ? 'btn-primary' : 'btn-outline-secondary'}" onclick="loadFullJournal(${p})">${p}</button>`);
+  if (currentPage < totalPages) pages.push(`<button class="btn btn-sm btn-outline-secondary" onclick="loadFullJournal(${currentPage + 1})"><i class="bi bi-chevron-right"></i></button>`);
   pag.innerHTML = pages.join('');
 }
 
@@ -135,7 +135,7 @@ document.getElementById('exportCsvBtn').onclick = () => {
     const dt = new Date(c.started_at.replace(' ', 'T') + 'Z');
     rows.push([
       dt.toLocaleDateString('fr-FR'),
-      dt.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}),
+      dt.toLocaleTimeString('fr-FR', { hour:'2-digit',minute:'2-digit' }),
       c.direction === 'outbound' ? 'Sortant' : 'Entrant',
       c.caller_id_num || '',
       c.exten || c.agent_exten || '',

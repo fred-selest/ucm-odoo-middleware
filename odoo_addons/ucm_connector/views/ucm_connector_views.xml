@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Vue formulaire connecteur -->
+    <record id="ucm_connector_view_form" model="ir.ui.view">
+        <field name="name">ucm.connector.view.form</field>
+        <field name="model">ucm.connector</field>
+        <field name="arch" type="xml">
+            <form string="Configuration UCM">
+                <header>
+                    <button name="action_test_connection" type="object" string="Tester connexion" 
+                            class="btn-primary"/>
+                    <button name="action_sync_contacts" type="object" string="Synchro contacts" 
+                            class="btn-secondary"/>
+                    <button name="action_fetch_recordings" type="object" string="Récupérer enregistrements" 
+                            class="btn-secondary"/>
+                    <field name="is_connected" widget="boolean" readonly="1"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    
+                    <group>
+                        <group string="Middleware">
+                            <field name="middleware_url"/>
+                            <field name="api_key" password="True"/>
+                            <field name="last_sync_date"/>
+                        </group>
+                        <group string="Options">
+                            <field name="auto_create_contacts"/>
+                            <field name="auto_log_calls"/>
+                            <field name="enable_click_to_call"/>
+                            <field name="enable_recording_sync"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Action -->
+    <record id="ucm_connector_action" model="ir.actions.act_window">
+        <field name="name">Configuration UCM</field>
+        <field name="res_model">ucm.connector</field>
+        <field name="view_mode">form</field>
+        <field name="res_id" eval="ref('ucm_connector_default')"/>
+    </record>
+    
+    <!-- Menu racine -->
+    <menuitem id="ucm_menu_root"
+              name="Téléphonie UCM"
+              web_icon="ucm_connector,static/description/icon.png"
+              sequence="90"/>
+    
+    <menuitem id="ucm_menu_configuration"
+              name="Configuration"
+              parent="ucm_menu_root"
+              sequence="100"/>
+    
+    <menuitem id="ucm_menu_connector_config"
+              name="Connecteur"
+              parent="ucm_menu_configuration"
+              action="ucm_connector_action"
+              sequence="10"/>
+</odoo>

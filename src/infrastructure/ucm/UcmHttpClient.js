@@ -467,7 +467,7 @@ class UcmHttpClient {
       // cdrapi retourne {"cdr_root":[...]} sans wrapper "response" ni "status"
       const payload = { request: { action: 'cdrapi', cookie: this._cookie, ...params } };
       const resp = await this._axiosInstance.post(this._baseUrl, payload);
-      const data = resp.data;
+      const { data } = resp;
       if (data?.status !== undefined && data.status !== 0) {
         throw new Error(`CDR API error: status ${data.status}`);
       }
@@ -479,10 +479,10 @@ class UcmHttpClient {
   }
 
   /**
-   * Getter pour le statut d'authentification
-   */
+    * Getter pour le statut d'authentification
+    */
   get authenticated() {
-    return this._authenticated;
+    return this._authenticated && this._cookieExpiry > Date.now();
   }
 
   /**
@@ -490,6 +490,62 @@ class UcmHttpClient {
    */
   get cookie() {
     return this._cookie;
+  }
+
+  // ── Enregistrements d'appels ────────────────────────────────────────────────
+
+  async listRecordings(startTime, endTime) {
+    const params = { format: 'json' };
+    if (startTime) params.startTime = startTime;
+    if (endTime) params.endTime = endTime;
+    return await this.request('listRecordings', params);
+  }
+
+  async getRecording(recordingId) {
+    return await this.request('getRecording', { recording_id: recordingId, format: 'json' });
+  }
+
+  async deleteRecording(recordingId) {
+    await this.request('deleteRecording', { recording_id: recordingId });
+    return true;
+  }
+
+  async setAutoRecord(extension, enable) {
+    await this.request('setAutoRecord', { extension, enable: enable ? '1' : '0' });
+    return true;
+  }
+
+  // ── Files d'attente (Call Queues) ───────────────────────────────────────────
+
+  async listQueues() {
+    const result = await this.request('listQueues');
+    return result.queue || [];
+  }
+
+
+  async getQueueCalls(queueId) {
+    const result = await this.request('getQueueCalls', { queue_id: queueId });
+    return result.calls || [];
+  }
+
+  async getQueueAgents(queueId) {
+    const result = await this.request('getQueueAgents', { queue_id: queueId });
+    return result.agents || [];
+  }
+
+  async addQueueAgent(queueId, extension) {
+    await this.request('addQueueAgent', { queue_id: queueId, extension });
+    return true;
+  }
+
+  async removeQueueAgent(queueId, extension) {
+    await this.request('removeQueueAgent', { queue_id: queueId, extension });
+    return true;
+  }
+
+  async pauseQueueAgent(queueId, extension, pause) {
+    await this.request('pauseQueueAgent', { queue_id: queueId, extension, pause: pause ? '1' : '0' });
+    return true;
   }
 }
 

@@ -147,6 +147,12 @@
       </button>
     </li>
     <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-dashboard-btn" data-bs-toggle="pill" data-bs-target="#tab-dashboard" role="tab"
+              onclick="loadDashboard()">
+        <i class="bi bi-speedometer2 me-1"></i><span class="tab-text-full">Dashboard</span><span class="tab-text-short">Dash</span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
       <button class="nav-link" id="tab-historique-btn" data-bs-toggle="pill" data-bs-target="#tab-historique" role="tab">
         <i class="bi bi-journal-text me-1"></i><span class="tab-text-full">Historique</span><span class="tab-text-short">Hist.</span>
       </button>
@@ -654,6 +660,131 @@
       </div>
     </div>
   </div><!-- /tab-blacklist -->
+
+  <!-- ══ Onglet Dashboard ═════════════════════════════════════════════════ -->
+  <div class="tab-pane fade" id="tab-dashboard" role="tabpanel">
+
+    <!-- KPI Cards -->
+    <div class="row g-2 mb-3">
+      <div class="col-6 col-md-2">
+        <div class="stat-card">
+          <div class="icon icon-blue"><i class="bi bi-telephone-fill"></i></div>
+          <div class="value" id="dashKpiTotal">—</div>
+          <div class="label">Total aujourd'hui</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card">
+          <div class="icon icon-green"><i class="bi bi-telephone-inbound"></i></div>
+          <div class="value" id="dashKpiAnswered">—</div>
+          <div class="label">Décrochés</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card">
+          <div class="icon icon-red"><i class="bi bi-telephone-x"></i></div>
+          <div class="value" id="dashKpiMissed">—</div>
+          <div class="label">Manqués</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card">
+          <div class="icon icon-yellow"><i class="bi bi-percent"></i></div>
+          <div class="value" id="dashKpiRate">—</div>
+          <div class="label">Taux décroché</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card">
+          <div class="icon icon-blue"><i class="bi bi-clock"></i></div>
+          <div class="value" id="dashKpiAvgDur">—</div>
+          <div class="label">Durée moyenne</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="stat-card">
+          <div class="icon icon-blue"><i class="bi bi-clock-history"></i></div>
+          <div class="value" id="dashKpiDurTotal">—</div>
+          <div class="label">Durée totale</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Graphiques -->
+    <div class="row g-3 mb-3">
+      <div class="col-lg-8">
+        <div class="card h-100">
+          <div class="card-header small fw-semibold"><i class="bi bi-bar-chart me-1 text-primary"></i>Distribution horaire (aujourd'hui)</div>
+          <div class="card-body" style="height:220px"><canvas id="dashChartHourly"></canvas></div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card h-100">
+          <div class="card-header small fw-semibold"><i class="bi bi-pie-chart me-1 text-success"></i>Décroché / Manqué</div>
+          <div class="card-body d-flex align-items-center justify-content-center" style="height:220px">
+            <canvas id="dashChartStatus"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agents + Appels récents + Enregistrements -->
+    <div class="row g-3">
+
+      <!-- Agents -->
+      <div class="col-lg-3">
+        <div class="card h-100">
+          <div class="card-header small fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-people me-1 text-primary"></i>Agents</span>
+            <div class="d-flex gap-1">
+              <span class="badge bg-success" title="Disponibles"><span id="dashAgentsAvailable">0</span></span>
+              <span class="badge bg-danger"  title="En appel"><span id="dashAgentsOnCall">0</span></span>
+              <span class="badge bg-secondary" title="Pause/Hors ligne"><span id="dashAgentsPaused">0</span>/<span id="dashAgentsOffline">0</span></span>
+            </div>
+          </div>
+          <div class="card-body p-2 overflow-auto" style="max-height:280px" id="dashAgentsList">
+            <div class="text-muted small text-center py-3">Chargement…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Appels récents -->
+      <div class="col-lg-5">
+        <div class="card h-100">
+          <div class="card-header small fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-clock-history me-1 text-primary"></i>Appels récents</span>
+            <button class="btn btn-xs btn-outline-secondary btn-sm py-0" onclick="loadDashRecentCalls()">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
+          </div>
+          <div class="card-body p-2 overflow-auto" style="max-height:280px" id="dashRecentCalls">
+            <div class="text-muted small text-center py-3">Chargement…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Enregistrements -->
+      <div class="col-lg-4">
+        <div class="card h-100">
+          <div class="card-header small fw-semibold">
+            <i class="bi bi-mic-fill me-1 text-danger"></i>Enregistrements récents
+          </div>
+          <div class="card-body p-2 overflow-auto" style="max-height:280px" id="dashRecordingsList">
+            <div class="text-muted small text-center py-3">Chargement…</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bouton refresh -->
+    <div class="text-end mt-3">
+      <button class="btn btn-sm btn-outline-primary" onclick="loadDashboard()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Actualiser
+      </button>
+    </div>
+
+  </div><!-- /tab-dashboard -->
 
   </div><!-- /tab-content -->
 
@@ -1211,5 +1342,6 @@
 <script src="/admin/js/ui.js"></script>
 <script src="/admin/js/journal.js"></script>
 <script src="/admin/js/stats.js"></script>
+<script src="/admin/js/dashboard.js"></script>
 <script src="/admin/js/app.js"></script>
 </body></html>

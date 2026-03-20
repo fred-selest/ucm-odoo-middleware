@@ -112,7 +112,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
 
   // ── Authentification requise pour /api/* ────────────────────────────────
   // ── Statut global (sans auth) ──────────────────────────────────────────
-  router.get("/status", (req, res) => {
+  router.get('/status', (req, res) => {
     res.json({
       ucm: {
         httpConnected: ucmHttpClient?.authenticated || false,
@@ -145,7 +145,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
 
   // ── Healthcheck public ──────────────────────────────────────────────────
   router.get('/health', (req, res) => {
-    const healthAgent = req.app.locals.healthAgent;
+    const { healthAgent } = req.app.locals;
     if (healthAgent) {
       const status = healthAgent.getStatus();
       const isHealthy = healthAgent.isHealthy();
@@ -166,7 +166,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
 
   // ── Supervision détaillée ───────────────────────────────────────────────
   router.get('/api/health/status', requireSession, (req, res) => {
-    const healthAgent = req.app.locals.healthAgent;
+    const { healthAgent } = req.app.locals;
     if (!healthAgent) {
       return res.status(503).json({ error: 'Agent de supervision non initialisé' });
     }
@@ -551,7 +551,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // ── Gestion des tokens webhook ───────────────────────────────────────────
-  router.get("/api/webhooks", (req, res) => {
+  router.get('/api/webhooks', (req, res) => {
     const tokens = webhookManager ? webhookManager.listTokens() : [];
     res.json({ ok: true, data: tokens });
   });
@@ -1103,7 +1103,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       // Par défaut : aujourd'hui de 00:00 à maintenant
       const now   = new Date();
       const pad   = n => String(n).padStart(2, '0');
-      const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+      const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
       const startTime = req.query.startTime || req.body?.startTime || `${today} 00:00:00`;
       const endTime   = req.query.endTime   || req.body?.endTime
         || `${today} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;

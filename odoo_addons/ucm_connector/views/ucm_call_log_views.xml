@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Vue arbre -->
+    <record id="ucm_call_log_view_tree" model="ir.ui.view">
+        <field name="name">ucm.call_log.view.tree</field>
+        <field name="model">ucm.call_log</field>
+        <field name="arch" type="xml">
+            <tree string="Journal des appels" decoration-bf="1">
+                <field name="start_date"/>
+                <field name="caller_id"/>
+                <field name="caller_name"/>
+                <field name="partner_id" optional="show"/>
+                <field name="direction"/>
+                <field name="call_type" decoration-info="call_type == 'ringing'" 
+                       decoration-success="call_type == 'answered'"
+                       decoration-warning="call_type == 'missed'"
+                       decoration-danger="call_type == 'failed'"/>
+                <field name="duration" optional="show"/>
+                <field name="agent_id" optional="show"/>
+                <field name="has_recording" widget="boolean" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Vue formulaire -->
+    <record id="ucm_call_log_view_form" model="ir.ui.view">
+        <field name="name">ucm.call_log.view.form</field>
+        <field name="model">ucm.call_log</field>
+        <field name="arch" type="xml">
+            <form string="Appel">
+                <header>
+                    <field name="call_type" widget="statusbar" 
+                           statusbar_visible="ringing,answered,hangup"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_play_recording" type="object" 
+                                class="oe_stat_button" icon="fa-play"
+                                attrs="{'invisible': [('has_recording', '=', False)]}">
+                            <string>Écouter</string>
+                        </button>
+                        <button name="action_view_related_calls" type="object"
+                                class="oe_stat_button" icon="fa-phone">
+                            <string>Appels similaires</string>
+                        </button>
+                    </div>
+                    
+                    <div class="oe_title">
+                        <h1>
+                            <field name="display_name" readonly="1"/>
+                        </h1>
+                    </div>
+                    
+                    <group>
+                        <group string="Informations appelant">
+                            <field name="caller_id"/>
+                            <field name="caller_name"/>
+                            <field name="partner_id"/>
+                        </group>
+                        <group string="Informations appelé">
+                            <field name="callee_id"/>
+                            <field name="agent_exten"/>
+                            <field name="agent_id"/>
+                        </group>
+                    </group>
+                    
+                    <group>
+                        <group string="Détails">
+                            <field name="direction"/>
+                            <field name="unique_id"/>
+                            <field name="queue_id" optional="show"/>
+                        </group>
+                        <group string="Dates et durées">
+                            <field name="start_date"/>
+                            <field name="answer_date" attrs="{'invisible': [('answer_date', '=', False)]}"/>
+                            <field name="end_date" attrs="{'invisible': [('end_date', '=', False)]}"/>
+                            <field name="duration"/>
+                        </group>
+                    </group>
+                    
+                    <group string="Enregistrement" attrs="{'invisible': [('has_recording', '=', False)]}">
+                        <field name="recording_url"/>
+                        <field name="recording_duration"/>
+                    </group>
+                    
+                    <group string="File d'attente" attrs="{'invisible': [('queue_id', '=', False)]}">
+                        <field name="queue_wait_time"/>
+                        <field name="queue_talk_time"/>
+                    </group>
+                    
+                    <group string="Notes et évaluation">
+                        <field name="notes"/>
+                        <field name="tag_ids" widget="many2many_tags"/>
+                        <field name="rating" widget="radio"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Vue recherche -->
+    <record id="ucm_call_log_view_search" model="ir.ui.view">
+        <field name="name">ucm.call_log.view.search</field>
+        <field name="model">ucm.call_log</field>
+        <field name="arch" type="xml">
+            <search string="Rechercher appels">
+                <field name="caller_id"/>
+                <field name="caller_name"/>
+                <field name="partner_id"/>
+                <field name="agent_id"/>
+                <field name="unique_id"/>
+                <separator/>
+                <filter string="Aujourd'hui" name="today" 
+                        domain="[('start_date', '>=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter string="Cette semaine" name="week" 
+                        domain="[('start_date', '>=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Ce mois" name="month" 
+                        domain="[('start_date', '>=', context_today().strftime('%Y-%m-01'))]"/>
+                <separator/>
+                <filter string="Entrants" name="inbound" domain="[('direction', '=', 'inbound')]"/>
+                <filter string="Sortants" name="outbound" domain="[('direction', '=', 'outbound')]"/>
+                <filter string="Internes" name="internal" domain="[('direction', '=', 'internal')]"/>
+                <separator/>
+                <filter string="Décrochés" name="answered" domain="[('call_type', '=', 'answered')]"/>
+                <filter string="Manqués" name="missed" domain="[('call_type', '=', 'missed')]"/>
+                <filter string="Avec enregistrement" name="has_recording" domain="[('has_recording', '=', True)]"/>
+                <group expand="0" string="Grouper par">
+                    <filter string="Direction" name="group_direction" context="{'group_by': 'direction'}"/>
+                    <filter string="Statut" name="group_call_type" context="{'group_by': 'call_type'}"/>
+                    <filter string="Agent" name="group_agent" context="{'group_by': 'agent_id'}"/>
+                    <filter string="Contact" name="group_partner" context="{'group_by': 'partner_id'}"/>
+                    <filter string="Date" name="group_date" context="{'group_by': 'start_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    
+    <!-- Action -->
+    <record id="ucm_call_log_action" model="ir.actions.act_window">
+        <field name="name">Journal des appels</field>
+        <field name="res_model">ucm.call_log</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="ucm_call_log_view_search"/>
+        <field name="context">{'search_default_month': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Aucun appel enregistré
+            </p>
+            <p>
+                Les appels téléphoniques apparaîtront ici automatiquement.
+            </p>
+        </field>
+    </record>
+    
+    <!-- Menu -->
+    <menuitem id="ucm_menu_call_log"
+              name="Journal des appels"
+              parent="ucm_menu_root"
+              action="ucm_call_log_action"
+              sequence="10"/>
+</odoo>

@@ -9,6 +9,7 @@ class HealthAgent {
       ucmHttp: 'unknown',
       ucmWebSocket: 'unknown',
       odoo: 'unknown',
+      dolibarr: 'unknown',
       database: 'unknown',
       websocket: 'unknown',
       lastCallAt: null,
@@ -23,14 +24,20 @@ class HealthAgent {
     this._wsAlerted           = false; // alerte Telegram envoyée
   }
 
-  start(ucmHttpClient, ucmWsClient, odooClient, wsServer, callHistory) {
+  start(ucmHttpClient, ucmWsClient, odooClient, wsServer, callHistory, dolibarrAgent = null) {
     logger.info('HealthAgent: démarrage de la supervision');
-    
+
     this.ucmHttpClient = ucmHttpClient;
     this.ucmWsClient = ucmWsClient;
     this.odooClient = odooClient;
     this.wsServer = wsServer;
     this.callHistory = callHistory;
+    this.dolibarrAgent = dolibarrAgent;
+
+    if (this.dolibarrAgent) {
+      this.dolibarrAgent.on('connected',    () => { this.status.dolibarr = 'connected'; });
+      this.dolibarrAgent.on('disconnected', () => { this.status.dolibarr = 'disconnected'; });
+    }
 
     if (this.ucmWsClient) {
       this.ucmWsClient.on('connected', () => {

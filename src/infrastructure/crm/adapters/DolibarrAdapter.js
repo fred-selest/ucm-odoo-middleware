@@ -502,7 +502,7 @@ class DolibarrAdapter extends CrmClientInterface {
     const dirLabel  = direction === 'outbound' ? 'Sortant' : 'Entrant';
     const statLabel = { answered: 'Décroché', missed: 'Manqué', hangup: 'Raccroché' }[status] || status;
     const durStr    = duration > 0
-      ? (duration >= 60 ? `${Math.floor(duration/60)}min ${duration%60}s` : `${duration}s`)
+      ? (duration >= 60 ? `${Math.floor(duration / 60)}min ${duration % 60}s` : `${duration}s`)
       : 'N/A';
 
     const startTs = Math.floor(new Date(timestamp).getTime() / 1000);
@@ -516,7 +516,7 @@ class DolibarrAdapter extends CrmClientInterface {
       `Poste     : ${exten || '—'}`,
       `Durée     : ${durStr}`,
       `Date      : ${new Date(timestamp).toLocaleString('fr-FR')}`,
-      `Source    : UCM-Middleware`,
+      'Source    : UCM-Middleware',
     ].join('\n');
 
     const payload = {

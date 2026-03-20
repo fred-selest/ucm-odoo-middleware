@@ -25,23 +25,23 @@ class CrmFactory {
     const type = (config.crm?.type || 'odoo').toLowerCase();
 
     switch (type) {
-      case 'dolibarr': {
-        const DolibarrAdapter = require('./adapters/DolibarrAdapter');
-        logger.info('CRM: adaptateur Dolibarr chargé', {
-          url: config.dolibarr?.url || '(non configuré)',
-        });
-        return new DolibarrAdapter();
-      }
+    case 'dolibarr': {
+      const DolibarrAdapter = require('./adapters/DolibarrAdapter');
+      logger.info('CRM: adaptateur Dolibarr chargé', {
+        url: config.dolibarr?.url || '(non configuré)',
+      });
+      return new DolibarrAdapter();
+    }
 
-      case 'odoo':
-      default: {
-        const OdooAdapter = require('./adapters/OdooAdapter');
-        logger.info('CRM: adaptateur Odoo chargé', {
-          url:      config.odoo?.url || '(non configuré)',
-          database: config.odoo?.db  || '(non configuré)',
-        });
-        return new OdooAdapter();
-      }
+    case 'odoo':
+    default: {
+      const OdooAdapter = require('./adapters/OdooAdapter');
+      logger.info('CRM: adaptateur Odoo chargé', {
+        url:      config.odoo?.url || '(non configuré)',
+        database: config.odoo?.db  || '(non configuré)',
+      });
+      return new OdooAdapter();
+    }
     }
   }
 

@@ -80,22 +80,22 @@ class WebhookManager extends EventEmitter {
     logger.info('Webhook: événement reçu', { client: info.name, event, caller: callInfo.callerIdNum, exten: callInfo.exten });
 
     switch (event) {
-      case 'ring':
-      case 'ringing':
-      case 'incoming':
-        this.emit('call:incoming', callInfo);
-        break;
-      case 'answer':
-      case 'answered':
-        this.emit('call:answered', callInfo);
-        break;
-      case 'hangup':
-      case 'end':
-        this.emit('call:hangup', callInfo);
-        break;
-      default:
-        logger.warn('Webhook: événement inconnu', { event });
-        return false;
+    case 'ring':
+    case 'ringing':
+    case 'incoming':
+      this.emit('call:incoming', callInfo);
+      break;
+    case 'answer':
+    case 'answered':
+      this.emit('call:answered', callInfo);
+      break;
+    case 'hangup':
+    case 'end':
+      this.emit('call:hangup', callInfo);
+      break;
+    default:
+      logger.warn('Webhook: événement inconnu', { event });
+      return false;
     }
     return true;
   }

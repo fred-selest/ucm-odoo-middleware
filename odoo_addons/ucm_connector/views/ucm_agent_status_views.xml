@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Vue arbre -->
+    <record id="ucm_agent_status_view_tree" model="ir.ui.view">
+        <field name="name">ucm.agent_status.view.tree</field>
+        <field name="model">ucm.agent_status</field>
+        <field name="arch" type="xml">
+            <tree string="Statuts des agents" decoration-bf="1">
+                <field name="exten"/>
+                <field name="user_id"/>
+                <field name="status" decoration-info="status == 'available'" 
+                       decoration-warning="status == 'busy'"
+                       decoration-success="status == 'on_call'"
+                       decoration-danger="status == 'offline'"
+                       decoration-muted="status == 'pause'"/>
+                <field name="last_call_date" optional="show"/>
+                <field name="total_calls_today" optional="show"/>
+                <field name="duration_display" optional="show"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Vue formulaire -->
+    <record id="ucm_agent_status_view_form" model="ir.ui.view">
+        <field name="name">ucm.agent_status.view.form</field>
+        <field name="model">ucm.agent_status</field>
+        <field name="arch" type="xml">
+            <form string="Agent">
+                <header>
+                    <button name="action_set_available" type="object" string="Disponible" 
+                            class="btn-success" attrs="{'invisible': [('status', '=', 'available')]}"/>
+                    <button name="action_set_busy" type="object" string="Occupé" 
+                            class="btn-warning" attrs="{'invisible': [('status', '=', 'busy')]}"/>
+                    <button name="action_set_pause" type="object" string="Pause" 
+                            class="btn-secondary" attrs="{'invisible': [('status', '=', 'pause')]}"/>
+                    <field name="status" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="exten"/>
+                            <field name="user_id"/>
+                        </group>
+                        <group>
+                            <field name="last_call_date"/>
+                            <field name="status_change_date"/>
+                        </group>
+                    </group>
+                    <group string="Statistiques du jour">
+                        <field name="total_calls_today"/>
+                        <field name="total_duration_today"/>
+                        <field name="duration_display"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Action -->
+    <record id="ucm_agent_status_action" model="ir.actions.act_window">
+        <field name="name">Statuts des agents</field>
+        <field name="res_model">ucm.agent_status</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Aucun agent enregistré
+            </p>
+        </field>
+    </record>
+    
+    <!-- Menu -->
+    <menuitem id="ucm_menu_agent_status"
+              name="Statuts des agents"
+              parent="ucm_menu_root"
+              action="ucm_agent_status_action"
+              sequence="20"/>
+</odoo>

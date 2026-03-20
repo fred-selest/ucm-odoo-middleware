@@ -114,35 +114,35 @@ class WsServer {
     if (!client) return;
 
     switch (msg.type) {
-      case 'subscribe': {
-        const exten = String(msg.extension || '').trim();
-        if (exten === '*') {
-          // Abonnement à toutes les extensions - on remplace toutes les extensions par '*'
-          client.extensions.clear();
-          client.extensions.add('*');
-          logger.info('WS: abonnement à TOUTES les extensions', { clientId });
-          this._send(client.ws, { type: 'subscribed', extension: '*' });
-        } else if (exten) {
-          client.extensions.add(exten);
-          logger.info('WS: abonnement extension', { clientId, extension: exten });
-          this._send(client.ws, { type: 'subscribed', extension: exten });
-        }
-        break;
+    case 'subscribe': {
+      const exten = String(msg.extension || '').trim();
+      if (exten === '*') {
+        // Abonnement à toutes les extensions - on remplace toutes les extensions par '*'
+        client.extensions.clear();
+        client.extensions.add('*');
+        logger.info('WS: abonnement à TOUTES les extensions', { clientId });
+        this._send(client.ws, { type: 'subscribed', extension: '*' });
+      } else if (exten) {
+        client.extensions.add(exten);
+        logger.info('WS: abonnement extension', { clientId, extension: exten });
+        this._send(client.ws, { type: 'subscribed', extension: exten });
       }
+      break;
+    }
 
-      case 'unsubscribe': {
-        const exten = String(msg.extension || '').trim();
-        client.extensions.delete(exten);
-        logger.debug('WS: désabonnement', { clientId, extension: exten });
-        break;
-      }
+    case 'unsubscribe': {
+      const exten = String(msg.extension || '').trim();
+      client.extensions.delete(exten);
+      logger.debug('WS: désabonnement', { clientId, extension: exten });
+      break;
+    }
 
-      case 'ping':
-        this._send(client.ws, { type: 'pong', ts: Date.now() });
-        break;
+    case 'ping':
+      this._send(client.ws, { type: 'pong', ts: Date.now() });
+      break;
 
-      default:
-        logger.debug('WS: type de message inconnu', { clientId, type: msg.type });
+    default:
+      logger.debug('WS: type de message inconnu', { clientId, type: msg.type });
     }
   }
 

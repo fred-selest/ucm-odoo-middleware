@@ -20,6 +20,7 @@ class UcmWebSocketClient extends EventEmitter {
     this._reconnectMaxDelay = config.ucm.reconnectMaxDelay || 60000;
     this._currentDelay = this._reconnectDelay;
     this._reconnectAttempts = 0;
+    this._maxReconnectAttempts = 10;
     this._heartbeatInterval = null;
     this._heartbeatTimeout = null;
     this._pendingEvents = [];
@@ -42,6 +43,11 @@ class UcmWebSocketClient extends EventEmitter {
       logger.info('UCM WS: tentative connexion', { url: wsUrl });
 
       try {
+        // Fermer l'ancienne connexion si elle existe encore
+        if (this._ws) {
+          this._ws.close(1000, 'Reconnection');
+          this._ws = null;
+        }
         this._ws = new WebSocket(wsUrl, {
           rejectUnauthorized: config.ucm.tls.rejectUnauthorized !== false,
           headers: {
@@ -136,77 +142,77 @@ class UcmWebSocketClient extends EventEmitter {
   _mapEvent(message) {
     // Format UCM6300 attendu
     switch (message.event || message.action) {
-      case 'new_call':
-      case 'New Call':
-        return {
-          type: 'call:incoming',
-          data: {
-            uniqueId: message.unique_id || message.UniqueID,
-            callerIdNum: message.caller_id_num || message.CallerIDNum || message.src,
-            callerIdName: message.caller_id_name || message.CallerIDName || message.srcname,
-            exten: message.destination || message.Destination || message.dst,
-            channel: message.channel || message.Channel,
-            direction: message.direction || 'inbound',
-            timestamp: message.timestamp || new Date().toISOString(),
-          }
-        };
+    case 'new_call':
+    case 'New Call':
+      return {
+        type: 'call:incoming',
+        data: {
+          uniqueId: message.unique_id || message.UniqueID,
+          callerIdNum: message.caller_id_num || message.CallerIDNum || message.src,
+          callerIdName: message.caller_id_name || message.CallerIDName || message.srcname,
+          exten: message.destination || message.Destination || message.dst,
+          channel: message.channel || message.Channel,
+          direction: message.direction || 'inbound',
+          timestamp: message.timestamp || new Date().toISOString(),
+        }
+      };
 
-      case 'call_answered':
-      case 'Call Answered':
-        return {
-          type: 'call:answered',
-          data: {
-            uniqueId: message.unique_id || message.UniqueID,
-            exten: message.exten || message.Extension,
-            channel: message.channel || message.Channel,
-            answerTime: message.answer_time || new Date().toISOString(),
-          }
-        };
+    case 'call_answered':
+    case 'Call Answered':
+      return {
+        type: 'call:answered',
+        data: {
+          uniqueId: message.unique_id || message.UniqueID,
+          exten: message.exten || message.Extension,
+          channel: message.channel || message.Channel,
+          answerTime: message.answer_time || new Date().toISOString(),
+        }
+      };
 
-      case 'call_hangup':
-      case 'Call Hangup':
-        return {
-          type: 'call:hangup',
-          data: {
-            uniqueId: message.unique_id || message.UniqueID,
-            channel: message.channel || message.Channel,
-            duration: message.duration || message.BillSec || 0,
-            disposition: message.disposition || 'ANSWERED',
-            hangupTime: message.hangup_time || new Date().toISOString(),
-          }
-        };
+    case 'call_hangup':
+    case 'Call Hangup':
+      return {
+        type: 'call:hangup',
+        data: {
+          uniqueId: message.unique_id || message.UniqueID,
+          channel: message.channel || message.Channel,
+          duration: message.duration || message.BillSec || 0,
+          disposition: message.disposition || 'ANSWERED',
+          hangupTime: message.hangup_time || new Date().toISOString(),
+        }
+      };
 
-      case 'call_hold':
-        return {
-          type: 'call:hold',
-          data: {
-            uniqueId: message.unique_id,
-            channel: message.channel,
-          }
-        };
+    case 'call_hold':
+      return {
+        type: 'call:hold',
+        data: {
+          uniqueId: message.unique_id,
+          channel: message.channel,
+        }
+      };
 
-      case 'call_unhold':
-        return {
-          type: 'call:unhold',
-          data: {
-            uniqueId: message.unique_id,
-            channel: message.channel,
-          }
-        };
+    case 'call_unhold':
+      return {
+        type: 'call:unhold',
+        data: {
+          uniqueId: message.unique_id,
+          channel: message.channel,
+        }
+      };
 
-      case 'call_transfer':
-        return {
-          type: 'call:transfer',
-          data: {
-            uniqueId: message.unique_id,
-            channel: message.channel,
-            target: message.target,
-          }
-        };
+    case 'call_transfer':
+      return {
+        type: 'call:transfer',
+        data: {
+          uniqueId: message.unique_id,
+          channel: message.channel,
+          target: message.target,
+        }
+      };
 
-      default:
-        logger.debug('UCM WS: événement non géré', { event: message.event || message.action });
-        return null;
+    default:
+      logger.debug('UCM WS: événement non géré', { event: message.event || message.action });
+      return null;
     }
   }
 
@@ -316,17 +322,18 @@ class UcmWebSocketClient extends EventEmitter {
   }
 
   /**
-   * Getter pour le statut de connexion
-   */
-  get connected() {
-    return this._connected;
-  }
-
-  /**
    * Getter pour le nombre de tentatives
    */
   get reconnectAttempts() {
     return this._reconnectAttempts;
+  }
+
+  /**
+   * Setter pour le nombre de tentatives
+   * @param {number} value
+   */
+  set reconnectAttempts(value) {
+    this._reconnectAttempts = value;
   }
 }
 

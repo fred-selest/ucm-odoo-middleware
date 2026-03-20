@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="ucm_connector.UcmCallPopup">
+        <div t-if="state.visible" class="ucm_call_popup">
+            <div class="ucm_call_popup_content">
+                <div class="ucm_call_popup_header">
+                    <i class="fa fa-phone fa-3x"/>
+                    <h2>Appel entrant</h2>
+                </div>
+                
+                <div class="ucm_call_popup_body" t-if="state.callerInfo">
+                    <h3><t t-esc="state.callerInfo.name"/></h3>
+                    <p><t t-esc="state.incomingCall.callerIdNum"/></p>
+                    <p t-if="state.callerInfo.email"><t t-esc="state.callerInfo.email"/></p>
+                    <p t-if="state.callerInfo.company_id"><t t-esc="state.callerInfo.company_id[1]"/></p>
+                </div>
+                
+                <div class="ucm_call_popup_body" t-else="">
+                    <h3><t t-esc="state.incomingCall.callerIdName || 'Inconnu'"/></h3>
+                    <p><t t-esc="state.incomingCall.callerIdNum"/></p>
+                </div>
+                
+                <div class="ucm_call_popup_footer">
+                    <button class="btn btn-success" t-on-click="hidePopup">
+                        <i class="fa fa-check"/> Accepter
+                    </button>
+                    <button class="btn btn-danger" t-on-click="hidePopup">
+                        <i class="fa fa-times"/> Refuser
+                    </button>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

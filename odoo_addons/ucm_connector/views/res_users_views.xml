@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Ajouter extension dans fiche utilisateur -->
+    <record id="res_users_view_inherit_ucm" model="ir.ui.view">
+        <field name="name">res.users.view.inherit.ucm</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <group name="preferences" position="inside">
+                <group string="Téléphonie UCM">
+                    <field name="ucm_extension"/>
+                    <field name="ucm_agent_status" widget="radio"/>
+                </group>
+            </group>
+        </field>
+    </record>
+</odoo>

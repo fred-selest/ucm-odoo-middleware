@@ -152,7 +152,7 @@ class OdooClient {
       [['id', '=', contactId]]
     ], {
       fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company',
-               'street', 'city', 'zip', 'country_id', 'function', 'website', 'comment'],
+        'street', 'city', 'zip', 'country_id', 'function', 'website', 'comment'],
       limit: 1,
     });
     
@@ -209,6 +209,14 @@ class OdooClient {
     await this._callModel('res.partner', 'write', [[contactId], values]);
     logger.info('Odoo: contact modifié', { id: contactId });
     
+    // Invalidation cache pour éviter données obsolètes
+    if (contactData.phone) {
+      this.invalidateCache(contactData.phone);
+    } else if (contactData.email) {
+      // Si pas de phone, invalider tous les contacts (évolution complexe)
+      this.invalidateCache(null);
+    }
+    
     return this.getContactFull(contactId);
   }
 
@@ -219,7 +227,7 @@ class OdooClient {
       [['id', '=', contactId]]
     ], {
       fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company',
-               'street', 'city', 'function', 'image_128'],
+        'street', 'city', 'function', 'image_128'],
       limit: 1,
     });
     
@@ -234,8 +242,8 @@ class OdooClient {
       [['id', '=', contactId]]
     ], {
       fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company',
-               'street', 'zip', 'city', 'country_id', 'function', 'comment', 'website',
-               'company_name', 'image_128'],
+        'street', 'zip', 'city', 'country_id', 'function', 'comment', 'website',
+        'company_name', 'image_128'],
       limit: 1,
     });
 
@@ -606,7 +614,7 @@ class OdooClient {
     await this.ensureAuthenticated();
     const result = await this._callModel('res.partner', 'read', [[partnerId]], {
       fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company',
-               'street', 'zip', 'city', 'country_id', 'function', 'comment', 'website', 'company_name', 'image_128'],
+        'street', 'zip', 'city', 'country_id', 'function', 'comment', 'website', 'company_name', 'image_128'],
     });
     if (!result || !result[0]) return null;
     return result[0];

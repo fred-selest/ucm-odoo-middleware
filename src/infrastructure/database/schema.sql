@@ -120,3 +120,16 @@ SELECT
 FROM calls
 WHERE started_at >= date('now', '-30 days')
 GROUP BY exten;
+
+-- Table de cache des contacts (pour synchronisation)
+CREATE TABLE IF NOT EXISTS contact_cache (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  phone TEXT NOT NULL UNIQUE,
+  name TEXT,
+  email TEXT,
+  company TEXT,
+  data TEXT, -- JSON complet du contact
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_contact_cache_phone ON contact_cache(phone);

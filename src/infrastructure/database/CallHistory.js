@@ -73,7 +73,7 @@ class CallHistory {
            status, started_at, answered_at, hung_up_at, duration)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [cdr.uniqueid, callerIdNum, callerIdName, exten, exten, direction,
-         status, startedAt, answeredAt, hungUpAt, duration]
+          status, startedAt, answeredAt, hungUpAt, duration]
       );
       return result.changes > 0;
     } catch (err) {
@@ -405,7 +405,7 @@ class CallHistory {
     }
 
     if (search) {
-      sql += ` AND (caller_id_num LIKE ? OR caller_id_name LIKE ? OR contact_name LIKE ?)`;
+      sql += ' AND (caller_id_num LIKE ? OR caller_id_name LIKE ? OR contact_name LIKE ?)';
       const likeSearch = `%${search}%`;
       params.push(likeSearch, likeSearch, likeSearch);
     }
@@ -456,20 +456,20 @@ class CallHistory {
   async getStats(period = 'today') {
     let dateFilter;
     switch (period) {
-      case 'today':
-        dateFilter = "date(started_at) = date('now')";
-        break;
-      case 'yesterday':
-        dateFilter = "date(started_at) = date('now', '-1 day')";
-        break;
-      case 'week':
-        dateFilter = "started_at >= date('now', '-7 days')";
-        break;
-      case 'month':
-        dateFilter = "started_at >= date('now', '-30 days')";
-        break;
-      default:
-        dateFilter = "date(started_at) = date('now')";
+    case 'today':
+      dateFilter = 'date(started_at) = date(\'now\')';
+      break;
+    case 'yesterday':
+      dateFilter = 'date(started_at) = date(\'now\', \'-1 day\')';
+      break;
+    case 'week':
+      dateFilter = 'started_at >= date(\'now\', \'-7 days\')';
+      break;
+    case 'month':
+      dateFilter = 'started_at >= date(\'now\', \'-30 days\')';
+      break;
+    default:
+      dateFilter = 'date(started_at) = date(\'now\')';
     }
 
     const stats = await this.db.get(
@@ -516,7 +516,7 @@ class CallHistory {
 
   async getHourlyDistribution(date = 'today') {
     const dateFilter = date === 'today' 
-      ? "date(started_at) = date('now')"
+      ? 'date(started_at) = date(\'now\')'
       : `date(started_at) = date('${date}')`;
 
     return await this.db.all(
@@ -663,7 +663,7 @@ class CallHistory {
   async getTodayCount() {
     try {
       const result = await this.db.get(
-        "SELECT COUNT(*) as count FROM calls WHERE date(started_at) = date('now')"
+        'SELECT COUNT(*) as count FROM calls WHERE date(started_at) = date(\'now\')'
       );
       return result?.count || 0;
     } catch (err) {
@@ -675,12 +675,76 @@ class CallHistory {
   async getLastCallTime() {
     try {
       const result = await this.db.get(
-        "SELECT started_at FROM calls ORDER BY started_at DESC LIMIT 1"
+        'SELECT started_at FROM calls ORDER BY started_at DESC LIMIT 1'
       );
       return result?.started_at || null;
     } catch (err) {
       logger.error('Erreur getLastCallTime', { error: err.message });
       return null;
+    }
+  }
+
+  // ── Synchronisation des contacts ───────────────────────────────────────────
+
+  async updateCallsForPhone(phone, contact) {
+    if (!phone) return 0;
+    try {
+      const calls = await this.getCalls({ callerIdNum: phone, limit: 1000 });
+      for (const call of calls) {
+        await this.updateCallContact(call.unique_id, contact);
+      }
+      return calls.length;
+    } catch (err) {
+      logger.error('Erreur updateCallsForPhone', { error: err.message, phone });
+      return 0;
+    }
+  }
+
+  async cacheContact(phone, contact) {
+    try {
+      await this.db.run(
+        `INSERT OR REPLACE INTO contact_cache (phone, name, email, company, data, updated_at)
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [phone, contact.name, contact.email, contact.company, JSON.stringify(contact)]
+      );
+    } catch (err) {
+      logger.debug('Cache contact', { phone, error: err.message });
+    }
+  }
+
+  async searchContactsByPhone(phone) {
+    try {
+      return await this.db.all(
+        `SELECT DISTINCT contact_id, contact_name, contact_phone, contact_email,
+                contact_company, contact_city, contact_avatar
+         FROM calls
+         WHERE caller_id_num LIKE ? OR contact_phone LIKE ?
+         ORDER BY started_at DESC
+         LIMIT 100`,
+        [`%${phone}%`, `%${phone}%`]
+      );
+    } catch (err) {
+      logger.error('Erreur recherche contacts', { error: err.message });
+      return [];
+    }
+  }
+
+  async getUniqueContacts(limit = 100) {
+    try {
+      return await this.db.all(
+        `SELECT contact_id, contact_name, contact_phone, contact_email,
+                contact_company, contact_city, contact_avatar,
+                MAX(started_at) as last_call_date
+         FROM calls
+         WHERE contact_id IS NOT NULL
+         GROUP BY contact_id
+         ORDER BY last_call_date DESC
+         LIMIT ?`,
+        [limit]
+      );
+    } catch (err) {
+      logger.error('Erreur récupération contacts', { error: err.message });
+      return [];
     }
   }
 }

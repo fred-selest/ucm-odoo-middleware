@@ -14,7 +14,8 @@ const WsServer       = require('./infrastructure/websocket/WsServer');
 const CallHandler    = require('./application/CallHandler');
 const WebhookManager = require('./application/WebhookManager');
 const CallHistory    = require('./infrastructure/database/CallHistory');
-const createRouter   = require('./presentation/api/router');
+const createRouter       = require('./presentation/api/router');
+const createQueuesRouter = require('./presentation/api/queues.routes');
 const swaggerSpec    = require('./config/swagger');
 const HealthAgent    = require('./infrastructure/monitoring/HealthAgent');
 
@@ -82,6 +83,9 @@ async function main() {
   const apiRouter = createRouter({ ucmHttpClient, ucmWsClient, crmClient, wsServer, callHandler, webhookManager, callHistory });
   app.use('/', apiRouter);
 
+  const queuesRouter = createQueuesRouter({ ucmHttpClient, callHistory, wsServer });
+  app.use('/api/queues', queuesRouter);
+
   // 404 catch-all
   app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
@@ -104,8 +108,8 @@ async function main() {
     });
   });
   logger.info(`Serveur HTTP démarré sur le port ${config.server.port}`);
-  logger.info(`WebSocket disponible sur ws://localhost:${config.server.port}${config.server.wsPath}`);
-  logger.info(`Documentation API disponible sur http://localhost:${config.server.port}/api-docs`);
+  logger.info(`WebSocket disponible sur ws://0.0.0.0:${config.server.port}${config.server.wsPath}`);
+  logger.info(`Documentation API disponible sur http://0.0.0.0:${config.server.port}/api-docs`);
 
   // 3. Connecter UCM6300 (HTTP + WebSocket)
   try {
@@ -131,7 +135,7 @@ async function main() {
 
   // ── Agent de supervision ───────────────────────────────────────────────────
   const healthAgent = new HealthAgent();
-  healthAgent.start(ucmHttpClient, ucmWsClient, crmClient, wsServer, callHistory);
+  healthAgent.start(ucmHttpClient, ucmWsClient || null, crmClient, wsServer, callHistory);
   
   // Exposer l'agent pour l'API
   app.locals.healthAgent = healthAgent;
@@ -148,9 +152,14 @@ async function main() {
     // Déconnexion UCM
     try {
       await ucmHttpClient.disconnect();
-      ucmWsClient.disconnect();
+      if (ucmWsClient) ucmWsClient.disconnect();
     } catch (err) {
       logger.warn('UCM: erreur déconnexion', { error: err.message });
+    }
+    
+    // Nettoyage CallHandler
+    if (callHandler?.disconnect) {
+      callHandler.disconnect();
     }
     
     if (callHistory) {
@@ -158,9 +167,7 @@ async function main() {
     }
     httpServer.close(() => {
       logger.info('Serveur HTTP arrêté');
-      process.exit(0);
     });
-    setTimeout(() => process.exit(1), 10000);
   };
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
@@ -176,5 +183,5 @@ async function main() {
 
 main().catch(err => {
   console.error('Erreur fatale au démarrage :', err);
-  process.exit(1);
+  throw err;
 });
