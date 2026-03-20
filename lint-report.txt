@@ -1,0 +1,664 @@
+
+> ucm-odoo-middleware@2.0.0 lint
+> eslint src/
+
+
+/opt/stacks/ucm-odoo-middleware/src/application/CallHandler.js
+   18:6   warning  Missing JSDoc parameter description for 'wsServer'  valid-jsdoc
+   53:6   warning  Missing JSDoc parameter description for 'event'     valid-jsdoc
+  143:49  warning  No magic number: 5                                  no-magic-numbers
+  156:76  warning  No magic number: 10000                              no-magic-numbers
+  239:85  warning  No magic number: 1000                               no-magic-numbers
+  242:86  warning  No magic number: 1000                               no-magic-numbers
+  255:73  warning  No magic number: 0                                  no-magic-numbers
+  293:32  warning  No magic number: 0                                  no-magic-numbers
+  313:74  warning  No magic number: 3000                               no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/application/ContactSyncService.js
+   11:6   warning  Missing JSDoc parameter description for 'crmClient'    valid-jsdoc
+   12:6   warning  Missing JSDoc parameter description for 'callHistory'  valid-jsdoc
+   20:22  warning  No magic number: 300                                   no-magic-numbers
+   20:28  warning  No magic number: 1000                                  no-magic-numbers
+   23:3   warning  Missing JSDoc return description                       valid-jsdoc
+   62:6   warning  Missing JSDoc parameter description for 'phone'        valid-jsdoc
+   63:6   warning  Missing JSDoc parameter description for 'contact'      valid-jsdoc
+   68:14  warning  No magic number: 0                                     no-magic-numbers
+   95:14  warning  No magic number: 0                                     no-magic-numbers
+  101:6   warning  Missing JSDoc parameter description for 'phone'        valid-jsdoc
+  118:3   warning  Missing JSDoc @returns for function                    valid-jsdoc
+  118:3   warning  Missing JSDoc for parameter 'phone'                    valid-jsdoc
+  134:3   warning  Missing JSDoc for parameter 'phone'                    valid-jsdoc
+  134:3   warning  Missing JSDoc for parameter 'contact'                  valid-jsdoc
+  145:3   warning  Missing JSDoc for parameter 'uniqueId'                 valid-jsdoc
+  145:3   warning  Missing JSDoc for parameter 'contact'                  valid-jsdoc
+  173:3   warning  Missing JSDoc return description                       valid-jsdoc
+
+/opt/stacks/ucm-odoo-middleware/src/application/WebhookManager.js
+   65:3    warning  Missing JSDoc for parameter 'token'   valid-jsdoc
+   65:3    warning  Missing JSDoc for parameter 'params'  valid-jsdoc
+   74:41   warning  No magic number: 0                    no-magic-numbers
+   74:46   warning  No magic number: 1                    no-magic-numbers
+  125:61   warning  No magic number: 2                    no-magic-numbers
+  135:108  warning  No magic number: 36                   no-magic-numbers
+  135:119  warning  No magic number: 2                    no-magic-numbers
+  135:122  warning  No magic number: 9                    no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/config/index.js
+  25:67  warning  No magic number: 2  no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/index.js
+  90:36  warning  No magic number: 404  no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/crm/CrmClientInterface.js
+   56:3   warning  Missing JSDoc return description                           valid-jsdoc
+   66:6   warning  Unexpected @returns tag; function has no return statement  valid-jsdoc
+   76:6   warning  Missing JSDoc parameter description for 'phone'            valid-jsdoc
+   85:6   warning  Missing JSDoc parameter description for 'query'            valid-jsdoc
+   86:6   warning  Missing JSDoc parameter description for 'limit'            valid-jsdoc
+   89:39  warning  No magic number: 20                                        no-magic-numbers
+   95:6   warning  Missing JSDoc parameter description for 'id'               valid-jsdoc
+  104:6   warning  Missing JSDoc parameter description for 'id'               valid-jsdoc
+  124:6   warning  Missing JSDoc parameter description for 'id'               valid-jsdoc
+  134:3   warning  Missing JSDoc return description                           valid-jsdoc
+  136:6   warning  Missing JSDoc parameter description for 'contactId'        valid-jsdoc
+  144:3   warning  Missing JSDoc return description                           valid-jsdoc
+  146:6   warning  Missing JSDoc parameter description for 'contactId'        valid-jsdoc
+  147:6   warning  Missing JSDoc parameter description for 'limit'            valid-jsdoc
+  150:47  warning  No magic number: 15                                        no-magic-numbers
+  154:3   warning  Missing JSDoc return description                           valid-jsdoc
+  156:6   warning  Missing JSDoc parameter description for 'contactId'        valid-jsdoc
+  157:6   warning  Missing JSDoc parameter description for 'note'             valid-jsdoc
+  168:6   warning  Missing JSDoc parameter description for 'phone'            valid-jsdoc
+  173:28  warning  No magic number: 0                                         no-magic-numbers
+  179:6   warning  Unexpected @returns tag; function has no return statement  valid-jsdoc
+  185:3   warning  Missing JSDoc return description                           valid-jsdoc
+  187:6   warning  Missing JSDoc parameter description for 'contactId'        valid-jsdoc
+  188:6   warning  Missing JSDoc parameter description for 'isCompany'        valid-jsdoc
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/crm/CrmFactory.js
+  20:3  warning  JSDoc syntax error                valid-jsdoc
+  48:3  warning  Missing JSDoc return description  valid-jsdoc
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/crm/adapters/DolibarrAdapter.js
+   67:31  warning  No magic number: 8000                    no-magic-numbers
+  107:22  warning  No magic number: 401                     no-magic-numbers
+  107:40  warning  No magic number: 403                     no-magic-numbers
+  133:22  warning  No magic number: 401                     no-magic-numbers
+  133:40  warning  No magic number: 403                     no-magic-numbers
+  137:22  warning  No magic number: 404                     no-magic-numbers
+  144:3   warning  Missing JSDoc @returns for function      valid-jsdoc
+  175:3   warning  Missing JSDoc @returns for function      valid-jsdoc
+  175:3   warning  Missing JSDoc for parameter 't'          valid-jsdoc
+  199:3   warning  Missing JSDoc @returns for function      valid-jsdoc
+  199:3   warning  Missing JSDoc for parameter 'photo'      valid-jsdoc
+  199:3   warning  Missing JSDoc for parameter 'isCompany'  valid-jsdoc
+  199:3   warning  Missing JSDoc for parameter 'id'         valid-jsdoc
+  215:3   warning  Missing JSDoc @returns for function      valid-jsdoc
+  215:3   warning  Missing JSDoc for parameter 'phone'      valid-jsdoc
+  221:31  warning  Unnecessary escape character: \.         no-useless-escape
+  221:35  warning  Unnecessary escape character: \(         no-useless-escape
+  221:37  warning  Unnecessary escape character: \)         no-useless-escape
+  221:39  warning  Unnecessary escape character: \/         no-useless-escape
+  222:48  warning  No magic number: 3                       no-magic-numbers
+  223:49  warning  No magic number: 4                       no-magic-numbers
+  227:3   warning  Missing JSDoc @returns for function      valid-jsdoc
+  227:3   warning  Missing JSDoc for parameter 'phone'      valid-jsdoc
+  233:61  warning  No magic number: 1                       no-magic-numbers
+  234:62  warning  No magic number: 1                       no-magic-numbers
+  250:54  warning  No magic number: 300                     no-magic-numbers
+  250:61  warning  No magic number: 1000                    no-magic-numbers
+  266:3   warning  Missing JSDoc for parameter 'phone'      valid-jsdoc
+  292:56  warning  No magic number: 0                       no-magic-numbers
+  293:17  warning  Use array destructuring                  prefer-destructuring
+  318:56  warning  No magic number: 0                       no-magic-numbers
+  333:3   warning  Missing JSDoc for parameter 'query'      valid-jsdoc
+  333:3   warning  Missing JSDoc for parameter 'limit'      valid-jsdoc
+  336:39  warning  No magic number: 20                      no-magic-numbers
+  337:34  warning  No magic number: 2                       no-magic-numbers
+  385:26  warning  No magic number: 0                       no-magic-numbers
+  400:3   warning  Missing JSDoc for parameter 'id'         valid-jsdoc
+  429:3   warning  Missing JSDoc for parameter 'data'       valid-jsdoc
+  484:3   warning  Missing JSDoc for parameter 'contactId'  valid-jsdoc
+  484:3   warning  Missing JSDoc for parameter 'callData'   valid-jsdoc
+  496:21  warning  No magic number: 0                       no-magic-numbers
+  504:34  warning  No magic number: 0                       no-magic-numbers
+  505:22  warning  No magic number: 60                      no-magic-numbers
+  505:52  warning  No magic number: 60                      no-magic-numbers
+  505:73  warning  No magic number: 60                      no-magic-numbers
+  508:64  warning  No magic number: 1000                    no-magic-numbers
+  531:48  warning  No magic number: 1                       no-magic-numbers
+  532:55  warning  No magic number: 1                       no-magic-numbers
+  545:3   warning  Missing JSDoc for parameter 'contactId'  valid-jsdoc
+  545:3   warning  Missing JSDoc for parameter 'limit'      valid-jsdoc
+  549:47  warning  No magic number: 15                      no-magic-numbers
+  562:51  warning  No magic number: 1000                    no-magic-numbers
+  575:3   warning  Missing JSDoc for parameter 'contactId'  valid-jsdoc
+  575:3   warning  Missing JSDoc for parameter 'note'       valid-jsdoc
+  585:45  warning  No magic number: 1000                    no-magic-numbers
+  589:48  warning  No magic number: 1                       no-magic-numbers
+  590:55  warning  No magic number: 1                       no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/crm/adapters/OdooAdapter.js
+  39:39  warning  No magic number: 20  no-magic-numbers
+  67:47  warning  No magic number: 15  no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/database/CallHistory.js
+   78:31  warning  No magic number: 0    no-magic-numbers
+  139:40  warning  No magic number: 50   no-magic-numbers
+  230:20  warning  No magic number: 1    no-magic-numbers
+  230:34  warning  No magic number: 5    no-magic-numbers
+  296:49  warning  No magic number: 0    no-magic-numbers
+  363:15  warning  No magic number: 50   no-magic-numbers
+  364:16  warning  No magic number: 0    no-magic-numbers
+  490:29  warning  No magic number: 0    no-magic-numbers
+  491:35  warning  No magic number: 0    no-magic-numbers
+  492:31  warning  No magic number: 0    no-magic-numbers
+  493:31  warning  No magic number: 0    no-magic-numbers
+  494:53  warning  No magic number: 0    no-magic-numbers
+  495:46  warning  No magic number: 0    no-magic-numbers
+  496:46  warning  No magic number: 0    no-magic-numbers
+  497:33  warning  No magic number: 0    no-magic-numbers
+  497:81  warning  No magic number: 100  no-magic-numbers
+  497:88  warning  No magic number: 0    no-magic-numbers
+  501:36  warning  No magic number: 30   no-magic-numbers
+  533:31  warning  No magic number: 10   no-magic-numbers
+  533:42  warning  No magic number: 30   no-magic-numbers
+  598:21  warning  No magic number: 50   no-magic-numbers
+  598:34  warning  No magic number: 0    no-magic-numbers
+  605:28  warning  No magic number: 1    no-magic-numbers
+  605:32  warning  No magic number: 0    no-magic-numbers
+  647:31  warning  No magic number: 365  no-magic-numbers
+  668:31  warning  No magic number: 0    no-magic-numbers
+  671:14  warning  No magic number: 0    no-magic-numbers
+  690:24  warning  No magic number: 0    no-magic-numbers
+  699:14  warning  No magic number: 0    no-magic-numbers
+  732:35  warning  No magic number: 100  no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/dolibarr/DolibarrAgent.js
+   38:3   warning  JSDoc syntax error     valid-jsdoc
+   97:36  warning  No magic number: 3     no-magic-numbers
+  100:62  warning  No magic number: 1000  no-magic-numbers
+  101:13  warning  No magic number: 0     no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/monitoring/HealthAgent.js
+   59:62  warning  No magic number: 30000  no-magic-numbers
+   77:67  warning  No magic number: 0      no-magic-numbers
+  127:77  warning  No magic number: 1000   no-magic-numbers
+  128:25  warning  No magic number: 30     no-magic-numbers
+  148:71  warning  No magic number: 0      no-magic-numbers
+  151:70  warning  No magic number: 2      no-magic-numbers
+  171:29  warning  No magic number: 999    no-magic-numbers
+  173:31  warning  No magic number: 1000   no-magic-numbers
+  173:38  warning  No magic number: 60     no-magic-numbers
+  173:43  warning  No magic number: 60     no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/odoo/OdooClient.js
+   97:61  warning  No magic number: 1000                    no-magic-numbers
+  103:54  warning  No magic number: 20                      no-magic-numbers
+  104:41  warning  No magic number: 2                       no-magic-numbers
+  147:46  warning  No magic number: 50                      no-magic-numbers
+  159:38  warning  No magic number: 0                       no-magic-numbers
+  204:30  warning  No magic number: 0                       no-magic-numbers
+  234:38  warning  No magic number: 0                       no-magic-numbers
+  250:38  warning  No magic number: 0                       no-magic-numbers
+  254:3   warning  Missing JSDoc for parameter 'partnerId'  valid-jsdoc
+  254:3   warning  Missing JSDoc for parameter 'callData'   valid-jsdoc
+  266:20  warning  No magic number: 0                       no-magic-numbers
+  267:41  warning  No magic number: 60                      no-magic-numbers
+  267:63  warning  No magic number: 60                      no-magic-numbers
+  268:35  warning  No magic number: 0                       no-magic-numbers
+  286:3   warning  Missing JSDoc for parameter 'partnerId'  valid-jsdoc
+  286:3   warning  Missing JSDoc for parameter 'limit'      valid-jsdoc
+  289:47  warning  No magic number: 15                      no-magic-numbers
+  306:3   warning  Missing JSDoc for parameter 'partnerId'  valid-jsdoc
+  306:3   warning  Missing JSDoc for parameter 'note'       valid-jsdoc
+  394:24  warning  No magic number: -1                      no-magic-numbers
+  396:24  warning  No magic number: -1                      no-magic-numbers
+  401:3   warning  Missing JSDoc @returns for function      valid-jsdoc
+  401:3   warning  Missing JSDoc for parameter 'xml'        valid-jsdoc
+  401:3   warning  Missing JSDoc for parameter 'start'      valid-jsdoc
+  401:3   warning  Missing JSDoc for parameter 'tag'        valid-jsdoc
+  413:18  warning  No magic number: -1                      no-magic-numbers
+  414:18  warning  No magic number: -1                      no-magic-numbers
+  415:37  warning  No magic number: 0                       no-magic-numbers
+  427:64  warning  No magic number: 5                       no-magic-numbers
+  428:64  warning  No magic number: 4                       no-magic-numbers
+  429:66  warning  No magic number: 8                       no-magic-numbers
+  430:55  warning  No magic number: 9                       no-magic-numbers
+  431:67  warning  No magic number: 8                       no-magic-numbers
+  437:18  warning  No magic number: -1                      no-magic-numbers
+  438:52  warning  No magic number: 6                       no-magic-numbers
+  454:21  warning  No magic number: -1                      no-magic-numbers
+  467:18  warning  No magic number: -1                      no-magic-numbers
+  474:18  warning  No magic number: -1                      no-magic-numbers
+  474:31  warning  No magic number: -1                      no-magic-numbers
+  474:44  warning  No magic number: -1                      no-magic-numbers
+  475:43  warning  No magic number: 6                       no-magic-numbers
+  491:17  warning  No magic number: -1                      no-magic-numbers
+  493:17  warning  No magic number: -1                      no-magic-numbers
+  511:29  warning  No magic number: 0                       no-magic-numbers
+  513:31  warning  No magic number: 1                       no-magic-numbers
+  515:45  warning  No magic number: 1                       no-magic-numbers
+  520:37  warning  Unnecessary escape character: \.         no-useless-escape
+  520:39  warning  Unnecessary escape character: \(         no-useless-escape
+  520:41  warning  Unnecessary escape character: \)         no-useless-escape
+  522:66  warning  No magic number: 3                       no-magic-numbers
+  523:66  warning  No magic number: 4                       no-magic-numbers
+  532:31  warning  No magic number: 1                       no-magic-numbers
+  543:31  warning  No magic number: 3                       no-magic-numbers
+  554:38  warning  No magic number: 4                       no-magic-numbers
+  555:40  warning  No magic number: 4                       no-magic-numbers
+  560:26  warning  No magic number: 8                       no-magic-numbers
+  561:33  warning  No magic number: -8                      no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/ucm/UcmEventParser.js
+  20:3   warning  Missing JSDoc for parameter 'data'  valid-jsdoc
+  26:52  warning  No magic number: -1                 no-magic-numbers
+  27:38  warning  No magic number: 0                  no-magic-numbers
+  42:17  warning  No magic number: -1                 no-magic-numbers
+  42:34  warning  No magic number: 4                  no-magic-numbers
+  44:18  warning  No magic number: -1                 no-magic-numbers
+  44:36  warning  No magic number: 2                  no-magic-numbers
+  45:12  warning  No magic number: -1                 no-magic-numbers
+  55:21  warning  No magic number: -1                 no-magic-numbers
+  62:30  warning  No magic number: 0                  no-magic-numbers
+  63:38  warning  No magic number: 2                  no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/ucm/UcmHttpClient.js
+   43:38  warning  No magic number: 8000                                no-magic-numbers
+   52:3   warning  Missing JSDoc return description                     valid-jsdoc
+   81:6   warning  Missing JSDoc parameter description for 'username'   valid-jsdoc
+   82:6   warning  Missing JSDoc parameter description for 'password'   valid-jsdoc
+   90:81  warning  No magic number: 0                                   no-magic-numbers
+   90:84  warning  No magic number: 8                                   no-magic-numbers
+  100:42  warning  No magic number: 10                                  no-magic-numbers
+  100:47  warning  No magic number: 60                                  no-magic-numbers
+  100:52  warning  No magic number: 1000                                no-magic-numbers
+  104:83  warning  No magic number: 0                                   no-magic-numbers
+  104:86  warning  No magic number: 15                                  no-magic-numbers
+  114:3   warning  Missing JSDoc return description                     valid-jsdoc
+  116:6   warning  Missing JSDoc parameter description for 'username'   valid-jsdoc
+  131:29  warning  No magic number: 200                                 no-magic-numbers
+  131:61  warning  No magic number: 0                                   no-magic-numbers
+  138:3   warning  Missing JSDoc return description                     valid-jsdoc
+  140:6   warning  Missing JSDoc parameter description for 'challenge'  valid-jsdoc
+  141:6   warning  Missing JSDoc parameter description for 'password'   valid-jsdoc
+  152:3   warning  Missing JSDoc return description                     valid-jsdoc
+  154:6   warning  Missing JSDoc parameter description for 'username'   valid-jsdoc
+  155:6   warning  Missing JSDoc parameter description for 'token'      valid-jsdoc
+  170:29  warning  No magic number: 200                                 no-magic-numbers
+  170:61  warning  No magic number: 0                                   no-magic-numbers
+  189:3   warning  Missing JSDoc return description                     valid-jsdoc
+  199:47  warning  No magic number: 60000                               no-magic-numbers
+  202:3   warning  Missing JSDoc return description                     valid-jsdoc
+  204:6   warning  Missing JSDoc parameter description for 'action'     valid-jsdoc
+  205:6   warning  Missing JSDoc parameter description for 'params'     valid-jsdoc
+  226:36  warning  No magic number: -6                                  no-magic-numbers
+  234:36  warning  No magic number: 0                                   no-magic-numbers
+  246:3   warning  Missing JSDoc return description                     valid-jsdoc
+  248:6   warning  Missing JSDoc parameter description for 'code'       valid-jsdoc
+  272:3   warning  Missing JSDoc return description                     valid-jsdoc
+  280:3   warning  Missing JSDoc return description                     valid-jsdoc
+  293:3   warning  Missing JSDoc return description                     valid-jsdoc
+  295:6   warning  Missing JSDoc parameter description for 'action'     valid-jsdoc
+  302:44  warning  No magic number: 1                                   no-magic-numbers
+  310:3   warning  Missing JSDoc return description                     valid-jsdoc
+  318:3   warning  Missing JSDoc return description                     valid-jsdoc
+  326:3   warning  Missing JSDoc return description                     valid-jsdoc
+  328:6   warning  Missing JSDoc parameter description for 'channel'    valid-jsdoc
+  336:3   warning  Missing JSDoc return description                     valid-jsdoc
+  347:3   warning  Missing JSDoc return description                     valid-jsdoc
+  358:3   warning  Missing JSDoc return description                     valid-jsdoc
+  360:6   warning  Missing JSDoc parameter description for 'channel'    valid-jsdoc
+  368:3   warning  Missing JSDoc return description                     valid-jsdoc
+  370:6   warning  Missing JSDoc parameter description for 'channel'    valid-jsdoc
+  378:3   warning  Missing JSDoc return description                     valid-jsdoc
+  380:6   warning  Missing JSDoc parameter description for 'channel'    valid-jsdoc
+  381:6   warning  Missing JSDoc parameter description for 'extension'  valid-jsdoc
+  389:3   warning  Missing JSDoc return description                     valid-jsdoc
+  391:6   warning  Missing JSDoc parameter description for 'extension'  valid-jsdoc
+  392:6   warning  Missing JSDoc parameter description for 'enable'     valid-jsdoc
+  400:3   warning  Missing JSDoc return description                     valid-jsdoc
+  402:6   warning  Missing JSDoc parameter description for 'queue'      valid-jsdoc
+  403:6   warning  Missing JSDoc parameter description for 'startTime'  valid-jsdoc
+  404:6   warning  Missing JSDoc parameter description for 'endTime'    valid-jsdoc
+  416:3   warning  Missing JSDoc return description                     valid-jsdoc
+  433:3   warning  Missing JSDoc return description                     valid-jsdoc
+  441:51  warning  No magic number: 1000                                no-magic-numbers
+  442:76  warning  No magic number: 0                                   no-magic-numbers
+  453:16  warning  No magic number: 1                                   no-magic-numbers
+  471:57  warning  No magic number: 0                                   no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/ucm/UcmWebSocketClient.js
+   19:57   warning  No magic number: 3000                              no-magic-numbers
+   20:63   warning  No magic number: 60000                             no-magic-numbers
+   29:3    warning  Missing JSDoc return description                   valid-jsdoc
+   48:26   warning  No magic number: 1000                              no-magic-numbers
+   91:62   warning  No magic number: 5000                              no-magic-numbers
+  115:6    warning  Missing JSDoc parameter description for 'data'     valid-jsdoc
+  132:101  warning  No magic number: 0                                 no-magic-numbers
+  132:104  warning  No magic number: 100                               no-magic-numbers
+  136:3    warning  Missing JSDoc return description                   valid-jsdoc
+  138:6    warning  Missing JSDoc parameter description for 'message'  valid-jsdoc
+  179:60   warning  No magic number: 0                                 no-magic-numbers
+  231:12   warning  No magic number: 10000                             no-magic-numbers
+  233:8    warning  No magic number: 8000                              no-magic-numbers
+  284:28   warning  No magic number: 2                                 no-magic-numbers
+  298:3    warning  Missing JSDoc return description                   valid-jsdoc
+  306:3    warning  Missing JSDoc return description                   valid-jsdoc
+  315:24   warning  No magic number: 1000                              no-magic-numbers
+  333:6    warning  Missing JSDoc parameter description for 'value'    valid-jsdoc
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/ucm/UcmWsClient.js
+   62:96  warning  No magic number: 1      no-magic-numbers
+   89:33  warning  No magic number: 0      no-magic-numbers
+  101:67  warning  No magic number: 15000  no-magic-numbers
+  126:28  warning  No magic number: 8000   no-magic-numbers
+  233:81  warning  No magic number: 1000   no-magic-numbers
+  235:82  warning  No magic number: 1000   no-magic-numbers
+  288:54  warning  No magic number: 2      no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/infrastructure/websocket/WsServer.js
+  32:3   warning  Missing JSDoc @returns for function      valid-jsdoc
+  32:3   warning  Missing JSDoc for parameter 'extension'  valid-jsdoc
+  32:3   warning  Missing JSDoc for parameter 'type'       valid-jsdoc
+  32:3   warning  Missing JSDoc for parameter 'data'       valid-jsdoc
+  38:38  warning  No magic number: 0                       no-magic-numbers
+  49:3   warning  Missing JSDoc @returns for function      valid-jsdoc
+  49:3   warning  Missing JSDoc for parameter 'type'       valid-jsdoc
+  49:3   warning  Missing JSDoc for parameter 'data'       valid-jsdoc
+  74:39  warning  No magic number: 0                       no-magic-numbers
+  74:42  warning  No magic number: 8                       no-magic-numbers
+  92:10  warning  No magic number: 30000                   no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/logger.js
+  40:33  warning  No magic number: 0  no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/presentation/admin/js/app.js
+   18:19  warning  No magic number: 1                no-magic-numbers
+   22:37  warning  No magic number: 5000             no-magic-numbers
+   23:37  warning  No magic number: 3000             no-magic-numbers
+   24:37  warning  No magic number: 30000            no-magic-numbers
+   25:37  warning  No magic number: 10000            no-magic-numbers
+   26:37  warning  No magic number: 5000             no-magic-numbers
+   27:37  warning  No magic number: 60000            no-magic-numbers
+   28:37  warning  No magic number: 60000            no-magic-numbers
+   50:45  warning  No magic number: 0                no-magic-numbers
+   62:75  warning  No magic number: 0                no-magic-numbers
+   63:84  warning  No magic number: 0                no-magic-numbers
+   71:34  warning  No magic number: 3600             no-magic-numbers
+   72:35  warning  No magic number: 3600             no-magic-numbers
+   72:43  warning  No magic number: 60               no-magic-numbers
+   93:75  warning  No magic number: 11               no-magic-numbers
+   93:78  warning  No magic number: 19               no-magic-numbers
+  119:50  warning  No magic number: 0                no-magic-numbers
+  119:52  warning  No magic number: 10               no-magic-numbers
+  124:42  warning  No magic number: 0                no-magic-numbers
+  129:19  warning  No magic number: 0                no-magic-numbers
+  130:37  warning  No magic number: 99               no-magic-numbers
+  154:69  warning  No magic number: 1000             no-magic-numbers
+  155:36  warning  No magic number: 60               no-magic-numbers
+  156:25  warning  No magic number: 60               no-magic-numbers
+  158:60  warning  No magic number: 2                no-magic-numbers
+  159:6   warning  No magic number: 1000             no-magic-numbers
+  208:38  warning  No magic number: 0                no-magic-numbers
+  218:57  warning  No magic number: 0                no-magic-numbers
+  285:26  warning  Unnecessary escape character: \+  no-useless-escape
+  285:30  warning  Unnecessary escape character: \.  no-useless-escape
+  285:32  warning  Unnecessary escape character: \/  no-useless-escape
+  285:34  warning  Unnecessary escape character: \(  no-useless-escape
+  285:36  warning  Unnecessary escape character: \)  no-useless-escape
+
+/opt/stacks/ucm-odoo-middleware/src/presentation/admin/js/auth.js
+  11:20  warning  No magic number: 401  no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/presentation/admin/js/calls.js
+   53:45  warning  No magic number: 0     no-magic-numbers
+   53:47  warning  No magic number: 8     no-magic-numbers
+  103:76  warning  No magic number: 0     no-magic-numbers
+  103:79  warning  No magic number: 2     no-magic-numbers
+  162:78  warning  No magic number: 0     no-magic-numbers
+  162:81  warning  No magic number: 2     no-magic-numbers
+  183:52  warning  No magic number: 200   no-magic-numbers
+  184:54  warning  No magic number: 400   no-magic-numbers
+  185:52  warning  No magic number: 600   no-magic-numbers
+  186:54  warning  No magic number: 800   no-magic-numbers
+  187:71  warning  No magic number: 1500  no-magic-numbers
+  197:47  warning  No magic number: 0     no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/presentation/admin/js/contacts.js
+   24:52   warning  No magic number: 3000  no-magic-numbers
+   94:80   warning  No magic number: 0     no-magic-numbers
+   94:83   warning  No magic number: 2     no-magic-numbers
+  127:52   warning  No magic number: 3000  no-magic-numbers
+  152:34   warning  No magic number: 0     no-magic-numbers
+  152:58   warning  No magic number: 60    no-magic-numbers
+  152:87   warning  No magic number: 60    no-magic-numbers
+  152:120  warning  No magic number: 60    no-magic-numbers
+  164:91   warning  No magic number: 0     no-magic-numbers
+  164:94   warning  No magic number: 80    no-magic-numbers
+  178:32   warning  No magic number: 0     no-magic-numbers
+  178:35   warning  No magic number: 10    no-magic-numbers
+  248:10   warning  No magic number: 1000  no-magic-numbers
+  385:75   warning  No magic number: 0     no-magic-numbers
+  385:79   warning  No magic number: 0     no-magic-numbers
+  385:84   warning  No magic number: 60    no-magic-numbers
+  398:32   warning  No magic number: 0     no-magic-numbers
+  398:51   warning  No magic number: 60    no-magic-numbers
+  398:80   warning  No magic number: 60    no-magic-numbers
+  398:108  warning  No magic number: 60    no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/presentation/admin/js/dashboard.js
+   27:48  warning  No magic number: 0   no-magic-numbers
+   28:48  warning  No magic number: 0   no-magic-numbers
+   29:48  warning  No magic number: 0   no-magic-numbers
+   30:48  warning  No magic number: 0   no-magic-numbers
+   31:53  warning  No magic number: 0   no-magic-numbers
+   32:55  warning  No magic number: 0   no-magic-numbers
+   92:63  warning  No magic number: 0   no-magic-numbers
+  109:53  warning  No magic number: 0   no-magic-numbers
+  109:58  warning  No magic number: 0   no-magic-numbers
+  112:43  warning  No magic number: 0   no-magic-numbers
+  113:46  warning  No magic number: 0   no-magic-numbers
+  133:39  warning  No magic number: 0   no-magic-numbers
+  170:65  warning  No magic number: 0   no-magic-numbers
+  178:28  warning  No magic number: 60  no-magic-numbers
+  178:43  warning  No magic number: 60  no-magic-numbers
+  179:14  warning  No magic number: 0   no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/presentation/admin/js/journal.js
+   12:39   warning  No magic number: 1    no-magic-numbers
+   14:71   warning  No magic number: 1    no-magic-numbers
+   41:51   warning  No magic number: 0    no-magic-numbers
+   42:89   warning  No magic number: 0    no-magic-numbers
+   42:112  warning  No magic number: 0    no-magic-numbers
+   43:72   warning  No magic number: 100  no-magic-numbers
+   43:79   warning  No magic number: 0    no-magic-numbers
+   47:74   warning  No magic number: 60   no-magic-numbers
+   47:99   warning  No magic number: 60   no-magic-numbers
+   74:52   warning  No magic number: 0    no-magic-numbers
+   75:24   warning  No magic number: 60   no-magic-numbers
+   75:53   warning  No magic number: 60   no-magic-numbers
+   75:82   warning  No magic number: 60   no-magic-numbers
+   92:52   warning  No magic number: 1    no-magic-numbers
+   94:25   warning  No magic number: 1    no-magic-numbers
+   96:21   warning  No magic number: 1    no-magic-numbers
+   98:21   warning  No magic number: 1    no-magic-numbers
+   98:126  warning  No magic number: 1    no-magic-numbers
+   99:24   warning  No magic number: 1    no-magic-numbers
+   99:41   warning  No magic number: 2    no-magic-numbers
+   99:80   warning  No magic number: 4    no-magic-numbers
+  100:21   warning  No magic number: 4    no-magic-numbers
+  100:41   warning  No magic number: 1    no-magic-numbers
+  100:50   warning  No magic number: 4    no-magic-numbers
+  103:135  warning  No magic number: 1    no-magic-numbers
+  117:23   warning  No magic number: 1    no-magic-numbers
+  150:67   warning  No magic number: 0    no-magic-numbers
+  150:69   warning  No magic number: 10   no-magic-numbers
+  156:105  warning  No magic number: 1    no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/presentation/admin/js/stats.js
+  19:45  warning  No magic number: 0   no-magic-numbers
+  20:45  warning  No magic number: 0   no-magic-numbers
+  21:45  warning  No magic number: 0   no-magic-numbers
+  23:34  warning  No magic number: 0   no-magic-numbers
+  24:39  warning  No magic number: 60  no-magic-numbers
+  24:61  warning  No magic number: 60  no-magic-numbers
+  24:83  warning  No magic number: 60  no-magic-numbers
+  29:53  warning  No magic number: 0   no-magic-numbers
+  29:58  warning  No magic number: 0   no-magic-numbers
+  49:36  warning  No magic number: 0   no-magic-numbers
+  50:36  warning  No magic number: 0   no-magic-numbers
+  52:71  warning  No magic number: 0   no-magic-numbers
+  75:25  warning  No magic number: 0   no-magic-numbers
+  75:28  warning  No magic number: 10  no-magic-numbers
+  77:44  warning  No magic number: 0   no-magic-numbers
+  78:60  warning  No magic number: 0   no-magic-numbers
+  79:57  warning  No magic number: 0   no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/presentation/admin/js/ui.js
+  165:30  warning  No magic number: 100  no-magic-numbers
+  183:6   warning  No magic number: 150  no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/presentation/admin/js/websocket.js
+  14:66  warning  No magic number: 3000  no-magic-numbers
+  28:44  warning  No magic number: 2000  no-magic-numbers
+  30:97  warning  No magic number: 500   no-magic-numbers
+  52:29  warning  No magic number: 0     no-magic-numbers
+  79:31  warning  No magic number: 8000  no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/presentation/api/queues.routes.js
+    7:1   warning  Missing JSDoc @returns for function  valid-jsdoc
+   45:18  warning  No magic number: 500                 no-magic-numbers
+   70:18  warning  No magic number: 500                 no-magic-numbers
+   83:27  warning  No magic number: 400                 no-magic-numbers
+   92:18  warning  No magic number: 500                 no-magic-numbers
+  109:18  warning  No magic number: 500                 no-magic-numbers
+  127:18  warning  No magic number: 500                 no-magic-numbers
+  155:52  warning  No magic number: 0                   no-magic-numbers
+  156:52  warning  No magic number: 0                   no-magic-numbers
+  157:67  warning  No magic number: 0                   no-magic-numbers
+  168:39  warning  No magic number: 0                   no-magic-numbers
+  168:79  warning  No magic number: 0                   no-magic-numbers
+  173:18  warning  No magic number: 500                 no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/presentation/api/recordings.routes.js
+   7:1   warning  Missing JSDoc @returns for function  valid-jsdoc
+  19:43  warning  No magic number: 100                 no-magic-numbers
+  24:40  warning  No magic number: 0                   no-magic-numbers
+  42:18  warning  No magic number: 500                 no-magic-numbers
+  55:18  warning  No magic number: 500                 no-magic-numbers
+  68:18  warning  No magic number: 500                 no-magic-numbers
+  97:18  warning  No magic number: 500                 no-magic-numbers
+
+/opt/stacks/ucm-odoo-middleware/src/presentation/api/router.js
+    23:23   warning  No magic number: 8     no-magic-numbers
+    23:27   warning  No magic number: 60    no-magic-numbers
+    23:32   warning  No magic number: 60    no-magic-numbers
+    23:37   warning  No magic number: 1000  no-magic-numbers
+    43:35   warning  No magic number: 401   no-magic-numbers
+    91:25   warning  No magic number: 401   no-magic-numbers
+    94:32   warning  No magic number: 400   no-magic-numbers
+   109:18   warning  No magic number: 500   no-magic-numbers
+   152:30   warning  No magic number: 200   no-magic-numbers
+   152:36   warning  No magic number: 503   no-magic-numbers
+   157:26   warning  No magic number: 200   no-magic-numbers
+   157:32   warning  No magic number: 503   no-magic-numbers
+   171:25   warning  No magic number: 503   no-magic-numbers
+   180:25   warning  No magic number: 400   no-magic-numbers
+   188:35   warning  No magic number: 401   no-magic-numbers
+   194:18   warning  No magic number: 500   no-magic-numbers
+   209:31   warning  No magic number: 401   no-magic-numbers
+   239:35   warning  No magic number: 2     no-magic-numbers
+   240:27   warning  No magic number: 400   no-magic-numbers
+   248:28   warning  No magic number: 20    no-magic-numbers
+   259:18   warning  No magic number: 500   no-magic-numbers
+   279:47   warning  No magic number: 50    no-magic-numbers
+   280:49   warning  No magic number: 0     no-magic-numbers
+   307:20   warning  No magic number: 500   no-magic-numbers
+   316:29   warning  No magic number: 404   no-magic-numbers
+   320:20   warning  No magic number: 500   no-magic-numbers
+   327:52   warning  No magic number: 50    no-magic-numbers
+   331:20   warning  No magic number: 500   no-magic-numbers
+   345:20   warning  No magic number: 500   no-magic-numbers
+   359:20   warning  No magic number: 500   no-magic-numbers
+   366:50   warning  No magic number: 30    no-magic-numbers
+   370:20   warning  No magic number: 500   no-magic-numbers
+   380:20   warning  No magic number: 500   no-magic-numbers
+   387:52   warning  No magic number: 10    no-magic-numbers
+   388:50   warning  No magic number: 30    no-magic-numbers
+   392:20   warning  No magic number: 500   no-magic-numbers
+   403:47   warning  No magic number: 50    no-magic-numbers
+   404:49   warning  No magic number: 0     no-magic-numbers
+   410:20   warning  No magic number: 500   no-magic-numbers
+   419:29   warning  No magic number: 400   no-magic-numbers
+   424:20   warning  No magic number: 500   no-magic-numbers
+   434:20   warning  No magic number: 500   no-magic-numbers
+   444:20   warning  No magic number: 500   no-magic-numbers
+   472:48   warning  No magic number: 1     no-magic-numbers
+   506:8    warning  No magic number: 500   no-magic-numbers
+   560:42   warning  No magic number: 400   no-magic-numbers
+   571:85   warning  No magic number: 8089  no-magic-numbers
+   576:37   warning  No magic number: 404   no-magic-numbers
+   577:106  warning  No magic number: 0     no-magic-numbers
+   577:108  warning  No magic number: 8     no-magic-numbers
+   583:34   warning  No magic number: 404   no-magic-numbers
+   584:42   warning  No magic number: 400   no-magic-numbers
+   587:38   warning  No magic number: 8089  no-magic-numbers
+   603:37   warning  No magic number: 404   no-magic-numbers
+   618:27   warning  No magic number: 400   no-magic-numbers
+   622:69   warning  No magic number: 36    no-magic-numbers
+   622:80   warning  No magic number: 2     no-magic-numbers
+   622:83   warning  No magic number: 9     no-magic-numbers
+   671:18   warning  No magic number: 500   no-magic-numbers
+   684:27   warning  No magic number: 400   no-magic-numbers
+   691:18   warning  No magic number: 500   no-magic-numbers
+   700:27   warning  No magic number: 400   no-magic-numbers
+   707:18   warning  No magic number: 500   no-magic-numbers
+   715:31   warning  No magic number: 1     no-magic-numbers
+   715:45   warning  No magic number: 5     no-magic-numbers
+   716:27   warning  No magic number: 400   no-magic-numbers
+   723:18   warning  No magic number: 500   no-magic-numbers
+   732:27   warning  No magic number: 404   no-magic-numbers
+   737:18   warning  No magic number: 500   no-magic-numbers
+   752:18   warning  No magic number: 500   no-magic-numbers
+   766:18   warning  No magic number: 500   no-magic-numbers
+   777:27   warning  No magic number: 400   no-magic-numbers
+   796:18   warning  No magic number: 500   no-magic-numbers
+   807:18   warning  No magic number: 500   no-magic-numbers
+   821:18   warning  No magic number: 500   no-magic-numbers
+   832:18   warning  No magic number: 500   no-magic-numbers
+   840:41   warning  No magic number: 400   no-magic-numbers
+   860:39   warning  No magic number: 404   no-magic-numbers
+   867:18   warning  No magic number: 500   no-magic-numbers
+   880:27   warning  No magic number: 404   no-magic-numbers
+   885:18   warning  No magic number: 500   no-magic-numbers
+   895:27   warning  No magic number: 404   no-magic-numbers
+   914:74   warning  No magic number: 0     no-magic-numbers
+   914:78   warning  No magic number: 0     no-magic-numbers
+   920:18   warning  No magic number: 500   no-magic-numbers
+   927:78   warning  No magic number: 20    no-magic-numbers
+   930:18   warning  No magic number: 500   no-magic-numbers
+   938:44   warning  No magic number: 400   no-magic-numbers
+   943:18   warning  No magic number: 500   no-magic-numbers
+   953:27   warning  No magic number: 400   no-magic-numbers
+   962:18   warning  No magic number: 500   no-magic-numbers
+   978:18   warning  No magic number: 500   no-magic-numbers
+   987:27   warning  No magic number: 400   no-magic-numbers
+   992:27   warning  No magic number: 404   no-magic-numbers
+   997:27   warning  No magic number: 404   no-magic-numbers
+  1012:18   warning  No magic number: 500   no-magic-numbers
+  1026:27   warning  No magic number: 400   no-magic-numbers
+  1031:27   warning  No magic number: 404   no-magic-numbers
+  1047:18   warning  No magic number: 500   no-magic-numbers
+  1054:50   warning  No magic number: 50    no-magic-numbers
+  1070:18   warning  No magic number: 500   no-magic-numbers
+  1079:27   warning  No magic number: 404   no-magic-numbers
+  1082:27   warning  No magic number: 404   no-magic-numbers
+  1095:18   warning  No magic number: 500   no-magic-numbers
+  1105:45   warning  No magic number: 2     no-magic-numbers
+  1106:66   warning  No magic number: 1     no-magic-numbers
+  1126:18   warning  No magic number: 500   no-magic-numbers
+
+✖ 595 problems (0 errors, 595 warnings)
+
