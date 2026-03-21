@@ -107,15 +107,23 @@ class CallHandler {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   async _onIncoming(call) {
-    const { uniqueId } = call;
+    const { uniqueId, callerIdNum } = call;
     
-    // Eviter les duplication si l'appel est déjà en cours
+    // Eviter les duplications si l'appel est déjà en cours (même uniqueId ou même numéro)
     if (this._activeCalls.has(uniqueId)) {
       logger.debug('Appel déjà en cours (doublon ignoré)', { uniqueId });
       return;
     }
     
-    const { callerIdNum, callerIdName, exten, agentExten } = call;
+    const existingCallWithSameCaller = [...this._activeCalls.values()].find(
+      c => c.callerIdNum === callerIdNum && c.direction === 'inbound'
+    );
+    if (existingCallWithSameCaller) {
+      logger.debug('Appel déjà en cours (même numéro appelant)', { uniqueId, existingUniqueId: existingCallWithSameCaller.uniqueId, callerIdNum });
+      return;
+    }
+    
+    const { callerIdName, exten, agentExten } = call;
     logger.info('Appel entrant', { from: callerIdNum, to: exten || agentExten, uniqueId });
 
     // Vérifier si le numéro est blacklisté
@@ -344,7 +352,11 @@ class CallHandler {
       // Ignorer les canaux internes Asterisk sans numéro réel
       if (exten === 's' || callerIdNum === 's') { seenIds.add(uniqueId); continue; }
 
-      if (!this._activeCalls.has(uniqueId) && !this._polledCalls.has(uniqueId)) {
+      const existingCallWithSameCaller = [...this._polledCalls.values()].find(
+        c => c.callerIdNum === callerIdNum && !c.isBridged
+      );
+      
+      if (!this._activeCalls.has(uniqueId) && !this._polledCalls.has(uniqueId) && !existingCallWithSameCaller) {
         const isCallerInternal = this._isInternalNumber(callerIdNum);
         const direction        = isCallerInternal ? 'outbound' : 'inbound';
         const agentExten       = isCallerInternal ? callerIdNum : exten;
@@ -385,11 +397,17 @@ class CallHandler {
           const direction        = isCallerInternal ? 'outbound' : 'inbound';
           const agentExten       = isCallerInternal ? callerid : partner;
           const actualCaller     = isCallerInternal ? partner : callerid;
-          const callData = { uniqueId: uid, callerIdNum: callerid, callerIdName: name, exten: partner, isBridged: true, direction, agentExten };
-          this._polledCalls.set(uid, callData);
-          logger.info('Polling: appel déjà décroché à la détection', { uniqueId: uid });
-          this._onIncoming({ uniqueId: uid, callerIdNum: actualCaller, callerIdName: name, exten: partner, agentExten, direction, timestamp: new Date().toISOString() });
-          this._onAnswered({ uniqueId: uid, exten: agentExten, agentExten });
+          const existingCallWithSameCaller = [...this._polledCalls.values()].find(
+            c => c.callerIdNum === callerid && !c.isBridged
+          );
+          
+          if (!existingCallWithSameCaller) {
+            const callData = { uniqueId: uid, callerIdNum: callerid, callerIdName: name, exten: partner, isBridged: true, direction, agentExten };
+            this._polledCalls.set(uid, callData);
+            logger.info('Polling: appel déjà décroché à la détection', { uniqueId: uid });
+            this._onIncoming({ uniqueId: uid, callerIdNum: actualCaller, callerIdName: name, exten: partner, agentExten, direction, timestamp: new Date().toISOString() });
+            this._onAnswered({ uniqueId: uid, exten: agentExten, agentExten });
+          }
         }
       }
     }
