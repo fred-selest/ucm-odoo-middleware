@@ -5,6 +5,9 @@ require('dotenv').config();
 const http         = require('http');
 const express      = require('express');
 const swaggerUi    = require('swagger-ui-express');
+const rateLimit    = require('express-rate-limit');
+const cors         = require('cors');
+const compression  = require('compression');
 const config       = require('./config');
 const logger       = require('./logger');
 const UcmHttpClient  = require('./infrastructure/ucm/UcmHttpClient');
@@ -56,13 +59,30 @@ async function main() {
 
   // ── Serveur HTTP + WebSocket ───────────────────────────────────────────────
   const app        = express();
-  app.use(express.json());
   
-  // Servir les fichiers statiques (favicon, etc.)
-  app.use(express.static(__dirname + '/../public'));
-
-  // Désactiver X-Powered-By
   app.disable('x-powered-by');
+  
+  app.use(compression({ threshold: 1024 }));
+  
+  app.use(cors({
+    origin: config.app.allowedOrigins || ['https://admin.ucm.local'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Token'],
+    credentials: true,
+  }));
+  
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Trop de requêtes, réessayez dans 15 minutes' },
+    skip: (req) => !req.path.startsWith('/api/'),
+  });
+  app.use(apiLimiter);
+  
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
   
   // Routes API
 

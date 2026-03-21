@@ -70,6 +70,24 @@ class WebhookManager extends EventEmitter {
     const info = this._tokens.get(token);
     if (!info) return false;
 
+    const now = Date.now();
+    const timestamp = params.timestamp ? parseInt(params.timestamp, 10) : Math.floor(now / 1000);
+    const expiry = 30 * 24 * 60 * 60 * 1000; // 30 days
+    
+    if (timestamp && (now - timestamp * 1000 > expiry)) {
+      logger.warn('Webhook: événement expiré', { client: info.name, event: params.event });
+      return false;
+    }
+
+    const clientIP = params.client_ip || params.clientIP || params.ip || '';
+    if (info.ucmHost && clientIP) {
+      const allowedIPs = this._getAllowedIPs(clientIP);
+      if (!this._isIPWhitelisted(clientIP, allowedIPs)) {
+        logger.warn('Webhook: IP non autorisée', { client: info.name, ip: clientIP });
+        return false;
+      }
+    }
+
     info.lastUsed  = new Date().toISOString();
     info.callCount = (info.callCount || 0) + 1;
     this._save();
@@ -98,6 +116,28 @@ class WebhookManager extends EventEmitter {
       return false;
     }
     return true;
+  }
+
+  _getAllowedIPs(clientIP) {
+    const info = this._tokens.get(clientIP);
+    if (!info) return [];
+    const host = info.ucmHost;
+    if (!host) return [];
+    return [host];
+  }
+
+  _isIPWhitelisted(ip, allowedHosts) {
+    if (!allowedHosts || allowedHosts.length === 0) return true;
+    return allowedHosts.some(h => h === ip || h === this._resolveHostToIP(ip));
+  }
+
+  _resolveHostToIP(host) {
+    try {
+      const dns = require('dns');
+      return dns.resolve4(host) || host;
+    } catch {
+      return host;
+    }
   }
 
   // ── Persistance ────────────────────────────────────────────────────────────

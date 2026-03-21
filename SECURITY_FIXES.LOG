@@ -1,0 +1,30 @@
+# Security Fixes Applied - UCM ↔ Odoo Middleware
+Date: 2026-03-21
+
+## CRITICAL FIXES (ALL APPLIED ✅)
+
+1. ✅ TLS strict - Changed rejectUnauthorized to true in UcmHttpClient.js
+2. ✅ Rate limiting - Added express-rate-limit middleware (100/15min on /api/*)
+3. ✅ Input validation - Added express-validator with phone/email validation
+4. ✅ CORS - Added cors middleware with whitelist
+5. ✅ Sessions HMAC - Now uses crypto.createHmac('sha256') with API_SECRET_KEY
+6. ✅ Logs - Removed sensitive data from logs (tokens/challenges)
+7. ✅ Webhooks - Added timestamp (30d expiry) and IP whitelist check
+
+## HIGH PRIORITY FIXES (ALL APPLIED ✅)
+
+8. ✅ N+1 queries - Fixed to bulk UPDATE instead of loop
+9. ✅ Timer leaks - Verified CallHandler.disconnect() clears setInterval
+10. ✅ WebSocket timers - _clearTimers() called before connect()
+11. ✅ Connection pooling - HTTP agent with keepAlive:true, maxSockets:50
+12. ✅ SQLite indexes - Added idx_calls_contact_phone and idx_calls_status_direction
+13. ✅ Cache invalidation - createContact() now invalidates cache
+14. ✅ Health thresholds - Memory monitoring (warn >200MB, alert >300MB)
+15. ✅ Compression - Added compression middleware (threshold:1024)
+
+## DEPENDENCIES INSTALLED
+- express-rate-limit
+- compression
+- express-validator
+
+All security fixes completed successfully.

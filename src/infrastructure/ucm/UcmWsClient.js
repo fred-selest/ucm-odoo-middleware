@@ -42,6 +42,7 @@ class UcmWsClient extends EventEmitter {
   connect() {
     if (this._ws) return;
     this._shuttingDown = false;
+    this._clearTimers();
     this._doConnect();
   }
 

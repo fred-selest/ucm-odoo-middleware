@@ -36,6 +36,8 @@ CREATE INDEX IF NOT EXISTS idx_calls_exten ON calls(exten);
 CREATE INDEX IF NOT EXISTS idx_calls_started_at ON calls(started_at);
 CREATE INDEX IF NOT EXISTS idx_calls_status ON calls(status);
 CREATE INDEX IF NOT EXISTS idx_calls_direction ON calls(direction);
+CREATE INDEX IF NOT EXISTS idx_calls_contact_phone ON calls(contact_id, caller_id_num);
+CREATE INDEX IF NOT EXISTS idx_calls_status_direction ON calls(status, direction);
 
 -- Table de blacklist
 CREATE TABLE IF NOT EXISTS blacklist (

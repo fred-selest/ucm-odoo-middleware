@@ -4,6 +4,8 @@ const path       = require('path');
 const fs         = require('fs');
 const { Router } = require('express');
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
+const { body, param, query, validationResult } = require('express-validator');
 const config     = require('../../config');
 const logger     = require('../../logger');
 
@@ -23,7 +25,9 @@ const SESSIONS      = new Map();
 const SESSION_TTL   = 8 * 60 * 60 * 1000;   // 8 heures
 
 function createSession(uid, username) {
-  const token = uuidv4();
+  const payload = `${uid}:${username}:${Date.now()}`;
+  const signature = crypto.createHmac('sha256', config.app.apiSecret || '').update(payload).digest('hex');
+  const token = `${payload}:${signature}`;
   SESSIONS.set(token, { uid, username, expiresAt: Date.now() + SESSION_TTL });
   return token;
 }
@@ -33,6 +37,19 @@ function checkSession(token) {
   const s = SESSIONS.get(token);
   if (!s) return null;
   if (s.expiresAt < Date.now()) { SESSIONS.delete(token); return null; }
+  
+  const parts = token.split(':');
+  if (parts.length < 4) return null;
+  
+  const signature = parts.pop();
+  const payload = parts.join(':');
+  const expectedSig = crypto.createHmac('sha256', config.app.apiSecret || '').update(payload).digest('hex');
+  
+  if (signature !== expectedSig) {
+    SESSIONS.delete(token);
+    return null;
+  }
+  
   return s;
 }
 
@@ -96,7 +113,9 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // ── Test Odoo (sans auth) ────────────────────────────────────────────────
-  router.post('/api/odoo/test', async (req, res) => {
+  router.post('/api/odoo/test', [
+    body('phone').optional().isString().matches(/^[0-9+\s\-().]{5,20}$/),
+  ], validateInput, sanitizeInput, async (req, res) => {
     try {
       const { phone } = req.body || {};
       if (phone) {
@@ -174,7 +193,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // ── Auth : login Odoo ───────────────────────────────────────────────────
-  router.post('/api/auth/login', async (req, res) => {
+  router.post('/api/auth/login', [
+    body('username').isString().trim().notEmpty().escape(),
+    body('password').isString().trim().notEmpty(),
+  ], validateInput, sanitizeInput, async (req, res) => {
     const { username, password } = req.body || {};
     if (!username || !password)
       return res.status(400).json({ error: 'username et password requis' });
@@ -333,7 +355,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     });
 
     // POST /api/calls/:id/notes - Ajouter une note
-    router.post('/api/calls/:id/notes', async (req, res) => {
+    router.post('/api/calls/:id/notes', [
+      param('id').isInt().toMM,
+      body('notes').isString().trim().escape(),
+    ], validateInput, sanitizeInput, async (req, res) => {
       try {
         const { notes } = req.body || {};
         await callHistory.db.run(
@@ -412,7 +437,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     });
 
     // POST /api/blacklist - Ajouter un numéro
-    router.post('/api/blacklist', async (req, res) => {
+    router.post('/api/blacklist', [
+      body('phoneNumber').isString().trim().notEmpty().matches(/^[0-9+\s\-().]{5,20}$/),
+      body('reason').optional().isString().trim().escape(),
+    ], validateInput, sanitizeInput, async (req, res) => {
       try {
         const { phoneNumber, reason } = req.body || {};
         if (!phoneNumber) {
@@ -610,7 +638,11 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   // ═══════════════════════════════════════════════════════════════════════════
 
   // POST /api/calls/dial - Initier un appel click-to-call
-  router.post('/api/calls/dial', async (req, res) => {
+  router.post('/api/calls/dial', [
+    body('phone').isString().trim().notEmpty().matches(/^[0-9+\s\-().]{5,20}$/),
+    body('exten').isString().trim().notEmpty().matches(/^[0-9]{3,5}$/),
+    body('contactId').optional().isInt(),
+  ], validateInput, sanitizeInput, async (req, res) => {
     try {
       const { phone, exten, contactId } = req.body;
       
@@ -677,7 +709,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   // ═══════════════════════════════════════════════════════════════════════════
 
   // POST /api/calls/:uniqueId/notes - Ajouter une note à un appel
-  router.post('/api/calls/:uniqueId/notes', async (req, res) => {
+  router.post('/api/calls/:uniqueId/notes', [
+    param('uniqueId').isString().trim().notEmpty(),
+    body('note').isString().trim().notEmpty().escape(),
+  ], validateInput, sanitizeInput, async (req, res) => {
     try {
       const { note } = req.body;
       if (!note || !note.trim()) {
@@ -693,7 +728,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // PUT /api/calls/:uniqueId/tags - Mettre à jour les tags d'un appel
-  router.put('/api/calls/:uniqueId/tags', async (req, res) => {
+  router.put('/api/calls/:uniqueId/tags', [
+    param('uniqueId').isString().trim().notEmpty(),
+    body('tags').isArray({ min: 1 }).optional(),
+  ], validateInput, sanitizeInput, async (req, res) => {
     try {
       const { tags } = req.body;
       if (!Array.isArray(tags)) {
@@ -709,7 +747,11 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // POST /api/calls/:uniqueId/rate - Noter un appel
-  router.post('/api/calls/:uniqueId/rate', async (req, res) => {
+  router.post('/api/calls/:uniqueId/rate', [
+    param('uniqueId').isString().trim().notEmpty(),
+    body('rating').isInt({ min: 1, max: 5 }),
+    body('notes').optional().isString().trim().escape(),
+  ], validateInput, sanitizeInput, async (req, res) => {
     try {
       const { rating, notes } = req.body;
       if (!rating || rating < 1 || rating > 5) {
@@ -834,7 +876,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // POST /api/calls/:uniqueId/transfer - Transférer un appel
-  router.post('/api/calls/:uniqueId/transfer', async (req, res) => {
+  router.post('/api/calls/:uniqueId/transfer', [
+    param('uniqueId').isString().trim().notEmpty(),
+    body('extension').isString().trim().notEmpty().matches(/^[0-9]{3,5}$/),
+  ], validateInput, sanitizeInput, async (req, res) => {
     try {
       const { extension } = req.body || {};
       if (!extension) return res.status(400).json({ ok: false, error: 'extension requise' });
@@ -932,7 +977,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // POST /api/odoo/contacts/:id/notes - Ajouter une note dans le chatter
-  router.post('/api/odoo/contacts/:id/notes', async (req, res) => {
+  router.post('/api/odoo/contacts/:id/notes', [
+    param('id').isInt(),
+    body('note').isString().trim().notEmpty().escape(),
+  ], validateInput, sanitizeInput, async (req, res) => {
     try {
       const { note } = req.body || {};
       if (!note?.trim()) return res.status(400).json({ ok: false, error: 'Note requise' });
@@ -945,7 +993,11 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // POST /api/odoo/contacts - Créer un nouveau contact
-  router.post('/api/odoo/contacts', async (req, res) => {
+  router.post('/api/odoo/contacts', [
+    body('name').isString().trim().notEmpty().escape(),
+    body('phone').optional().isString().trim().matches(/^[0-9+\s\-().]{5,20}$/),
+    body('email').optional().isString().trim().isEmail().escape(),
+  ], validateInput, sanitizeInput, async (req, res) => {
     try {
       const contactData = req.body;
       
@@ -964,7 +1016,12 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // PUT /api/odoo/contacts/:id - Modifier un contact
-  router.put('/api/odoo/contacts/:id', async (req, res) => {
+  router.put('/api/odoo/contacts/:id', [
+    param('id').isInt(),
+    body('name').optional().isString().trim().escape(),
+    body('phone').optional().isString().trim().matches(/^[0-9+\s\-().]{5,20}$/),
+    body('email').optional().isString().trim().isEmail().escape(),
+  ], validateInput, sanitizeInput, async (req, res) => {
     try {
       const contactId = parseInt(req.params.id);
       const contactData = req.body;
@@ -980,7 +1037,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // POST /api/calls/:uniqueId/link-contact - Associer un contact à un appel
-  router.post('/api/calls/:uniqueId/link-contact', async (req, res) => {
+  router.post('/api/calls/:uniqueId/link-contact', [
+    param('uniqueId').isString().trim().notEmpty(),
+    body('contactId').isInt().notEmpty(),
+  ], validateInput, sanitizeInput, async (req, res) => {
     try {
       const { contactId } = req.body;
       if (!contactId) {
@@ -1018,7 +1078,11 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   // ═══════════════════════════════════════════════════════════════════════════
 
   // POST /api/calls/:uniqueId/recording - Sauvegarder un enregistrement
-  router.post('/api/calls/:uniqueId/recording', async (req, res) => {
+  router.post('/api/calls/:uniqueId/recording', [
+    param('uniqueId').isString().trim().notEmpty(),
+    body('recordingUrl').isString().trim().notEmpty().isURL(),
+    body('duration').optional().isInt(),
+  ], validateInput, sanitizeInput, async (req, res) => {
     try {
       const { recordingUrl, duration } = req.body;
       
@@ -1128,6 +1192,39 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   return router;
+}
+
+function validateInput(req, res, next) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: 'Validation error', details: errors.array() });
+  }
+  next();
+}
+
+function sanitizeInput(req, res, next) {
+  if (req.body) {
+    for (const key in req.body) {
+      if (typeof req.body[key] === 'string') {
+        req.body[key] = req.body[key].trim().replace(/[<>\"'&]/g, '');
+      }
+    }
+  }
+  if (req.query) {
+    for (const key in req.query) {
+      if (typeof req.query[key] === 'string') {
+        req.query[key] = req.query[key].trim().replace(/[<>\"'&]/g, '');
+      }
+    }
+  }
+  if (req.params) {
+    for (const key in req.params) {
+      if (typeof req.params[key] === 'string') {
+        req.params[key] = req.params[key].trim().replace(/[<>\"'&]/g, '');
+      }
+    }
+  }
+  next();
 }
 
 module.exports = createRouter;

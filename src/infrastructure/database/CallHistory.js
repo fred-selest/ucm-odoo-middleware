@@ -690,9 +690,35 @@ class CallHistory {
     if (!phone) return 0;
     try {
       const calls = await this.getCalls({ callerIdNum: phone, limit: 1000 });
-      for (const call of calls) {
-        await this.updateCallContact(call.unique_id, contact);
-      }
+      if (calls.length === 0) return 0;
+      
+      const uniqueIds = calls.map(c => c.unique_id).join('\',\'');
+      await this.db.run(
+        `UPDATE calls SET 
+          contact_id = ?, contact_name = ?, contact_phone = ?, 
+          contact_email = ?, contact_odoo_url = ?, odoo_partner_id = ?, 
+          contact_avatar = ?, contact_street = ?, contact_city = ?,
+          contact_company = ?, contact_zip = ?, contact_country = ?,
+          contact_website = ?, contact_function = ?, contact_mobile = ?
+         WHERE unique_id IN ('${uniqueIds}')`,
+        [
+          contact.id,
+          contact.name,
+          contact.phone,
+          contact.email,
+          contact.odooUrl,
+          contact.partnerId,
+          contact.avatar,
+          contact.street || null,
+          contact.city || null,
+          contact.company || null,
+          contact.zip || null,
+          contact.country || null,
+          contact.website || null,
+          contact.function || null,
+          contact.mobile || null,
+        ]
+      );
       return calls.length;
     } catch (err) {
       logger.error('Erreur updateCallsForPhone', { error: err.message, phone });

@@ -1,6 +1,7 @@
 'use strict';
 
 const axios  = require('axios');
+const https = require('https');
 const config = require('../../config');
 const logger = require('../../logger');
 
@@ -21,6 +22,10 @@ class OdooClient {
       baseURL: config.odoo.url,
       timeout: config.odoo.timeout,
       headers: { 'Content-Type': 'text/xml' },
+      httpsAgent: new https.Agent({
+        keepAlive: true,
+        maxSockets: 50,
+      }),
     });
   }
 
@@ -179,6 +184,8 @@ class OdooClient {
     
     const ids = await this._callModel('res.partner', 'create', [values]);
     logger.info('Odoo: contact créé', { id: ids[0], name: contactData.name });
+    
+    this.invalidateCache(contactData.phone || null);
     
     return this.getContactById(ids[0]);
   }

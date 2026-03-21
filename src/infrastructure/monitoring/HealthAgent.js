@@ -74,6 +74,24 @@ class HealthAgent {
 
     try {
       this.status.uptime = process.uptime();
+      const memUsage = process.memoryUsage();
+      this.status.memory = {
+        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+        heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+        rss: Math.round(memUsage.rss / 1024 / 1024),
+      };
+      
+      if (this.status.memory.heapUsed > 200) {
+        logger.warn('HealthAgent: Augmentation mémoire élevée', {
+          heapUsed: this.status.memory.heapUsed,
+          heapTotal: this.status.memory.heapTotal,
+        });
+        if (!this.alerted && this.status.memory.heapUsed > 300) {
+          logger.error('HealthAgent: ALERTE mémoire critique (>300MB)');
+          this.alerted = true;
+        }
+      }
+      
       this.status.websocket = this.wsServer?.getClientCount?.() > 0 ? 'connected' : 'disconnected';
       
       const dbStats = await this._checkDatabase();

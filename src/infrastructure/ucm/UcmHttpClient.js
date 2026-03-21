@@ -31,15 +31,21 @@ class UcmHttpClient {
    */
   _setupAxios() {
     const tlsOptions = {
-      rejectUnauthorized: config.ucm.tls.rejectUnauthorized !== false,
+      rejectUnauthorized: true,
     };
 
     if (config.ucm.tls.caCert) {
       tlsOptions.ca = config.ucm.tls.caCert;
     }
 
+    const agent = new https.Agent({
+      ...tlsOptions,
+      keepAlive: true,
+      maxSockets: 50,
+    });
+
     this._axiosInstance = axios.create({
-      httpsAgent: new https.Agent(tlsOptions),
+      httpsAgent: agent,
       timeout: config.ucm.timeout || 8000,
       validateStatus: () => true,
       headers: {
@@ -87,7 +93,7 @@ class UcmHttpClient {
     try {
       // Étape 1: Obtenir le challenge
       const challenge = await this._getChallenge(username);
-      logger.debug('UCM HTTP: challenge reçu', { challenge: challenge.substring(0, 8) + '...' });
+      logger.debug('UCM HTTP: challenge reçu');
 
       // Étape 2: Calculer le token MD5
       const token = this._computeToken(challenge, password);
@@ -101,7 +107,7 @@ class UcmHttpClient {
       this._authenticated = true;
       this._reconnectAttempts = 0;
 
-      logger.info('UCM HTTP: authentifié avec succès', { cookie: cookie.substring(0, 15) + '...' });
+      logger.info('UCM HTTP: authentifié avec succès');
       return cookie;
 
     } catch (err) {
