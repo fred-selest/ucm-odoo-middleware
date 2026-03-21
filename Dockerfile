@@ -28,8 +28,8 @@ COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --chown=nodejs:nodejs . .
 
 # Create data and logs directories
-RUN mkdir -p /app/data /app/logs && \
-    chown -R nodejs:nodejs /app/data /app/logs
+RUN mkdir -p /tmp/ucm-odoo-data /app/logs && \
+    chown -R nodejs:nodejs /tmp/ucm-odoo-data /app/logs
 
 # Entrypoint script (s'exécute en root pour fixer les permissions du volume)
 COPY --chown=root:root entrypoint.sh /entrypoint.sh
