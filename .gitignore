@@ -4,9 +4,7 @@ logs/
 *.log
 coverage/
 data/
-CLAUDE.md
 HISTORIQUE_ACTIONS.md
 MIGRATION_PLAN.md
-*.md
-*.js
-*.sh
+SECURITY_AUDIT_*.md
+lint-report.txt
