@@ -182,12 +182,13 @@ class OdooClient {
     if (contactData.function) values.function = contactData.function;
     if (contactData.comment) values.comment = contactData.comment;
     
-    const ids = await this._callModel('res.partner', 'create', [values]);
-    logger.info('Odoo: contact créé', { id: ids[0], name: contactData.name });
-    
+    const result = await this._callModel('res.partner', 'create', [values]);
+    const newId = Array.isArray(result) ? result[0] : result;
+    logger.info('Odoo: contact créé', { id: newId, name: contactData.name });
+
     this.invalidateCache(contactData.phone || null);
-    
-    return this.getContactById(ids[0]);
+
+    return this.getContactById(newId);
   }
 
   async updateContact(contactId, contactData) {
