@@ -45,7 +45,7 @@ src/
 │   ├── database/                 # SQLite (CallHistory, schema)
 │   ├── websocket/                # Serveur WS pour les navigateurs
 │   ├── monitoring/               # HealthAgent (supervision 30s)
-│   └── lookup/                   # Formatage numéros français
+│   └── lookup/                   # Enrichissement SIRENE INSEE
 ├── application/
 │   ├── CallHandler.js            # Orchestration : incoming → answered → hangup
 │   ├── ContactSyncService.js     # Cache contacts + sync CRM
@@ -55,12 +55,58 @@ src/
     └── admin/                    # SPA : HTML, CSS, JS (Bootstrap 5)
 ```
 
+## Modes de connexion UCM
+
+### Mode Webhook (recommandé)
+
+Le PBX envoie les événements d'appels au middleware via des requêtes HTTP POST.
+Aucun accès réseau direct au PBX n'est nécessaire côté middleware — c'est le UCM qui contacte le middleware.
+
+**Prérequis** : le UCM doit pouvoir joindre le middleware en HTTP (configurer l'URL webhook dans l'interface PBX).
+
+### Mode WebSocket
+
+Le middleware se connecte au WebSocket du PBX pour recevoir les événements en temps réel. Plus réactif que le webhook mais nécessite un accès réseau direct au PBX.
+
+**Prérequis** : accès réseau direct au port WebSocket du UCM (généralement 8089). En réseau local ou via VPN.
+
+### CloudUCM (UCM hébergé par Grandstream)
+
+Si votre UCM est un **CloudUCM** (hébergé dans le cloud Grandstream), le mode **WebSocket fonctionne directement** sans VPN car le PBX est accessible sur Internet. Il suffit de renseigner l'adresse publique du CloudUCM dans `UCM_HOST`.
+
+Le mode webhook fonctionne également avec CloudUCM — dans ce cas, configurez l'URL publique du middleware comme cible webhook dans l'interface CloudUCM.
+
+## Enrichissement SIRENE (INSEE)
+
+Le middleware intègre l'API **SIRENE INSEE v3.11** pour enrichir les fiches clients avec les données légales des entreprises françaises : dénomination, adresse, code APE, forme juridique, catégorie d'entreprise.
+
+### Endpoints SIRENE (accès public, sans authentification)
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/sirene/search?q=nom&limit=5` | Recherche par nom d'entreprise |
+| GET | `/api/sirene/siren/:siren` | Fiche par SIREN (9 chiffres) |
+| GET | `/api/sirene/siret/:siret` | Fiche par SIRET (14 chiffres) |
+
+### Obtenir une clé API INSEE
+
+1. Créer une application sur [portail-api.insee.fr](https://portail-api.insee.fr)
+2. Souscrire à l'API Sirene (gratuit)
+3. Ajouter la clé API dans `.env` :
+
+   ```env
+   INSEE_SIRENE_API_KEY=votre-clé-api
+   ```
+
+> **Note** : l'API SIRENE ne contient pas de numéros de téléphone (retirés par l'INSEE, RGPD). L'enrichissement se fait par nom d'entreprise, SIREN ou SIRET.
+
 ## Prérequis
 
 - **Node.js** ≥ 20
 - **Docker** + Docker Compose (déploiement recommandé)
-- Un PBX **Grandstream UCM6xxx** accessible en HTTP/WebSocket
+- Un PBX **Grandstream UCM6xxx** accessible en HTTP/WebSocket (ou CloudUCM)
 - Un compte **Odoo** avec clé API (ou Dolibarr avec DOLAPIKEY)
+- *(Optionnel)* Clé API INSEE SIRENE pour l'enrichissement entreprises
 
 ## Installation
 
@@ -111,6 +157,7 @@ Toute la configuration se fait via le fichier `.env` (voir `.env.example`).
 | `ODOO_API_KEY` | Clé API Odoo | — |
 | `SERVER_PORT` | Port du serveur HTTP | `3000` |
 | `CACHE_CONTACT_TTL` | Cache contacts en secondes | `300` |
+| `INSEE_SIRENE_API_KEY` | Clé API INSEE pour enrichissement SIRENE | — |
 | `LOG_LEVEL` | Niveau de log (debug, info, warn, error) | `info` |
 
 ## API

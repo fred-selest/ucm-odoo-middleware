@@ -21,6 +21,7 @@ const createRouter       = require('./presentation/api/router');
 const createQueuesRouter = require('./presentation/api/queues.routes');
 const swaggerSpec    = require('./config/swagger');
 const HealthAgent    = require('./infrastructure/monitoring/HealthAgent');
+const SireneService  = require('./infrastructure/lookup/SireneService');
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 
@@ -99,9 +100,10 @@ async function main() {
 
   // ── Application ────────────────────────────────────────────────────────────
   const callHandler = new CallHandler(ucmHttpClient, ucmWsClient, crmClient, wsServer, webhookManager, callHistory);
+  const sireneService = new SireneService();
 
   // ── Routes ─────────────────────────────────────────────────────────────────
-  const apiRouter = createRouter({ ucmHttpClient, ucmWsClient, crmClient, wsServer, callHandler, webhookManager, callHistory });
+  const apiRouter = createRouter({ ucmHttpClient, ucmWsClient, crmClient, wsServer, callHandler, webhookManager, callHistory, sireneService });
   app.use('/', apiRouter);
 
   const queuesRouter = createQueuesRouter({ ucmHttpClient, callHistory, wsServer });

@@ -51,12 +51,13 @@ function apiRequireSession(req, res, next) {
   const isPublic =
     !p.startsWith('/api/') ||
     p.startsWith('/api/auth/') ||
+    p.startsWith('/api/sirene/') ||
     p === '/api/odoo/test';
   if (isPublic) return next();
   return requireSession(req, res, next);
 }
 
-function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsServer, callHandler, webhookManager, callHistory }) {
+function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsServer, callHandler, webhookManager, callHistory, sireneService }) {
   // Rétrocompatibilité : accepter odooClient ou crmClient
   const crm = crmClient || odooClient;
   const router = Router();
@@ -1123,6 +1124,55 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       res.json({ ok: true, fetched: records.length, inserted, skipped: records.length - inserted, startTime, endTime });
     } catch (err) {
       logger.error('CDR sync: erreur', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // ── SIRENE INSEE — Enrichissement fiches clients ────────────────────────
+
+  // GET /api/sirene/search?q=nom entreprise
+  router.get('/api/sirene/search', async (req, res) => {
+    try {
+      if (!sireneService?.isConfigured) {
+        return res.status(501).json({ ok: false, error: 'Service SIRENE non configuré (INSEE_SIRENE_API_KEY manquante)' });
+      }
+      const { q, limit } = req.query;
+      if (!q) return res.status(400).json({ ok: false, error: 'Paramètre q requis' });
+
+      const results = await sireneService.searchByName(q, parseInt(limit) || 5);
+      res.json({ ok: true, total: results.length, data: results });
+    } catch (err) {
+      logger.error('SIRENE: erreur recherche', { error: err.message });
+      res.status(err.message.includes('quota') ? 429 : 500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // GET /api/sirene/siren/:siren
+  router.get('/api/sirene/siren/:siren', async (req, res) => {
+    try {
+      if (!sireneService?.isConfigured) {
+        return res.status(501).json({ ok: false, error: 'Service SIRENE non configuré' });
+      }
+      const result = await sireneService.searchBySiren(req.params.siren);
+      if (!result) return res.status(404).json({ ok: false, error: 'SIREN non trouvé' });
+      res.json({ ok: true, data: result });
+    } catch (err) {
+      logger.error('SIRENE: erreur SIREN', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // GET /api/sirene/siret/:siret
+  router.get('/api/sirene/siret/:siret', async (req, res) => {
+    try {
+      if (!sireneService?.isConfigured) {
+        return res.status(501).json({ ok: false, error: 'Service SIRENE non configuré' });
+      }
+      const result = await sireneService.searchBySiret(req.params.siret);
+      if (!result) return res.status(404).json({ ok: false, error: 'SIRET non trouvé' });
+      res.json({ ok: true, data: result });
+    } catch (err) {
+      logger.error('SIRENE: erreur SIRET', { error: err.message });
       res.status(500).json({ ok: false, error: err.message });
     }
   });

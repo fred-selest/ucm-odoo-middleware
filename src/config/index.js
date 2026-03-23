@@ -74,6 +74,11 @@ const config = {
     cacheContactTtl: parseInt(process.env.CACHE_CONTACT_TTL || '300', 10),
   },
 
+  // ── SIRENE INSEE ───────────────────────────────────────────────────────────
+  sirene: {
+    apiKey: process.env.INSEE_SIRENE_API_KEY || '',
+  },
+
   server: {
     port:         parseInt(process.env.SERVER_PORT || '3000', 10),
     wsPath:       process.env.WS_PATH         || '/ws',
