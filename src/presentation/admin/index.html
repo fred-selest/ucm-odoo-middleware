@@ -62,7 +62,7 @@
     <div class="d-flex gap-2">
       <span class="status-badge">
         <span class="status-dot dot-gray" id="wsIndicator"></span>
-        <span id="wsLabel">WebSocket…</span>
+        <span id="wsLabel">Webhook…</span>
       </span>
       <span class="badge bg-primary text-white" id="ucmModeBadge">Webhook</span>
     </div>
@@ -825,9 +825,9 @@
                    </div>
                    <div class="form-check ms-3">
                      <input class="form-check-input" type="radio" name="ucmMode" id="cfgModeWs" value="websocket" onchange="onUcmModeChange()">
-                     <label class="form-check-label small" for="cfgModeWs">
-                       <strong>WebSocket</strong> <span class="text-muted fw-normal">(port 8089 HTTPS — sans VPN)</span>
-                     </label>
+                      <label class="form-check-label small" for="cfgModeWs">
+                        <strong>Webhook</strong> <span class="text-muted fw-normal">(port 8089 HTTPS — sans VPN)</span>
+                      </label>
                    </div>
                  </div>
                </div>
@@ -836,9 +836,9 @@
                 <input type="text" id="cfgUcmHost" class="form-control form-control-sm" placeholder="192.168.10.100">
               </div>
 
-              <!-- WebSocket fields -->
+              <!-- Webhook fields -->
               <div class="col-md-4" id="wsPortField">
-                <label class="form-label small fw-semibold">Port WebSocket</label>
+                <label class="form-label small fw-semibold">Port Webhook</label>
                 <input type="number" id="cfgUcmWebPort" class="form-control form-control-sm" placeholder="8089">
               </div>
               <div class="col-md-4" id="wsUserField">

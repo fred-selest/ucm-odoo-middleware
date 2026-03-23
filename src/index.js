@@ -74,7 +74,7 @@ async function main() {
   
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 5000,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Trop de requêtes, réessayez dans 15 minutes' },
@@ -142,19 +142,19 @@ async function main() {
     const status = await ucmHttpClient.getSystemStatus();
     logger.info('UCM: statut système', status);
     
-    // Connexion WebSocket pour événements
-    ucmWsClient.on('error', (err) => {
-      logger.warn('UCM WS: erreur', { error: err.message });
-    });
+    // Connexion WebSocket pour événements (seulement en mode websocket)
+    if (config.ucm.mode === 'websocket') {
+      ucmWsClient.on('error', (err) => {
+        logger.warn('UCM WS: erreur', { error: err.message });
+      });
 
-    ucmWsClient.connect();
+      ucmWsClient.connect();
+    }
     
   } catch (err) {
     logger.error('UCM: échec connexion', { error: err.message });
     logger.warn('UCM: le middleware fonctionnera sans connexion UCM (webhook uniquement)');
   }
-
-  // ── Agent de supervision ───────────────────────────────────────────────────
   const healthAgent = new HealthAgent();
   healthAgent.start(ucmHttpClient, ucmWsClient || null, crmClient, wsServer, callHistory);
   
