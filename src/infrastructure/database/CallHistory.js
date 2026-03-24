@@ -12,6 +12,11 @@ class CallHistory {
     await this.db.connect();
   }
 
+  // Méthode pour exécuter des requêtes SELECT personnalisées
+  async all(sql, params = []) {
+    return await this.db.all(sql, params);
+  }
+
   // ── CRUD Appels ────────────────────────────────────────────────────────────
 
   async createCall(callData) {
@@ -45,6 +50,15 @@ class CallHistory {
    * @returns {boolean} true si inséré, false si déjà présent
    */
   async createCallFromCdr(cdr) {
+    // Extraire l'URL d'enregistrement du champ recordfiles
+    // Format UCM : "2026-03/auto-174...-6500.wav@" → garder juste le nom du fichier sans @ ni préfixe dossier
+    let recordingUrl = null;
+    const rawFiles = (cdr.recordfiles || '').replace(/@$/g, '').trim();
+    if (rawFiles) {
+      const filename = rawFiles.includes('/') ? rawFiles.split('/').pop() : rawFiles;
+      recordingUrl = `/api/recordings/download/${encodeURIComponent(filename)}`;
+    }
+    
     // Parsing CLID : '"Nom" <numéro>' ou juste 'numéro'
     const clidMatch = String(cdr.clid || '').match(/"([^"]*)" *<([^>]+)>/) || [];
     const callerIdName = clidMatch[1] || '';
@@ -70,10 +84,10 @@ class CallHistory {
       const result = await this.db.run(
         `INSERT OR IGNORE INTO calls
           (unique_id, caller_id_num, caller_id_name, exten, agent_exten, direction,
-           status, started_at, answered_at, hung_up_at, duration)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           status, started_at, answered_at, hung_up_at, duration, recording_url)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [cdr.uniqueid, callerIdNum, callerIdName, exten, exten, direction,
-          status, startedAt, answeredAt, hungUpAt, duration]
+          status, startedAt, answeredAt, hungUpAt, duration, recordingUrl]
       );
       return result.changes > 0;
     } catch (err) {
@@ -116,127 +130,25 @@ class CallHistory {
       
       logger.debug('Appel marqué comme raccroché', { uniqueId, status, duration });
     } catch (err) {
-      logger.error('Erreur mise à jour appel', { error: err.message, uniqueId });
-    }
-  }
-
-  async saveCallRecording(uniqueId, recordingUrl, recordingDuration = null) {
-    try {
-      await this.db.run(
-        `UPDATE calls 
-         SET recording_url = ?, recording_duration = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE unique_id = ?`,
-        [recordingUrl, recordingDuration, uniqueId]
-      );
-      logger.info('Enregistrement associé à l\'appel', { uniqueId, url: recordingUrl });
-      return true;
-    } catch (err) {
-      logger.error('Erreur sauvegarde enregistrement', { error: err.message, uniqueId });
+      logger.error('Erreur mise à jour raccroché', { error: err.message, uniqueId });
       throw err;
     }
   }
 
-  async getCallsWithRecordings(limit = 50) {
-    try {
-      return await this.db.all(
-        `SELECT * FROM calls 
-         WHERE recording_url IS NOT NULL 
-         ORDER BY started_at DESC 
-         LIMIT ?`,
-        [limit]
-      );
-    } catch (err) {
-      logger.error('Erreur récupération appels enregistrés', { error: err.message });
-      return [];
-    }
-  }
-
-  async updateCallContact(uniqueId, contact) {
-    if (!contact) return;
-
+  /**
+   * Met à jour l'URL d'enregistrement d'un appel
+   * @param {string} uniqueId - Unique ID de l'appel
+   * @param {string} recordingUrl - URL de l'enregistrement
+   */
+  async updateCallRecordingUrl(uniqueId, recordingUrl) {
     try {
       await this.db.run(
-        `UPDATE calls 
-         SET contact_id = ?, contact_name = ?, contact_phone = ?, 
-             contact_email = ?, contact_odoo_url = ?, odoo_partner_id = ?, 
-             contact_avatar = ?, contact_street = ?, contact_city = ?,
-             contact_company = ?, contact_zip = ?, contact_country = ?,
-             contact_website = ?, contact_function = ?, contact_mobile = ?
-         WHERE unique_id = ?`,
-        [
-          contact.id,
-          contact.name,
-          contact.phone,
-          contact.email,
-          contact.odooUrl,
-          contact.partnerId,
-          contact.avatar,
-          contact.street || null,
-          contact.city || null,
-          contact.company || null,
-          contact.zip || null,
-          contact.country || null,
-          contact.website || null,
-          contact.function || null,
-          contact.mobile || null,
-          uniqueId
-        ]
+        'UPDATE calls SET recording_url = ? WHERE unique_id = ?',
+        [recordingUrl, uniqueId]
       );
-      logger.debug('Contact associé à l\'appel', { uniqueId, contactName: contact.name });
+      logger.debug('URL enregistrement mise à jour', { uniqueId, recordingUrl });
     } catch (err) {
-      logger.error('Erreur mise à jour contact', { error: err.message, uniqueId });
-    }
-  }
-
-  // ── Notes et Tags ───────────────────────────────────────────────────────────
-
-  async addCallNote(uniqueId, note, createdBy = 'system') {
-    try {
-      const call = await this.getCallByUniqueId(uniqueId);
-      if (!call) throw new Error('Appel non trouvé');
-      
-      const existingNotes = call.notes || '';
-      const newNote = `[${new Date().toLocaleString('fr-FR')}] ${createdBy}: ${note}\n${existingNotes}`;
-      
-      await this.db.run(
-        'UPDATE calls SET notes = ?, updated_at = CURRENT_TIMESTAMP WHERE unique_id = ?',
-        [newNote, uniqueId]
-      );
-      logger.info('Note ajoutée à l\'appel', { uniqueId, createdBy });
-      return true;
-    } catch (err) {
-      logger.error('Erreur ajout note', { error: err.message, uniqueId });
-      throw err;
-    }
-  }
-
-  async updateCallTags(uniqueId, tags) {
-    try {
-      const tagsJson = Array.isArray(tags) ? JSON.stringify(tags) : tags;
-      await this.db.run(
-        'UPDATE calls SET tags = ?, updated_at = CURRENT_TIMESTAMP WHERE unique_id = ?',
-        [tagsJson, uniqueId]
-      );
-      logger.info('Tags mis à jour', { uniqueId, tags });
-      return true;
-    } catch (err) {
-      logger.error('Erreur mise à jour tags', { error: err.message, uniqueId });
-      throw err;
-    }
-  }
-
-  async rateCall(uniqueId, rating, notes = '') {
-    try {
-      if (rating < 1 || rating > 5) throw new Error('Rating must be between 1 and 5');
-      
-      await this.db.run(
-        'UPDATE calls SET rating = ?, notes = COALESCE(?, notes), updated_at = CURRENT_TIMESTAMP WHERE unique_id = ?',
-        [rating, notes, uniqueId]
-      );
-      logger.info('Appel noté', { uniqueId, rating });
-      return true;
-    } catch (err) {
-      logger.error('Erreur notation appel', { error: err.message, uniqueId });
+      logger.error('Erreur mise à jour URL enregistrement', { error: err.message, uniqueId });
       throw err;
     }
   }

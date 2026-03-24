@@ -523,7 +523,6 @@ class UcmHttpClient {
       request: {
         action: 'recapi',
         cookie: this._cookie,
-        filedir: 'monitor',
         filename,
       }
     };

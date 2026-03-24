@@ -74,13 +74,22 @@ function renderJournalTable(calls, tbody) {
     const dur = c.duration != null && c.duration > 0
       ? (c.duration >= 60 ? Math.floor(c.duration / 60) + 'min ' + (c.duration % 60) + 's' : c.duration + 's')
       : '—';
+    
+    // Bouton de lecture audio si enregistrement disponible
+    let playBtn = '';
+    if (c.recording_url) {
+      playBtn = `<button class="btn btn-sm btn-outline-primary py-0 px-1 me-1" onclick="playRecording('${esc(c.recording_url)}')" title="Écouter l'enregistrement">
+        <i class="bi bi-play-fill" style="font-size:.75rem"></i>
+      </button>`;
+    }
+    
     const blockBtn = c.caller_id_num
       ? `<button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="blockFromJournal('${esc(c.caller_id_num)}')" title="Bloquer ce numéro"><i class="bi bi-slash-circle" style="font-size:.75rem"></i></button>`
       : '';
     return `<tr>
       <td class="text-muted small" style="white-space:nowrap">${dateStr} <strong>${timeStr}</strong></td>
       <td>${dir}</td>
-      <td>${phoneLink(c.caller_id_num)} ${blockBtn}</td>
+      <td>${phoneLink(c.caller_id_num)} ${playBtn}${blockBtn}</td>
       <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(exten)}</span></td>
       <td>${contact}</td>
       <td class="small text-nowrap">${dur}</td>

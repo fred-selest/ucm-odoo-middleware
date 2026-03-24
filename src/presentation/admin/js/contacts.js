@@ -141,9 +141,12 @@ async function loadQuickHistory(contact) {
       callResult.data.forEach(c => {
         const dt  = new Date(c.started_at.replace(' ', 'T') + 'Z');
         const dur = c.duration > 0 ? ` · ${c.duration >= 60 ? Math.floor(c.duration / 60) + 'min ' : ''}${c.duration % 60}s` : '';
+        const recBtn = c.recording_url
+          ? `<button class="btn btn-sm btn-outline-danger py-0 px-1 ms-1" onclick="playRecording('${esc(c.recording_url)}')" title="Écouter"><i class="bi bi-play-fill" style="font-size:.7rem"></i></button>`
+          : '';
         items.push({ dt, html:
-          `<div class="d-flex justify-content-between py-1 border-bottom">
-            <span>${icons[c.status] || '📞'} ${labels[c.status] || c.status}${dur}</span>
+          `<div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+            <span>${icons[c.status] || '📞'} ${labels[c.status] || c.status}${dur}${recBtn}</span>
             <span class="text-muted">${dt.toLocaleDateString('fr-FR',{ day:'2-digit',month:'2-digit' })}</span>
           </div>` });
       });
@@ -433,11 +436,20 @@ async function openContactHistory() {
     document.getElementById('contactHistoryBody').innerHTML = calls.map(c => {
       const dt = new Date(c.timestamp || c.startTime).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
       const dur = c.duration > 0 ? (c.duration >= 60 ? Math.floor(c.duration / 60) + 'min ' + c.duration % 60 + 's' : c.duration + 's') : '—';
+      
+      // Bouton de lecture si enregistrement disponible
+      let playBtn = '';
+      if (c.recording_url) {
+        playBtn = `<button class="btn btn-sm btn-outline-primary py-0 px-1 me-1" onclick="playRecording('${esc(c.recording_url)}')" title="Écouter l'enregistrement">
+          <i class="bi bi-play-fill" style="font-size:.75rem"></i>
+        </button>`;
+      }
+      
       return `<tr>
         <td class="small">${esc(dt)}</td>
         <td class="small">${c.direction === 'outbound' ? '↗ Sortant' : '↘ Entrant'}</td>
         <td class="small">${esc(c.exten || '—')}</td>
-        <td class="small">${dur}</td>
+        <td class="small">${dur} ${playBtn}</td>
         <td>${STATUS[c.status] || esc(c.status || '—')}</td>
       </tr>`;
     }).join('');

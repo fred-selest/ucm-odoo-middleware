@@ -294,13 +294,13 @@ class OdooClient {
       if (!existing?.country?.trim()) values.country_id = 75; // France
     }
 
-    // Marquer comme société (ne pas écraser le nom saisi par l'utilisateur)
-    values.is_company = true;
-
     if (Object.keys(values).length === 0) {
       logger.warn('Odoo SIRENE: aucun champ à enrichir', { partnerId });
       return null;
     }
+
+    // Marquer comme société
+    values.is_company = true;
 
     await this._callModel('res.partner', 'write', [[partnerId], values]);
     logger.info('Odoo: contact enrichi via SIRENE', { partnerId, siret: sireneData.siret });

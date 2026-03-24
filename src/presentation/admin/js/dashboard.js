@@ -160,15 +160,24 @@ async function loadDashRecordings() {
       el.innerHTML = '<div class="text-muted small text-center py-3">Aucun enregistrement</div>';
       return;
     }
-    el.innerHTML = recs.map(rec => `
+    el.innerHTML = recs.map(rec => {
+      const dt = rec.started_at ? new Date(rec.started_at.replace(' ', 'T') + 'Z') : null;
+      const time = dt ? dt.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' }) + ' ' + dt.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' }) : '';
+      return `
       <div class="d-flex align-items-center gap-2 py-1 border-bottom">
-        <i class="bi bi-mic-fill text-danger"></i>
-        <div class="flex-grow-1 small">
-          <span class="fw-semibold">${esc(rec.callerIdNum || rec.caller_id || '—')}</span>
-          ${rec.contactName ? `<span class="text-muted ms-1">(${esc(rec.contactName)})</span>` : ''}
+        <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="playRecording('${esc(rec.recording_url)}')" title="Écouter">
+          <i class="bi bi-play-fill"></i>
+        </button>
+        <div class="flex-grow-1 small text-truncate">
+          <span class="fw-semibold">${esc(rec.contact_name || rec.caller_id_num || '—')}</span>
+          ${rec.contact_name && rec.caller_id_num ? `<span class="text-muted ms-1">${esc(rec.caller_id_num)}</span>` : ''}
         </div>
-        <span class="text-muted small">${fmtDur(rec.duration || 0)}</span>
-      </div>`).join('');
+        <div class="text-end small text-nowrap">
+          <span class="text-muted">${fmtDur(rec.duration || 0)}</span>
+          <div class="text-muted" style="font-size:.7rem">${time}</div>
+        </div>
+      </div>`;
+    }).join('');
   } catch { /* ignore */ }
 }
 

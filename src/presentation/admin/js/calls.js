@@ -72,6 +72,86 @@ function callHtml(call, status) {
     <td><span class="badge ${badges[status]}">${labels[status]}</span></td>`;
 }
 
+// ── Audio Player ─────────────────────────────────────────────────────────────
+
+let _playerContainer = null;
+let _playerAudio = null;
+
+function playRecording(url) {
+  // Arrêter et fermer le lecteur précédent
+  if (_playerAudio) { _playerAudio.pause(); _playerAudio.src = ''; _playerAudio = null; }
+  if (_playerContainer) { _playerContainer.remove(); _playerContainer = null; }
+
+  const container = document.createElement('div');
+  container.id = 'audioPlayerBar';
+  container.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1e293b;color:#f1f5f9;padding:12px 20px;box-shadow:0 -4px 20px rgba(0,0,0,.4);display:flex;align-items:center;gap:14px;font-size:.85rem';
+
+  const fmtTime = s => { if (!s || !isFinite(s)) return '0:00'; const m = Math.floor(s/60); return m + ':' + String(Math.floor(s%60)).padStart(2,'0'); };
+
+  container.innerHTML = `
+    <button id="apPlayBtn" class="btn btn-sm btn-light rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;flex-shrink:0">
+      <i class="bi bi-play-fill" style="font-size:1.1rem"></i>
+    </button>
+    <span id="apCurrent" style="min-width:38px;text-align:right;font-variant-numeric:tabular-nums">0:00</span>
+    <div style="flex:1;position:relative;height:6px;background:#475569;border-radius:3px;cursor:pointer" id="apTrack">
+      <div id="apProgress" style="height:100%;background:#3b82f6;border-radius:3px;width:0%;pointer-events:none"></div>
+      <div id="apThumb" style="position:absolute;top:50%;transform:translate(-50%,-50%);left:0%;width:14px;height:14px;background:#fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4);pointer-events:none"></div>
+    </div>
+    <span id="apDuration" style="min-width:38px;font-variant-numeric:tabular-nums">0:00</span>
+    <a href="${url}" download title="Télécharger" class="btn btn-sm btn-outline-light rounded-circle d-flex align-items-center justify-content-center" style="width:32px;height:32px;flex-shrink:0">
+      <i class="bi bi-download" style="font-size:.8rem"></i>
+    </a>
+    <button id="apCloseBtn" class="btn btn-sm btn-outline-light rounded-circle d-flex align-items-center justify-content-center" style="width:32px;height:32px;flex-shrink:0">
+      <i class="bi bi-x-lg" style="font-size:.8rem"></i>
+    </button>
+  `;
+
+  document.body.appendChild(container);
+  _playerContainer = container;
+
+  const audio = new Audio(url);
+  _playerAudio = audio;
+  const playBtn = container.querySelector('#apPlayBtn');
+  const track   = container.querySelector('#apTrack');
+  const prog    = container.querySelector('#apProgress');
+  const thumb   = container.querySelector('#apThumb');
+  const curEl   = container.querySelector('#apCurrent');
+  const durEl   = container.querySelector('#apDuration');
+
+  audio.addEventListener('loadedmetadata', () => { durEl.textContent = fmtTime(audio.duration); });
+  audio.addEventListener('timeupdate', () => {
+    if (!audio.duration) return;
+    const pct = (audio.currentTime / audio.duration) * 100;
+    prog.style.width = pct + '%';
+    thumb.style.left = pct + '%';
+    curEl.textContent = fmtTime(audio.currentTime);
+  });
+  audio.addEventListener('ended', () => { playBtn.querySelector('i').className = 'bi bi-play-fill'; });
+
+  playBtn.onclick = () => {
+    if (audio.paused) { audio.play(); playBtn.querySelector('i').className = 'bi bi-pause-fill'; }
+    else { audio.pause(); playBtn.querySelector('i').className = 'bi bi-play-fill'; }
+  };
+
+  // Clic / drag sur la barre de progression
+  const seek = e => {
+    const rect = track.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    audio.currentTime = pct * audio.duration;
+  };
+  track.addEventListener('mousedown', e => {
+    seek(e);
+    const onMove = ev => seek(ev);
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  container.querySelector('#apCloseBtn').onclick = () => { audio.pause(); audio.src = ''; _playerAudio = null; container.remove(); _playerContainer = null; };
+
+  audio.play().then(() => { playBtn.querySelector('i').className = 'bi bi-pause-fill'; }).catch(() => {});
+}
+
 // ── Incoming Call Popup ─────────────────────────────────────────────────────
 let incomingCallModal;
 let currentIncomingCall = null;
@@ -253,10 +333,13 @@ function callHtmlFromHistory(call) {
   const callbackBtn = (call.status === 'missed' && call.caller_id_num)
     ? ` <button class="btn btn-callback btn-outline-success" title="Rappeler" onclick="dialNumber('${esc(call.caller_id_num)}')"><i class="bi bi-telephone-outbound"></i></button>`
     : '';
+  const recBtn = call.recording_url
+    ? ` <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="playRecording('${esc(call.recording_url)}')" title="Écouter l'enregistrement"><i class="bi bi-play-fill" style="font-size:.7rem"></i></button>`
+    : '';
   return `<td class="text-muted small">${t}</td>
     <td class="text-center">${dir}</td>
     <td>${phoneLink(call.caller_id_num)}${callbackBtn}</td>
     <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(exten)}</span></td>
     <td class="td-contact">${contactHtml}</td>
-    <td><span class="badge ${call.status === 'hangup' && call.answered_at ? 'bg-success' : (statusBadges[call.status] || 'bg-secondary')}">${call.status === 'hangup' && call.answered_at ? 'Décroché' : (statusLabels[call.status] || call.status || '—')}</span></td>`;
+    <td><span class="badge ${call.status === 'hangup' && call.answered_at ? 'bg-success' : (statusBadges[call.status] || 'bg-secondary')}">${call.status === 'hangup' && call.answered_at ? 'Décroché' : (statusLabels[call.status] || call.status || '—')}</span>${recBtn}</td>`;
 }
