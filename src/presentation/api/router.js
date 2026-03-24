@@ -58,7 +58,7 @@ function apiRequireSession(req, res, next) {
   return requireSession(req, res, next);
 }
 
-function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsServer, callHandler, webhookManager, callHistory, sireneService }) {
+function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsServer, callHandler, webhookManager, callHistory, sireneService, annuaireService }) {
   // Rétrocompatibilité : accepter odooClient ou crmClient
   const crm = crmClient || odooClient;
   const router = Router();
@@ -1178,6 +1178,20 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     }
   });
 
+  // ── Annuaire Entreprises (data.gouv.fr) — recherche enrichie ──────────────
+
+  router.get('/api/annuaire/search', async (req, res) => {
+    try {
+      const { q, limit } = req.query;
+      if (!q) return res.status(400).json({ ok: false, error: 'Paramètre q requis' });
+      const results = await annuaireService.searchByName(q, parseInt(limit) || 5);
+      res.json({ ok: true, total: results.length, data: results });
+    } catch (err) {
+      logger.error('Annuaire: erreur recherche', { error: err.message });
+      res.status(err.message.includes('rate') ? 429 : 500).json({ ok: false, error: err.message });
+    }
+  });
+
   // ── SIRENE — Enrichissement automatique d'un contact CRM ─────────────────
 
   /**
@@ -1199,11 +1213,12 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       if (!partnerId) return res.status(400).json({ ok: false, error: 'partnerId requis' });
 
       let sireneData = null;
+      let usedSource = 'sirene_insee';
 
       // Priorité : SIRET > SIREN > nom entreprise > nom du contact Odoo
-      if (siret) {
+      if (siret && sireneService?.isConfigured) {
         sireneData = await sireneService.searchBySiret(siret);
-      } else if (siren) {
+      } else if (siren && sireneService?.isConfigured) {
         const ul = await sireneService.searchBySiren(siren);
         if (ul?.siretSiege) {
           sireneData = await sireneService.searchBySiret(ul.siretSiege);
@@ -1213,12 +1228,22 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
         const searchName = companyName || await _getPartnerName(crm, partnerId);
         if (!searchName) return res.status(400).json({ ok: false, error: 'Impossible de déterminer le nom à rechercher' });
 
-        const results = await sireneService.searchByName(searchName, 5);
-        // Prendre le siège actif en priorité
-        sireneData = results.find(e => e.siege && e.actif) || results.find(e => e.actif) || results[0];
+        // 1. Essayer SIRENE INSEE d'abord
+        if (sireneService?.isConfigured) {
+          const results = await sireneService.searchByName(searchName, 5);
+          sireneData = results.find(e => e.siege && e.actif) || results.find(e => e.actif) || results[0];
+        }
+
+        // 2. Fallback Annuaire Entreprises si SIRENE ne trouve rien
+        if (!sireneData && annuaireService) {
+          logger.info('SIRENE: aucun résultat, fallback Annuaire Entreprises', { searchName });
+          const results = await annuaireService.searchByName(searchName, 5);
+          sireneData = results.find(e => e.siege && e.actif) || results.find(e => e.actif) || results[0];
+          if (sireneData) usedSource = 'annuaire_entreprises';
+        }
       }
 
-      if (!sireneData) return res.status(404).json({ ok: false, error: 'Aucun résultat SIRENE' });
+      if (!sireneData) return res.status(404).json({ ok: false, error: 'Aucun résultat SIRENE ni Annuaire Entreprises' });
 
       // Enrichir via l'adaptateur CRM (Odoo ou Dolibarr)
       if (!crm.enrichFromSirene) {
@@ -1240,10 +1265,6 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
    */
   router.post('/api/webhook/odoo/partner', async (req, res) => {
     try {
-      if (!sireneService?.isConfigured) {
-        return res.status(501).json({ ok: false, error: 'Service SIRENE non configuré' });
-      }
-
       const record = req.body || {};
       const partnerId = record.id;
       if (!partnerId) return res.status(400).json({ ok: false, error: 'id partenaire manquant' });
@@ -1258,22 +1279,33 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
         return res.json({ ok: true, skipped: true, reason: 'pas de nom d\'entreprise exploitable' });
       }
 
-      logger.info('Webhook Odoo → enrichissement SIRENE', { partnerId, name: searchName });
+      logger.info('Webhook Odoo → enrichissement', { partnerId, name: searchName });
 
-      const results = await sireneService.searchByName(searchName, 5);
-      const sireneData = results.find(e => e.siege && e.actif) || results.find(e => e.actif) || results[0];
+      // 1. Essayer SIRENE INSEE
+      let sireneData = null;
+      if (sireneService?.isConfigured) {
+        const results = await sireneService.searchByName(searchName, 5);
+        sireneData = results.find(e => e.siege && e.actif) || results.find(e => e.actif) || results[0];
+      }
+
+      // 2. Fallback Annuaire Entreprises
+      if (!sireneData && annuaireService) {
+        logger.info('Webhook: fallback Annuaire Entreprises', { partnerId, name: searchName });
+        const results = await annuaireService.searchByName(searchName, 5);
+        sireneData = results.find(e => e.siege && e.actif) || results.find(e => e.actif) || results[0];
+      }
 
       if (!sireneData) {
-        return res.json({ ok: true, skipped: true, reason: 'aucun résultat SIRENE' });
+        return res.json({ ok: true, skipped: true, reason: 'aucun résultat SIRENE ni Annuaire' });
       }
 
       if (crm.enrichFromSirene) {
         await crm.enrichFromSirene(partnerId, sireneData);
       }
 
-      res.json({ ok: true, enriched: true, siret: sireneData.siret });
+      res.json({ ok: true, enriched: true, siret: sireneData.siret, source: sireneData.source });
     } catch (err) {
-      logger.error('Webhook SIRENE: erreur', { error: err.message });
+      logger.error('Webhook enrichissement: erreur', { error: err.message });
       res.status(500).json({ ok: false, error: err.message });
     }
   });
