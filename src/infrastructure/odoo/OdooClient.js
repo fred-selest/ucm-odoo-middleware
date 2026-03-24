@@ -291,11 +291,8 @@ class OdooClient {
       values.country_id = 75; // France
     }
 
-    // Dénomination → name (si société)
-    if (sireneData.denomination) {
-      values.is_company = true;
-      values.name = sireneData.denomination;
-    }
+    // Marquer comme société (ne pas écraser le nom saisi par l'utilisateur)
+    values.is_company = true;
 
     if (Object.keys(values).length === 0) {
       logger.warn('Odoo SIRENE: aucun champ à enrichir', { partnerId });
