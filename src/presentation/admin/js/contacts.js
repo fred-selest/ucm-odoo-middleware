@@ -144,10 +144,15 @@ async function loadQuickHistory(contact) {
         const recBtn = c.recording_url
           ? `<button class="btn btn-sm btn-outline-danger py-0 px-1 ms-1" onclick="playRecording('${esc(c.recording_url)}')" title="Écouter"><i class="bi bi-play-fill" style="font-size:.7rem"></i></button>`
           : '';
+        const transHtml = c.transcription
+          ? `<div class="small text-muted mt-1" style="font-size:.75rem"><i class="bi bi-chat-left-text me-1"></i>${esc(c.transcription.slice(0, 120))}${c.transcription.length > 120 ? '…' : ''}</div>`
+          : '';
         items.push({ dt, html:
-          `<div class="d-flex justify-content-between align-items-center py-1 border-bottom">
-            <span>${icons[c.status] || '📞'} ${labels[c.status] || c.status}${dur}${recBtn}</span>
-            <span class="text-muted">${dt.toLocaleDateString('fr-FR',{ day:'2-digit',month:'2-digit' })}</span>
+          `<div class="py-1 border-bottom">
+            <div class="d-flex justify-content-between align-items-center">
+              <span>${icons[c.status] || '📞'} ${labels[c.status] || c.status}${dur}${recBtn}</span>
+              <span class="text-muted">${dt.toLocaleDateString('fr-FR',{ day:'2-digit',month:'2-digit' })}</span>
+            </div>${transHtml}
           </div>` });
       });
     }

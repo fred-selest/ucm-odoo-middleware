@@ -153,6 +153,27 @@ class CallHistory {
     }
   }
 
+  async updateCallTranscription(uniqueId, transcription) {
+    await this.db.run(
+      'UPDATE calls SET transcription = ? WHERE unique_id = ?',
+      [transcription, uniqueId]
+    );
+    logger.debug('Transcription mise à jour', { uniqueId, length: transcription?.length });
+  }
+
+  async getCallsNeedingTranscription(limit = 5) {
+    return await this.db.all(
+      `SELECT id, unique_id, recording_url, caller_id_num, contact_name, odoo_partner_id, duration
+       FROM calls
+       WHERE recording_url IS NOT NULL AND recording_url != ''
+         AND (transcription IS NULL OR transcription = '')
+         AND status IN ('hangup', 'answered')
+       ORDER BY started_at DESC
+       LIMIT ?`,
+      [limit]
+    );
+  }
+
   // ── Statuts Agent (Ringover style) ─────────────────────────────────────────
 
   async updateAgentStatus(exten, status) {

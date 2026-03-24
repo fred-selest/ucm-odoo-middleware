@@ -81,7 +81,7 @@ function _flattenCdrRecords(records) {
   return flat;
 }
 
-function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsServer, callHandler, webhookManager, callHistory, sireneService, annuaireService, googlePlacesService, spamScoreService }) {
+function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsServer, callHandler, webhookManager, callHistory, sireneService, annuaireService, googlePlacesService, spamScoreService, cdrSyncService }) {
   // Rétrocompatibilité : accepter odooClient ou crmClient
   const crm = crmClient || odooClient;
   const router = Router();
@@ -1230,6 +1230,38 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     }
   });
 
+  // GET /api/calls/:uniqueId/transcription - Récupérer la transcription d'un appel
+  router.get('/api/calls/:uniqueId/transcription', async (req, res) => {
+    try {
+      const call = await callHistory.getCallByUniqueId(req.params.uniqueId);
+      if (!call) return res.status(404).json({ ok: false, error: 'Appel non trouvé' });
+      res.json({ ok: true, transcription: call.transcription || null });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // POST /api/calls/:uniqueId/transcribe - Lancer la transcription d'un appel
+  router.post('/api/calls/:uniqueId/transcribe', async (req, res) => {
+    try {
+      if (!cdrSyncService?._whisper?.isEnabled) {
+        return res.status(400).json({ ok: false, error: 'Whisper non activé' });
+      }
+      const call = await callHistory.getCallByUniqueId(req.params.uniqueId);
+      if (!call) return res.status(404).json({ ok: false, error: 'Appel non trouvé' });
+      if (!call.recording_url) return res.status(400).json({ ok: false, error: 'Pas d\'enregistrement' });
+
+      const cmd = await cdrSyncService._whisper._detectCommand();
+      if (!cmd) return res.status(500).json({ ok: false, error: 'Whisper non disponible' });
+
+      const text = await cdrSyncService._whisper._transcribeCall(call, cmd);
+      res.json({ ok: true, transcription: text || null });
+    } catch (err) {
+      logger.error('API transcribe: erreur', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
   // GET /api/recordings - Liste des appels avec enregistrements (depuis la base de données)
   router.get('/api/recordings', async (req, res) => {
     try {
@@ -1330,29 +1362,11 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   // POST /api/calls/sync-cdr?startTime=...&endTime=...
   router.post('/api/calls/sync-cdr', async (req, res) => {
     try {
-      // Par défaut : aujourd'hui de 00:00 à maintenant
-      const now   = new Date();
-      const pad   = n => String(n).padStart(2, '0');
-      const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-      const startTime = req.query.startTime || req.body?.startTime || `${today} 00:00:00`;
-      const endTime   = req.query.endTime   || req.body?.endTime
-        || `${today} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-
-      logger.info('CDR sync: démarrage', { startTime, endTime });
-      const { records, total } = await ucmHttpClient.fetchCdr(startTime, endTime);
-      logger.info('CDR sync: enregistrements récupérés', { total, fetched: records.length });
-
-      // Aplatir les CDR imbriqués (main_cdr, sub_cdr_1, sub_cdr_2...)
-      const flatRecords = _flattenCdrRecords(records);
-
-      let inserted = 0;
-      for (const cdr of flatRecords) {
-        const ok = await callHistory.createCallFromCdr(cdr);
-        if (ok) inserted++;
-      }
-
-      logger.info('CDR sync: terminée', { inserted, skipped: flatRecords.length - inserted });
-      res.json({ ok: true, fetched: records.length, flattened: flatRecords.length, inserted, skipped: flatRecords.length - inserted, startTime, endTime });
+      const result = await cdrSyncService.syncNow({
+        startTime: req.query.startTime || req.body?.startTime,
+        endTime:   req.query.endTime   || req.body?.endTime,
+      });
+      res.json({ ok: true, ...result });
     } catch (err) {
       logger.error('CDR sync: erreur', { error: err.message });
       res.status(500).json({ ok: false, error: err.message });
@@ -1368,7 +1382,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
    */
   router.post('/api/calls/resolve', async (req, res) => {
     try {
-      const result = await _resolveUnknownCalls(crm, callHistory, wsServer);
+      const result = await cdrSyncService.resolveContacts();
       res.json({ ok: true, ...result });
     } catch (err) {
       logger.error('Résolution appels: erreur', { error: err.message });
@@ -1538,7 +1552,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       const finalContact = await crm.getContactFull(partnerId);
 
       // Re-résoudre les appels « Inconnu » en arrière-plan
-      _resolveUnknownCalls(crm, callHistory, wsServer).catch(() => {});
+      cdrSyncService.resolveContacts().catch(() => {});
 
       res.json({ ok: true, data: { contact: finalContact, sirene: sireneData, places: placesData } });
     } catch (err) {
@@ -1621,7 +1635,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       }
 
       // Re-résoudre les appels « Inconnu » en arrière-plan
-      _resolveUnknownCalls(crm, callHistory, wsServer).catch(() => {});
+      cdrSyncService.resolveContacts().catch(() => {});
 
       res.json({ ok: true, enriched: true, siret: sireneData.siret, source: sireneData.source });
     } catch (err) {
@@ -1639,37 +1653,6 @@ async function _getPartnerName(crm, partnerId) {
     const contact = await crm.getContactFull(partnerId);
     return contact?.company || contact?.name || null;
   } catch { return null; }
-}
-
-/**
- * Parcourt les appels « Inconnu » et tente de les résoudre via Odoo.
- */
-async function _resolveUnknownCalls(crm, callHistory, wsServer) {
-  const rows = await callHistory.getUnresolvedPhones(200);
-  if (rows.length === 0) return { checked: 0, resolved: 0 };
-
-  let resolved = 0;
-  for (const row of rows) {
-    try {
-      const contact = await crm.findContactByPhone(row.caller_id_num);
-      if (contact && contact.name && !contact.name.startsWith('Inconnu ')) {
-        const count = await callHistory.resolveCallsByPhone(row.caller_id_num, contact);
-        if (count > 0) {
-          resolved += count;
-          logger.info('Appels résolus', { phone: row.caller_id_num, name: contact.name, count });
-        }
-      }
-    } catch (err) {
-      logger.warn('Résolution appel: erreur', { phone: row.caller_id_num, error: err.message });
-    }
-  }
-
-  if (resolved > 0 && wsServer) {
-    wsServer.broadcast({ type: 'calls_updated', resolved });
-  }
-
-  logger.info('Résolution appels terminée', { checked: rows.length, resolved });
-  return { checked: rows.length, resolved };
 }
 
 module.exports = createRouter;

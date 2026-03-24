@@ -42,6 +42,14 @@ class Database {
     }
     
     logger.info('Schéma de base de données initialisé');
+
+    // Migrations : ajout de colonnes manquantes (ignoré si déjà présentes)
+    const migrations = [
+      'ALTER TABLE calls ADD COLUMN transcription TEXT',
+    ];
+    for (const sql of migrations) {
+      try { await this.run(sql); } catch { /* colonne déjà existante */ }
+    }
   }
 
   run(sql, params = []) {

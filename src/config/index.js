@@ -84,6 +84,21 @@ const config = {
     placesApiKey: process.env.GOOGLE_PLACES_API_KEY || '',
   },
 
+  // ── CDR Auto-Sync ──────────────────────────────────────────────────────
+  cdrSync: {
+    enabled:    (process.env.CDR_SYNC_ENABLED || 'true') === 'true',
+    intervalMs: parseInt(process.env.CDR_SYNC_INTERVAL_MS || '300000', 10),
+  },
+
+  // ── Whisper Transcription ──────────────────────────────────────────────
+  whisper: {
+    enabled:  (process.env.WHISPER_ENABLED || 'false') === 'true',
+    model:    process.env.WHISPER_MODEL    || 'base',
+    language: process.env.WHISPER_LANGUAGE || 'fr',
+    command:  process.env.WHISPER_COMMAND  || '',
+    maxDurationSec: parseInt(process.env.WHISPER_MAX_DURATION || '600', 10),
+  },
+
   server: {
     port:         parseInt(process.env.SERVER_PORT || '3000', 10),
     wsPath:       process.env.WS_PATH         || '/ws',

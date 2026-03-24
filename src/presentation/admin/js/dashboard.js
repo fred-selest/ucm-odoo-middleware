@@ -176,7 +176,7 @@ async function loadDashRecordings() {
           <span class="text-muted">${fmtDur(rec.duration || 0)}</span>
           <div class="text-muted" style="font-size:.7rem">${time}</div>
         </div>
-      </div>`;
+      </div>${rec.transcription ? `<div class="small text-muted ps-4 pb-1" style="font-size:.75rem;margin-top:-4px"><i class="bi bi-chat-left-text me-1"></i>${esc(rec.transcription.slice(0, 100))}${rec.transcription.length > 100 ? '…' : ''}</div>` : ''}`;
     }).join('');
   } catch { /* ignore */ }
 }

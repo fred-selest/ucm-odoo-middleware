@@ -336,10 +336,44 @@ function callHtmlFromHistory(call) {
   const recBtn = call.recording_url
     ? ` <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="playRecording('${esc(call.recording_url)}')" title="Écouter l'enregistrement"><i class="bi bi-play-fill" style="font-size:.7rem"></i></button>`
     : '';
+  const transBtn = call.transcription
+    ? ` <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="toggleTranscription(this,'${esc(call.unique_id)}')" title="Transcription"><i class="bi bi-chat-left-text" style="font-size:.7rem"></i></button>`
+    : (call.recording_url ? ` <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="toggleTranscription(this,'${esc(call.unique_id)}')" title="Voir transcription"><i class="bi bi-chat-left-text" style="font-size:.65rem"></i></button>` : '');
   return `<td class="text-muted small">${t}</td>
     <td class="text-center">${dir}</td>
     <td>${phoneLink(call.caller_id_num)}${callbackBtn}</td>
     <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(exten)}</span></td>
     <td class="td-contact">${contactHtml}</td>
-    <td><span class="badge ${call.status === 'hangup' && call.answered_at ? 'bg-success' : (statusBadges[call.status] || 'bg-secondary')}">${call.status === 'hangup' && call.answered_at ? 'Décroché' : (statusLabels[call.status] || call.status || '—')}</span>${recBtn}</td>`;
+    <td><span class="badge ${call.status === 'hangup' && call.answered_at ? 'bg-success' : (statusBadges[call.status] || 'bg-secondary')}">${call.status === 'hangup' && call.answered_at ? 'Décroché' : (statusLabels[call.status] || call.status || '—')}</span>${recBtn}${transBtn}</td>`;
+}
+
+// ── Transcription toggle ──────────────────────────────────────────────────────
+async function toggleTranscription(btn, uniqueId) {
+  const row = btn.closest('tr');
+  if (!row) return;
+  const existing = row.nextElementSibling;
+  if (existing && existing.classList.contains('transcription-row')) {
+    existing.remove();
+    return;
+  }
+  const tr = document.createElement('tr');
+  tr.className = 'transcription-row';
+  const td = document.createElement('td');
+  td.colSpan = 6;
+  td.style.cssText = 'background:#f8fafc;padding:8px 16px;font-size:.82rem;color:#334155;border-left:3px solid #3b82f6';
+  td.innerHTML = '<i class="bi bi-hourglass-split text-muted"></i> Chargement…';
+  tr.appendChild(td);
+  row.after(tr);
+
+  try {
+    const r = await apiFetch(`/api/calls/${encodeURIComponent(uniqueId)}/transcription`);
+    const d = await r.json();
+    if (d.ok && d.transcription) {
+      td.innerHTML = `<i class="bi bi-chat-left-text text-info me-1"></i>${esc(d.transcription)}`;
+    } else {
+      td.innerHTML = '<span class="text-muted"><i class="bi bi-chat-left-text me-1"></i>Aucune transcription disponible</span>';
+    }
+  } catch {
+    td.innerHTML = '<span class="text-danger">Erreur chargement transcription</span>';
+  }
 }

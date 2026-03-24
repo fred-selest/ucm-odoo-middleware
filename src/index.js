@@ -25,6 +25,8 @@ const SireneService    = require('./infrastructure/lookup/SireneService');
 const AnnuaireService      = require('./infrastructure/lookup/AnnuaireService');
 const GooglePlacesService  = require('./infrastructure/lookup/GooglePlacesService');
 const SpamScoreService     = require('./infrastructure/lookup/SpamScoreService');
+const CdrSyncService       = require('./application/CdrSyncService');
+const WhisperService       = require('./infrastructure/transcription/WhisperService');
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 
@@ -107,9 +109,11 @@ async function main() {
   const sireneService = new SireneService();
   const annuaireService = new AnnuaireService();
   const googlePlacesService = new GooglePlacesService();
+  const whisperService = new WhisperService({ ucmHttpClient, callHistory, crmClient });
+  const cdrSyncService = new CdrSyncService({ ucmHttpClient, callHistory, crmClient, wsServer, whisperService });
 
   // ── Routes ─────────────────────────────────────────────────────────────────
-  const apiRouter = createRouter({ ucmHttpClient, ucmWsClient, crmClient, wsServer, callHandler, webhookManager, callHistory, sireneService, annuaireService, googlePlacesService, spamScoreService });
+  const apiRouter = createRouter({ ucmHttpClient, ucmWsClient, crmClient, wsServer, callHandler, webhookManager, callHistory, sireneService, annuaireService, googlePlacesService, spamScoreService, cdrSyncService });
   app.use('/', apiRouter);
 
   const queuesRouter = createQueuesRouter({ ucmHttpClient, callHistory, wsServer });
@@ -169,14 +173,18 @@ async function main() {
   // Exposer l'agent pour l'API
   app.locals.healthAgent = healthAgent;
 
+  // ── CDR Auto-Sync ───────────────────────────────────────────────────────
+  if (config.cdrSync.enabled) {
+    cdrSyncService.start();
+  }
+
   // ── Arrêt propre ───────────────────────────────────────────────────────────
   const shutdown = async (signal) => {
     logger.info(`Signal ${signal} reçu — arrêt propre...`);
     
-    // Arrêt de l'agent de supervision
-    if (healthAgent) {
-      healthAgent.stop();
-    }
+    // Arrêt de l'agent de supervision et du CDR sync
+    if (healthAgent) healthAgent.stop();
+    if (cdrSyncService) cdrSyncService.stop();
     
     // Déconnexion UCM
     try {
