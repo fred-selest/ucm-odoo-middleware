@@ -3,32 +3,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 let _quickContactData = {};
-
-// ── Note rapide Odoo ────────────────────────────────────────────────────────
-document.getElementById('quickNoteSaveBtn').addEventListener('click', async () => {
-  const note    = document.getElementById('quickNoteInput').value.trim();
-  const result  = document.getElementById('quickNoteResult');
-  const contact = _quickContactData;
-  if (!note)        { result.innerHTML = '<span class="text-warning">Note vide</span>'; return; }
-  if (!contact?.id) { result.innerHTML = '<span class="text-warning">Aucun contact sélectionné</span>'; return; }
-  result.innerHTML = '<span class="text-muted">Envoi…</span>';
-  try {
-    const r = await apiFetch(`/api/odoo/contacts/${contact.id}/notes`, {
-      method: 'POST',
-      body: JSON.stringify({ note })
-    });
-    const d = await r.json();
-    if (d.ok) {
-      document.getElementById('quickNoteInput').value = '';
-      result.innerHTML = '<span class="text-success">Note ajoutée dans Odoo ✓</span>';
-      setTimeout(() => { result.innerHTML = ''; }, 3000);
-    } else {
-      result.innerHTML = `<span class="text-danger">${esc(d.error)}</span>`;
-    }
-  } catch(e) {
-    result.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;
-  }
-});
 let currentContactId = null;
 let contactPopupModal;
 
