@@ -1185,50 +1185,64 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     }
   });
 
-  // GET /api/recordings - Liste des enregistrements
+  // GET /api/recordings - Liste des CDR avec enregistrements (depuis UCM)
   router.get('/api/recordings', async (req, res) => {
     try {
+      const days = parseInt(req.query.days) || 7;
       const limit = parseInt(req.query.limit) || 50;
-      const recordings = await callHistory.getCallsWithRecordings(limit);
-      
-      res.json({ 
-        ok: true, 
-        data: recordings.map(c => ({
-          uniqueId: c.unique_id,
-          callerIdNum: c.caller_id_num,
-          contactName: c.contact_name,
-          recordingUrl: c.recording_url,
-          duration: c.recording_duration || c.duration,
-          startedAt: c.started_at,
-        }))
-      });
+      const now = new Date();
+      const start = new Date(now - days * 86400000);
+      const fmt = d => d.toISOString().slice(0, 19).replace('T', ' ');
+
+      const { records } = await ucmHttpClient.fetchCdr(fmt(start), fmt(now));
+
+      const results = [];
+      for (const r of records) {
+        const subs = [r.sub_cdr_1, r.sub_cdr_2, r.sub_cdr_3, r.main_cdr].filter(Boolean);
+        for (const s of subs) {
+          if (s.recordfiles && s.recordfiles.replace(/@/g, '').length > 0) {
+            const files = s.recordfiles.replace(/@$/g, '').split(',').filter(Boolean);
+            results.push({
+              acctId: s.AcctId,
+              src: s.src || s.new_src,
+              dst: s.dst,
+              callerName: s.caller_name,
+              start: s.start,
+              duration: parseInt(s.billsec) || parseInt(s.duration) || 0,
+              disposition: s.disposition,
+              direction: s.userfield || '',
+              files,
+            });
+          }
+        }
+        if (results.length >= limit) break;
+      }
+
+      res.json({ ok: true, count: results.length, data: results.slice(0, limit) });
     } catch (err) {
       logger.error('Erreur récupération enregistrements', { error: err.message });
       res.status(500).json({ ok: false, error: err.message });
     }
   });
 
-  // GET /api/calls/:uniqueId/recording - Récupérer un enregistrement
-  router.get('/api/calls/:uniqueId/recording', async (req, res) => {
+  // GET /api/recordings/download/:filename - Télécharger un fichier WAV
+  router.get('/api/recordings/download/*', async (req, res) => {
     try {
-      const call = await callHistory.getCallByUniqueId(req.params.uniqueId);
-      if (!call) {
-        return res.status(404).json({ ok: false, error: 'Appel non trouvé' });
+      // Le filename peut contenir des / (ex: 2026-03/auto-xxx.wav)
+      const filename = req.params[0];
+      if (!filename || !filename.endsWith('.wav')) {
+        return res.status(400).json({ ok: false, error: 'Nom de fichier WAV requis' });
       }
-      if (!call.recording_url) {
-        return res.status(404).json({ ok: false, error: 'Aucun enregistrement' });
-      }
-      
-      res.json({
-        ok: true,
-        data: {
-          uniqueId: call.unique_id,
-          recordingUrl: call.recording_url,
-          duration: call.recording_duration || call.duration,
-        }
+
+      const buffer = await ucmHttpClient.downloadRecording(filename);
+      res.set({
+        'Content-Type': 'audio/wav',
+        'Content-Disposition': `inline; filename="${filename.split('/').pop()}"`,
+        'Content-Length': buffer.length,
       });
+      res.send(buffer);
     } catch (err) {
-      logger.error('Erreur récupération enregistrement', { error: err.message });
+      logger.error('Erreur téléchargement enregistrement', { error: err.message });
       res.status(500).json({ ok: false, error: err.message });
     }
   });
@@ -1260,6 +1274,23 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       res.json({ ok: true, fetched: records.length, inserted, skipped: records.length - inserted, startTime, endTime });
     } catch (err) {
       logger.error('CDR sync: erreur', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // ── Résolution des appels « Inconnu » ──────────────────────────────────
+
+  /**
+   * POST /api/calls/resolve
+   * Re-résout les appels sans contact identifié en relançant la recherche Odoo.
+   * Peut être appelé manuellement ou après enrichissement.
+   */
+  router.post('/api/calls/resolve', async (req, res) => {
+    try {
+      const result = await _resolveUnknownCalls(crm, callHistory, wsServer);
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      logger.error('Résolution appels: erreur', { error: err.message });
       res.status(500).json({ ok: false, error: err.message });
     }
   });
@@ -1406,6 +1437,15 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
             if (Object.keys(updates).length > 0) {
               await crm.updateContact(partnerId, updates);
               logger.info('Google Places: contact complété', { partnerId, ...updates });
+
+              // Note dans le chatter Odoo
+              const noteLines = ['Complété via Google Places'];
+              if (updates.phone) noteLines.push(`Téléphone : ${updates.phone}`);
+              if (updates.website) noteLines.push(`Site web : ${updates.website}`);
+              if (placesData.rating) noteLines.push(`Note Google : ${placesData.rating}/5 (${placesData.userRatingsTotal || 0} avis)`);
+              try {
+                await crm.addContactNote(partnerId, noteLines.join('\n'));
+              } catch (e) { /* non bloquant */ }
             }
           }
         } catch (err) {
@@ -1415,6 +1455,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
 
       // Relire le contact pour retourner les données à jour
       const finalContact = await crm.getContactFull(partnerId);
+
+      // Re-résoudre les appels « Inconnu » en arrière-plan
+      _resolveUnknownCalls(crm, callHistory, wsServer).catch(() => {});
+
       res.json({ ok: true, data: { contact: finalContact, sirene: sireneData, places: placesData } });
     } catch (err) {
       logger.error('Enrichissement: erreur', { error: err.message });
@@ -1479,12 +1523,24 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
             if (Object.keys(updates).length > 0) {
               await crm.updateContact(partnerId, updates);
               logger.info('Webhook Google Places: contact complété', { partnerId, ...updates });
+
+              // Note dans le chatter Odoo
+              const noteLines = ['Complété via Google Places'];
+              if (updates.phone) noteLines.push(`Téléphone : ${updates.phone}`);
+              if (updates.website) noteLines.push(`Site web : ${updates.website}`);
+              if (placesData.rating) noteLines.push(`Note Google : ${placesData.rating}/5 (${placesData.userRatingsTotal || 0} avis)`);
+              try {
+                await crm.addContactNote(partnerId, noteLines.join('\n'));
+              } catch (e) { /* non bloquant */ }
             }
           }
         } catch (err) {
           logger.warn('Webhook Google Places: erreur (non bloquante)', { error: err.message });
         }
       }
+
+      // Re-résoudre les appels « Inconnu » en arrière-plan
+      _resolveUnknownCalls(crm, callHistory, wsServer).catch(() => {});
 
       res.json({ ok: true, enriched: true, siret: sireneData.siret, source: sireneData.source });
     } catch (err) {
@@ -1502,6 +1558,37 @@ async function _getPartnerName(crm, partnerId) {
     const contact = await crm.getContactFull(partnerId);
     return contact?.company || contact?.name || null;
   } catch { return null; }
+}
+
+/**
+ * Parcourt les appels « Inconnu » et tente de les résoudre via Odoo.
+ */
+async function _resolveUnknownCalls(crm, callHistory, wsServer) {
+  const rows = await callHistory.getUnresolvedPhones(200);
+  if (rows.length === 0) return { checked: 0, resolved: 0 };
+
+  let resolved = 0;
+  for (const row of rows) {
+    try {
+      const contact = await crm.findContactByPhone(row.caller_id_num);
+      if (contact && contact.name && !contact.name.startsWith('Inconnu ')) {
+        const count = await callHistory.resolveCallsByPhone(row.caller_id_num, contact);
+        if (count > 0) {
+          resolved += count;
+          logger.info('Appels résolus', { phone: row.caller_id_num, name: contact.name, count });
+        }
+      }
+    } catch (err) {
+      logger.warn('Résolution appel: erreur', { phone: row.caller_id_num, error: err.message });
+    }
+  }
+
+  if (resolved > 0 && wsServer) {
+    wsServer.broadcast({ type: 'calls_updated', resolved });
+  }
+
+  logger.info('Résolution appels terminée', { checked: rows.length, resolved });
+  return { checked: rows.length, resolved };
 }
 
 module.exports = createRouter;

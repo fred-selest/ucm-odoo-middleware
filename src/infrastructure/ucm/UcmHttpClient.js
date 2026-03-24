@@ -500,24 +500,59 @@ class UcmHttpClient {
 
   // ── Enregistrements d'appels ────────────────────────────────────────────────
 
-  async listRecordings(startTime, endTime) {
-    const params = { format: 'json' };
-    if (startTime) params.startTime = startTime;
-    if (endTime) params.endTime = endTime;
-    return await this.request('listRecordings', params);
+  /**
+   * Récupère les noms de fichiers d'enregistrement pour un CDR donné.
+   * @param {string} acctId - AcctId du CDR
+   * @returns {{ recordfiles: string }}
+   */
+  async getRecordInfosByCall(acctId) {
+    return await this.request('getRecordInfosByCall', { id: String(acctId) });
   }
 
-  async getRecording(recordingId) {
-    return await this.request('getRecording', { recording_id: recordingId, format: 'json' });
+  /**
+   * Télécharge un fichier d'enregistrement WAV depuis le UCM.
+   * recapi retourne un binaire (pas JSON), il faut une requête spéciale.
+   * @param {string} filename - ex: "auto-1774356619-+33695516169-6500.wav"
+   * @returns {Buffer} contenu WAV
+   */
+  async downloadRecording(filename) {
+    // Forcer une ré-authentification fraîche pour le download
+    await this.connect();
+
+    const payload = {
+      request: {
+        action: 'recapi',
+        cookie: this._cookie,
+        filedir: 'monitor',
+        filename,
+      }
+    };
+
+    const response = await this._axiosInstance.post(this._baseUrl, payload, {
+      responseType: 'arraybuffer',
+      timeout: 30000,
+    });
+
+    const raw = Buffer.from(response.data);
+
+    // Si le UCM retourne du JSON c'est une erreur (petit payload = probable JSON)
+    if (raw.length < 500) {
+      try {
+        const json = JSON.parse(raw.toString('utf8'));
+        if (json.status && json.status !== 0) {
+          throw new Error(`UCM recapi erreur: status ${json.status}`);
+        }
+      } catch (e) {
+        if (e.message.includes('UCM recapi')) throw e;
+        // Pas du JSON, c'est un très petit WAV (improbable mais OK)
+      }
+    }
+
+    return raw;
   }
 
   async deleteRecording(recordingId) {
     await this.request('deleteRecording', { recording_id: recordingId });
-    return true;
-  }
-
-  async setAutoRecord(extension, enable) {
-    await this.request('setAutoRecord', { extension, enable: enable ? '1' : '0' });
     return true;
   }
 

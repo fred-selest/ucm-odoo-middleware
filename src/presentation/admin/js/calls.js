@@ -258,5 +258,5 @@ function callHtmlFromHistory(call) {
     <td>${phoneLink(call.caller_id_num)}${callbackBtn}</td>
     <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(exten)}</span></td>
     <td class="td-contact">${contactHtml}</td>
-    <td><span class="badge ${statusBadges[call.status] || 'bg-secondary'}">${statusLabels[call.status] || call.status || '—'}</span></td>`;
+    <td><span class="badge ${call.status === 'hangup' && call.answered_at ? 'bg-success' : (statusBadges[call.status] || 'bg-secondary')}">${call.status === 'hangup' && call.answered_at ? 'Décroché' : (statusLabels[call.status] || call.status || '—')}</span></td>`;
 }

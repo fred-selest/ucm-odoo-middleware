@@ -250,7 +250,7 @@ class OdooClient {
       [['id', '=', contactId]]
     ], {
       fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company',
-        'street', 'zip', 'city', 'country_id', 'function', 'comment', 'website',
+        'street', 'street2', 'zip', 'city', 'country_id', 'function', 'comment', 'website',
         'company_registry', 'vat', 'image_128'],
       limit: 1,
     });
@@ -266,29 +266,32 @@ class OdooClient {
   async enrichFromSirene(partnerId, sireneData) {
     await this.ensureAuthenticated();
 
+    // Lire le contact existant pour ne remplir que les champs vides
+    const existing = await this.getContactFull(partnerId);
+
     const values = {};
 
-    // SIRET → company_registry (format Odoo standard)
-    if (sireneData.siret) {
+    // SIRET → company_registry (seulement si vide)
+    if (sireneData.siret && !existing?.companyRegistry?.trim()) {
       values.company_registry = sireneData.siret;
     }
 
-    // TVA intracommunautaire calculée depuis le SIREN
-    if (sireneData.siren && !sireneData.skipVat) {
+    // TVA intracommunautaire calculée depuis le SIREN (seulement si vide)
+    if (sireneData.siren && !sireneData.skipVat && !existing?.vat?.trim()) {
       const siren = parseInt(sireneData.siren, 10);
       const clef = (12 + 3 * (siren % 97)) % 97;
       values.vat = `FR${String(clef).padStart(2, '0')}${sireneData.siren}`;
     }
 
-    // Adresse
+    // Adresse (seulement les champs vides)
     if (sireneData.adresseFormatee || sireneData.adresse) {
       const addr = sireneData.adresse || {};
       const rue = [addr.numero, addr.type, addr.voie].filter(Boolean).join(' ');
-      if (rue) values.street = rue;
-      if (addr.complement) values.street2 = addr.complement;
-      if (addr.codePostal) values.zip = addr.codePostal;
-      if (addr.commune) values.city = addr.commune;
-      values.country_id = 75; // France
+      if (rue && !existing?.street?.trim()) values.street = rue;
+      if (addr.complement && !existing?.street2?.trim()) values.street2 = addr.complement;
+      if (addr.codePostal && !existing?.zip?.trim()) values.zip = addr.codePostal;
+      if (addr.commune && !existing?.city?.trim()) values.city = addr.commune;
+      if (!existing?.country?.trim()) values.country_id = 75; // France
     }
 
     // Marquer comme société (ne pas écraser le nom saisi par l'utilisateur)
@@ -673,7 +676,8 @@ class OdooClient {
       companyId: Array.isArray(partner.parent_id) ? partner.parent_id[0] : null,
       isCompany: partner.is_company,
       function:  partner.function || null,
-      street:    partner.street || null,
+      street:    partner.street  || null,
+      street2:   partner.street2 || null,
       zip:       partner.zip    || null,
       city:      partner.city   || null,
       country:   country        || null,
@@ -690,7 +694,7 @@ class OdooClient {
     await this.ensureAuthenticated();
     const result = await this._callModel('res.partner', 'read', [[partnerId]], {
       fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company',
-        'street', 'zip', 'city', 'country_id', 'function', 'comment', 'website',
+        'street', 'street2', 'zip', 'city', 'country_id', 'function', 'comment', 'website',
         'company_registry', 'vat', 'image_128'],
     });
     if (!result || !result[0]) return null;

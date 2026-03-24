@@ -84,7 +84,7 @@ function renderJournalTable(calls, tbody) {
       <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(exten)}</span></td>
       <td>${contact}</td>
       <td class="small text-nowrap">${dur}</td>
-      <td><span class="badge ${J_STATUS_BADGES[c.status] || 'bg-secondary'}">${J_STATUS_LABELS[c.status] || c.status || '—'}</span></td>
+      <td><span class="badge ${c.status === 'hangup' && c.answered_at ? 'bg-success' : (J_STATUS_BADGES[c.status] || 'bg-secondary')}">${c.status === 'hangup' && c.answered_at ? 'Décroché' : (J_STATUS_LABELS[c.status] || c.status || '—')}</span></td>
     </tr>`;
   }).join('');
 }

@@ -741,6 +741,71 @@ class CallHistory {
     }
   }
 
+  /**
+   * Retourne les numéros distincts des appels sans contact résolu.
+   */
+  async getUnresolvedPhones(limit = 200) {
+    try {
+      return await this.db.all(
+        `SELECT DISTINCT caller_id_num
+         FROM calls
+         WHERE (contact_name IS NULL OR contact_name LIKE 'Inconnu %')
+           AND caller_id_num IS NOT NULL
+           AND caller_id_num != ''
+         ORDER BY created_at DESC
+         LIMIT ?`,
+        [limit]
+      );
+    } catch (err) {
+      logger.error('Erreur getUnresolvedPhones', { error: err.message });
+      return [];
+    }
+  }
+
+  /**
+   * Met à jour tous les appels d'un numéro avec les infos contact.
+   */
+  async resolveCallsByPhone(phone, contact) {
+    if (!phone || !contact) return 0;
+    try {
+      const digits = phone.replace(/\D/g, '');
+      const suffix = digits.length >= 8 ? digits.slice(-8) : digits;
+
+      const result = await this.db.run(
+        `UPDATE calls SET
+          contact_id = ?, contact_name = ?, contact_phone = ?,
+          contact_email = ?, contact_odoo_url = ?, odoo_partner_id = ?,
+          contact_avatar = ?, contact_street = ?, contact_city = ?,
+          contact_company = ?, contact_zip = ?, contact_country = ?,
+          contact_website = ?, contact_function = ?, contact_mobile = ?
+         WHERE (contact_name IS NULL OR contact_name LIKE 'Inconnu %')
+           AND caller_id_num LIKE ?`,
+        [
+          contact.id,
+          contact.name,
+          contact.phone,
+          contact.email,
+          contact.odooUrl,
+          contact.id,
+          contact.avatar,
+          contact.street || null,
+          contact.city || null,
+          contact.company || null,
+          contact.zip || null,
+          contact.country || null,
+          contact.website || null,
+          contact.function || null,
+          contact.mobile || null,
+          `%${suffix}%`
+        ]
+      );
+      return result?.changes || 0;
+    } catch (err) {
+      logger.error('Erreur resolveCallsByPhone', { error: err.message, phone });
+      return 0;
+    }
+  }
+
   async cacheContact(phone, contact) {
     try {
       await this.db.run(
