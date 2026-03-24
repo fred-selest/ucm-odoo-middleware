@@ -874,10 +874,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   // ══ GESTION DES CONTACTS ODOO (Ringover style) ═════════════════════════════
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // GET /api/odoo/contacts/:id - Détails d'un contact
+  // GET /api/odoo/contacts/:id - Détails complets d'un contact
   router.get('/api/odoo/contacts/:id', async (req, res) => {
     try {
-      const contact = await crm.getContactById(parseInt(req.params.id));
+      const contact = await crm.getContactFull(parseInt(req.params.id));
       if (!contact) {
         return res.status(404).json({ ok: false, error: 'Contact non trouvé' });
       }
