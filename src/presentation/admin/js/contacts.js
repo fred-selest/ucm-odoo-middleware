@@ -64,7 +64,9 @@ async function showQuickContact(contact) {
   document.getElementById('popupContactCity').textContent = (fullContact.zip || '') + ' ' + (fullContact.city || '') || '—';
   document.getElementById('popupContactCountry').textContent = fullContact.country || '—';
   document.getElementById('popupContactCompany').textContent = fullContact.company || '—';
-  
+  document.getElementById('popupContactSiret').textContent = fullContact.companyRegistry || '—';
+  document.getElementById('popupContactVat').textContent = fullContact.vat || '—';
+
   const websiteEl = document.getElementById('popupContactWebsite');
   if (fullContact.website) {
     websiteEl.textContent = fullContact.website;
@@ -357,6 +359,48 @@ document.getElementById('saveEditContactBtn').addEventListener('click', async ()
     btn.disabled = false;
   }
 });
+
+// ── Enrichissement SIRENE ────────────────────────────────────────────────────
+async function enrichContactSirene() {
+  const contactId = document.getElementById('popupContactId').value;
+  const resultEl = document.getElementById('popupSireneResult');
+  const btn = document.getElementById('popupSireneBtn');
+  if (!contactId) { resultEl.innerHTML = '<span class="text-warning">Aucun contact</span>'; return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Recherche…';
+  resultEl.innerHTML = '';
+
+  try {
+    const r = await apiFetch('/api/sirene/enrich', {
+      method: 'POST',
+      body: JSON.stringify({ partnerId: parseInt(contactId) })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      resultEl.innerHTML = '<span class="text-success">Fiche enrichie via SIRENE INSEE</span>';
+      // Recharger les données du contact
+      const cr = await apiFetch(`/api/odoo/contacts/${contactId}`);
+      const cd = await cr.json();
+      if (cd.ok && cd.data) {
+        _quickContactData = { ..._quickContactData, ...cd.data };
+        document.getElementById('popupContactSiret').textContent = cd.data.companyRegistry || '—';
+        document.getElementById('popupContactVat').textContent = cd.data.vat || '—';
+        document.getElementById('popupContactStreet').textContent = cd.data.street || '—';
+        document.getElementById('popupContactCity').textContent = (cd.data.zip || '') + ' ' + (cd.data.city || '') || '—';
+        document.getElementById('popupContactCompany').textContent = cd.data.company || '—';
+      }
+      setTimeout(() => { resultEl.innerHTML = ''; }, 5000);
+    } else {
+      resultEl.innerHTML = `<span class="text-danger">${esc(d.error)}</span>`;
+    }
+  } catch (e) {
+    resultEl.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-search me-1"></i>SIRENE';
+  }
+}
 
 // ── Historique contact ──────────────────────────────────────────────────────
 let contactHistoryModal;

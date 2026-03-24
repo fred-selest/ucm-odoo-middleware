@@ -679,6 +679,8 @@ class OdooClient {
       country:   country        || null,
       website:   partner.website || null,
       comment:   partner.comment || null,
+      companyRegistry: partner.company_registry || null,
+      vat:       partner.vat || null,
       odooUrl:   `${config.odoo.url}/odoo/contacts/${partner.id}`,
       avatar:    partner.image_128 ? `data:image/png;base64,${partner.image_128}` : null,
     };

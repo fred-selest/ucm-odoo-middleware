@@ -268,17 +268,31 @@
           <!-- Société -->
           <div class="col-12">
             <div class="rounded-3 p-3" style="background:var(--bg-card-header)">
-              <h6 class="fw-semibold mb-3"><i class="bi bi-building me-2 text-primary"></i>Société</h6>
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-semibold mb-0"><i class="bi bi-building me-2 text-primary"></i>Société</h6>
+                <button class="btn btn-sm btn-outline-info" id="popupSireneBtn" onclick="enrichContactSirene()" title="Enrichir via INSEE SIRENE">
+                  <i class="bi bi-search me-1"></i>SIRENE
+                </button>
+              </div>
               <div class="d-flex flex-wrap gap-3">
                 <div>
                   <span class="text-muted small">Société :</span>
                   <div id="popupContactCompany" class="fw-semibold">—</div>
                 </div>
                 <div>
+                  <span class="text-muted small">SIRET :</span>
+                  <div id="popupContactSiret" class="fw-semibold">—</div>
+                </div>
+                <div>
+                  <span class="text-muted small">TVA intra :</span>
+                  <div id="popupContactVat" class="fw-semibold">—</div>
+                </div>
+                <div>
                   <span class="text-muted small">Site web :</span>
                   <div><a href="#" id="popupContactWebsite" target="_blank" class="text-primary">—</a></div>
                 </div>
               </div>
+              <div id="popupSireneResult" class="small mt-2"></div>
             </div>
           </div>
           
