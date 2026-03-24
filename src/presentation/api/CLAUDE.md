@@ -4,7 +4,7 @@
 
 Crée le routeur Express avec injection des dépendances :
 ```javascript
-createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHandler, webhookManager, callHistory })
+createRouter({ ucmHttpClient, ucmWsClient, crmClient, wsServer, callHandler, webhookManager, callHistory, sireneService, annuaireService, googlePlacesService, spamScoreService })
 ```
 
 ## Routes principales
@@ -29,6 +29,24 @@ createRouter({ ucmHttpClient, ucmWsClient, odooClient, wsServer, callHandler, we
 | POST | `/api/odoo/contacts` | Créer contact |
 | PUT | `/api/odoo/contacts/:id` | Modifier contact |
 | GET | `/api/odoo/search` | Chercher contacts (param `q`, min 2 chars) |
+
+### Enrichissement contacts
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| POST | `/api/sirene/enrich` | Enrichissement SIRENE (cascade : INSEE → Annuaire → Google Places) |
+| GET | `/api/annuaire/search?q=...` | Recherche Annuaire Entreprises |
+| POST | `/api/webhook/odoo/partner` | Webhook Odoo (auto-enrichissement à la création/modification) |
+
+### Blacklist et spam
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/blacklist` | Liste des numéros bloqués (query: limit, offset, active) |
+| POST | `/api/blacklist` | Ajouter un numéro (`{ phoneNumber, reason }`) |
+| DELETE | `/api/blacklist/:phone` | Retirer un numéro |
+| GET | `/api/blacklist/check/:phone` | Vérifier si un numéro est bloqué |
+| POST | `/api/blacklist/import` | Import en masse (`{ numbers: [...], source }`) |
+| POST | `/api/blacklist/import-spam-fr` | Importer 23 préfixes démarchage ARCEP |
+| GET | `/api/spam/check/:phone` | Score spam Tellows (1-9) |
 
 ### Système
 | Méthode | Route | Description |

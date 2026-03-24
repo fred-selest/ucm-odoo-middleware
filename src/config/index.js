@@ -79,6 +79,11 @@ const config = {
     apiKey: process.env.INSEE_SIRENE_API_KEY || '',
   },
 
+  // ── Google Places ─────────────────────────────────────────────────────────
+  google: {
+    placesApiKey: process.env.GOOGLE_PLACES_API_KEY || '',
+  },
+
   server: {
     port:         parseInt(process.env.SERVER_PORT || '3000', 10),
     wsPath:       process.env.WS_PATH         || '/ws',

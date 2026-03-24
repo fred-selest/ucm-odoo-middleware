@@ -12,12 +12,15 @@ Orchestre le traitement des appels. Ne contient pas de code réseau directement.
 UCM WS event (ringing)
     ↓
 _onIncoming()
-    ├── blacklist check (callHistory.isBlacklisted)
+    ├── filtre trunk SIP (SLI-TRK-* → ignoré)
+    ├── blacklist check (callHistory.isBlacklisted — exact + préfixes *)
+    ├── spam score Tellows (spamScoreService.check — score >= 7 → auto-blacklist)
     ├── filtre numéro interne (1-5 chiffres → pas de lookup Odoo)
     ├── odooClient.findContactByPhone(callerIdNum)
+    ├── auto-création contact si inconnu (Inconnu +33...)
     ├── callHistory.createCall(...)
     ├── callHistory.updateCallContact(uniqueId, contact)
-    └── wsServer.notifyExtension(exten, 'call:incoming', enriched)
+    └── wsServer.notifyExtension(exten, 'call:incoming', { ...enriched, spamInfo })
         + wsServer.notifyExtension(exten, 'contact', { uniqueId, contact })
 
 UCM WS event (inuse/answered)

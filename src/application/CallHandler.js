@@ -18,13 +18,15 @@ class CallHandler {
    * @param {WsServer}              wsServer
    * @param {WebhookManager|null}   webhookManager  Webhook manager (optionnel)
    * @param {CallHistory|null}      callHistory     Service d'historique (optionnel)
+   * @param {SpamScoreService|null} spamScoreService Service de vérification spam (optionnel)
    */
-  constructor(ucmHttpClient, ucmWsClient, crmClient, wsServer, webhookManager = null, callHistory = null) {
+  constructor(ucmHttpClient, ucmWsClient, crmClient, wsServer, webhookManager = null, callHistory = null, spamScoreService = null) {
     this._http = ucmHttpClient;
     this._wsClient = ucmWsClient;
     this._odoo = crmClient;   // alias conservé pour compatibilité interne
     this._ws   = wsServer;
     this._callHistory = callHistory;
+    this._spamScore = spamScoreService;
 
     // Registre des appels actifs : uniqueId → callInfo enrichi
     this._activeCalls = new Map();
@@ -124,7 +126,15 @@ class CallHandler {
     }
     
     const { callerIdName, exten, agentExten } = call;
-    logger.info('Appel entrant', { from: callerIdNum, to: exten || agentExten, uniqueId });
+
+    // Ignorer les appels sur trunk SIP (pas un vrai poste)
+    const target = exten || agentExten || '';
+    if (target.startsWith('SLI-TRK')) {
+      logger.debug('Appel trunk SIP ignoré', { uniqueId, target, callerIdNum });
+      return;
+    }
+
+    logger.info('Appel entrant', { from: callerIdNum, to: target, uniqueId });
 
     // Vérifier si le numéro est blacklisté
     if (this._callHistory && callerIdNum) {
@@ -132,6 +142,24 @@ class CallHandler {
       if (isBlacklisted) {
         logger.info('Appel bloqué (blacklist)', { callerIdNum, uniqueId });
         return;
+      }
+    }
+
+    // Vérifier le score spam Tellows (en parallèle, non bloquant)
+    let spamInfo = null;
+    if (this._spamScore && callerIdNum && !this._isInternalNumber(callerIdNum)) {
+      try {
+        spamInfo = await this._spamScore.check(callerIdNum);
+        if (spamInfo) {
+          logger.info('Spam score', { callerIdNum, score: spamInfo.score, isSpam: spamInfo.isSpam, type: spamInfo.callerType });
+          if (spamInfo.isSpam) {
+            // Auto-bloquer les scores >= seuil et notifier le dashboard
+            await this._callHistory?.addToBlacklist(callerIdNum, `Tellows score ${spamInfo.score}/9 - ${spamInfo.callerType || 'spam'}`, 'tellows-auto');
+            logger.info('Appel auto-bloqué (spam Tellows)', { callerIdNum, score: spamInfo.score });
+          }
+        }
+      } catch (err) {
+        logger.warn('Tellows: erreur vérification', { error: err.message });
       }
     }
 
@@ -167,10 +195,8 @@ class CallHandler {
       }
     }
 
-    const enriched = { ...call, contact };
+    const enriched = { ...call, contact, spamInfo };
     this._activeCalls.set(uniqueId, enriched);
-
-    const target = exten || agentExten;
 
     // Créer l'appel dans l'historique
     if (this._callHistory) {

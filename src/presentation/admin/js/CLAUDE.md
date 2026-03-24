@@ -42,7 +42,7 @@ ws.onmessage = ({ data }) => {
 - `addCallRow(call, status)` : insère une ligne dans `#callBody`
 - `updateCallRow(call, status)` : met à jour une ligne existante
 - `updateCallContact(data)` : met à jour le badge contact dans une ligne
-- `showIncomingCallPopup(call)` : affiche `#modalIncomingCall` avec les infos de l'appel
+- `showIncomingCallPopup(call)` : affiche `#modalIncomingCall` avec les infos de l'appel + badge spam si `call.spamInfo`
 - `loadCallHistory()` : charge les 50 derniers appels depuis `/api/calls/history?limit=50`
 - `callRows` : Map `uniqueId → <tr>` pour les mises à jour rapides
 
@@ -54,6 +54,22 @@ ws.onmessage = ({ data }) => {
 - `saveQuickNote()` : `POST /api/odoo/contacts/:id/notes` (texte brut)
 - `openEditContactModal()` : formulaire de modification → `PUT /api/odoo/contacts/:id`
 - `openCreateContactModal(phone)` : pré-remplit le numéro → `POST /api/odoo/contacts`
+
+## blacklist.js — Blacklist et spam
+
+- `loadBlacklist()` : charge et affiche la liste (préfixes marqués avec badge "préfixe")
+- `addToBlacklist(phone, reason)` / `removeFromBlacklist(phone)` : CRUD blacklist
+- `blockFromJournal(phone)` : bloquer depuis le journal d'appels
+- `blockFromContact()` : bloquer depuis la popup contact
+- `blockCurrentCaller()` : bloquer depuis le popup d'appel entrant
+- `importSpamFR()` : importe les 23 préfixes démarchage ARCEP
+- `checkSpamScore(phone)` : vérifie le score Tellows, propose de bloquer si >= 7
+
+## journal.js — Journal d'appels complet
+
+- `loadFullJournal(page)` : historique paginé avec filtres
+- Bouton bloquer (icône rouge) à côté de chaque numéro
+- Export CSV, sync CDR UCM
 
 ## ui.js — Utilitaires
 

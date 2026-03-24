@@ -22,7 +22,9 @@ const createQueuesRouter = require('./presentation/api/queues.routes');
 const swaggerSpec    = require('./config/swagger');
 const HealthAgent    = require('./infrastructure/monitoring/HealthAgent');
 const SireneService    = require('./infrastructure/lookup/SireneService');
-const AnnuaireService  = require('./infrastructure/lookup/AnnuaireService');
+const AnnuaireService      = require('./infrastructure/lookup/AnnuaireService');
+const GooglePlacesService  = require('./infrastructure/lookup/GooglePlacesService');
+const SpamScoreService     = require('./infrastructure/lookup/SpamScoreService');
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 
@@ -100,12 +102,14 @@ async function main() {
   const wsServer   = new WsServer(httpServer);
 
   // ── Application ────────────────────────────────────────────────────────────
-  const callHandler = new CallHandler(ucmHttpClient, ucmWsClient, crmClient, wsServer, webhookManager, callHistory);
+  const spamScoreService = new SpamScoreService();
+  const callHandler = new CallHandler(ucmHttpClient, ucmWsClient, crmClient, wsServer, webhookManager, callHistory, spamScoreService);
   const sireneService = new SireneService();
   const annuaireService = new AnnuaireService();
+  const googlePlacesService = new GooglePlacesService();
 
   // ── Routes ─────────────────────────────────────────────────────────────────
-  const apiRouter = createRouter({ ucmHttpClient, ucmWsClient, crmClient, wsServer, callHandler, webhookManager, callHistory, sireneService, annuaireService });
+  const apiRouter = createRouter({ ucmHttpClient, ucmWsClient, crmClient, wsServer, callHandler, webhookManager, callHistory, sireneService, annuaireService, googlePlacesService, spamScoreService });
   app.use('/', apiRouter);
 
   const queuesRouter = createQueuesRouter({ ucmHttpClient, callHistory, wsServer });

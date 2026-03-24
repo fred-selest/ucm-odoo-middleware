@@ -30,6 +30,21 @@ async function showQuickContact(contact) {
   
   document.getElementById('popupContactId').value = fullContact.id;
   document.getElementById('popupContactName').textContent = fullContact.name;
+
+  // Badge société / particulier
+  const typeBadge = document.getElementById('popupContactTypeBadge');
+  if (fullContact.isCompany) {
+    typeBadge.textContent = 'Société';
+    typeBadge.className = 'badge rounded-pill bg-primary';
+  } else {
+    typeBadge.textContent = 'Particulier';
+    typeBadge.className = 'badge rounded-pill bg-secondary';
+  }
+
+  // Masquer SIRENE pour les particuliers
+  const sireneBtn = document.getElementById('popupSireneBtn');
+  if (sireneBtn) sireneBtn.style.display = fullContact.isCompany ? '' : 'none';
+
   document.getElementById('popupContactFunction').textContent = fullContact.function || '—';
   document.getElementById('popupContactPhone').textContent = fullContact.phone || '—';
   document.getElementById('popupContactMobile').textContent = '—';
@@ -162,6 +177,8 @@ function openQuickEditContact(contact) {
   if (!quickEditModal) {
     quickEditModal = new bootstrap.Modal(document.getElementById('modalQuickEdit'));
   }
+  // Fermer le modal de consultation avant d'ouvrir l'édition
+  if (contactPopupModal) contactPopupModal.hide();
   closeIncomingCallModal();
   
   document.getElementById('quickEditId').value = contact.id;
@@ -221,6 +238,8 @@ document.getElementById('saveQuickEditBtn').onclick = async () => {
         quickEditModal.hide();
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Enregistrer les modifications';
+        // Réouvrir la fiche contact avec les données à jour
+        if (d.data) showQuickContact(d.data);
       }, 1000);
     } else {
       document.getElementById('quickEditError').textContent = d.error;

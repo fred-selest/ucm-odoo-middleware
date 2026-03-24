@@ -11,6 +11,7 @@ Accès aux systèmes externes et persistance. Chaque sous-répertoire est indép
 | `websocket/` | Serveur WebSocket pour les clients navigateur |
 | `database/` | SQLite — historique appels, agents, blacklist |
 | `monitoring/` | HealthAgent — supervision périodique |
+| `lookup/` | Services d'enrichissement et vérification : SIRENE, Annuaire, Google Places, Tellows spam |
 
 ## Règle générale
 

@@ -585,13 +585,28 @@ class CallHistory {
   }
 
   async isBlacklisted(phoneNumber) {
-    const result = await this.db.get(
-      `SELECT * FROM blacklist 
-       WHERE phone_number = ? AND active = 1 
+    // Correspondance exacte
+    const exact = await this.db.get(
+      `SELECT 1 FROM blacklist
+       WHERE phone_number = ? AND active = 1
        AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
       [phoneNumber]
     );
-    return result !== undefined;
+    if (exact) return true;
+
+    // Correspondance par préfixe (entrées finissant par *)
+    // Normaliser le numéro : +33612... → 0612...
+    const normalized = phoneNumber.replace(/^\+33/, '0').replace(/\s/g, '');
+    const prefixes = await this.db.all(
+      `SELECT phone_number FROM blacklist
+       WHERE phone_number LIKE '%*' AND active = 1
+       AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`
+    );
+    for (const row of prefixes) {
+      const prefix = row.phone_number.replace('*', '');
+      if (normalized.startsWith(prefix) || phoneNumber.startsWith(prefix)) return true;
+    }
+    return false;
   }
 
   async getBlacklist(options = {}) {

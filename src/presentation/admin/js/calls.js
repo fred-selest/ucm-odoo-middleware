@@ -88,6 +88,17 @@ function showIncomingCallPopup(call) {
   document.getElementById('incomingCity').textContent = contact.city || '—';
   document.getElementById('incomingOdooLink').href = contact.odooUrl || '#';
 
+  // Afficher le score spam si disponible
+  const spamBadge = document.getElementById('incomingSpamBadge');
+  if (call.spamInfo && call.spamInfo.score > 4) {
+    const s = call.spamInfo;
+    const color = s.score >= 7 ? 'danger' : s.score >= 5 ? 'warning' : 'secondary';
+    spamBadge.innerHTML = `<span class="badge bg-${color}"><i class="bi bi-exclamation-triangle me-1"></i>Spam ${s.score}/9${s.callerType ? ' - ' + s.callerType : ''}</span>`;
+    spamBadge.style.display = '';
+  } else {
+    spamBadge.style.display = 'none';
+  }
+
   const editBtn = document.getElementById('incomingEditBtn');
   if (contact.id) {
     editBtn.style.display = '';

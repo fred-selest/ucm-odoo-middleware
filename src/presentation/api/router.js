@@ -58,7 +58,7 @@ function apiRequireSession(req, res, next) {
   return requireSession(req, res, next);
 }
 
-function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsServer, callHandler, webhookManager, callHistory, sireneService, annuaireService }) {
+function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsServer, callHandler, webhookManager, callHistory, sireneService, annuaireService, googlePlacesService, spamScoreService }) {
   // Rétrocompatibilité : accepter odooClient ou crmClient
   const crm = crmClient || odooClient;
   const router = Router();
@@ -396,6 +396,18 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     });
   }
 
+  // ── Spam Score (Tellows) ──────────────────────────────────────────────
+  if (spamScoreService) {
+    router.get('/api/spam/check/:phone', async (req, res) => {
+      try {
+        const result = await spamScoreService.check(req.params.phone);
+        res.json({ ok: true, data: result });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+  }
+
   // ── Blacklist ────────────────────────────────────────────────────────────
   if (callHistory) {
     // GET /api/blacklist - Liste des numéros bloqués
@@ -427,11 +439,134 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       }
     });
 
+    // POST /api/blacklist/import - Import en masse
+    router.post('/api/blacklist/import', async (req, res) => {
+      try {
+        const { numbers, source } = req.body || {};
+        if (!numbers || !Array.isArray(numbers) || !numbers.length) {
+          return res.status(400).json({ ok: false, error: 'Tableau numbers requis' });
+        }
+        let added = 0;
+        for (const entry of numbers) {
+          const phone = typeof entry === 'string' ? entry : entry.phone;
+          const reason = typeof entry === 'string' ? (source || 'Import') : (entry.reason || source || 'Import');
+          if (!phone) continue;
+          await callHistory.addToBlacklist(phone, reason, req.session.username);
+          added++;
+        }
+        logger.info('Blacklist import', { added, source });
+        res.json({ ok: true, added });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // POST /api/blacklist/import-spam-fr - Préfixes spam français ARCEP
+    router.post('/api/blacklist/import-spam-fr', async (req, res) => {
+      try {
+        const spamPrefixes = [
+          { phone: '0162*', reason: 'Préfixe démarchage ARCEP (01 62)' },
+          { phone: '0163*', reason: 'Préfixe démarchage ARCEP (01 63)' },
+          { phone: '0270*', reason: 'Préfixe démarchage ARCEP (02 70)' },
+          { phone: '0271*', reason: 'Préfixe démarchage ARCEP (02 71)' },
+          { phone: '0377*', reason: 'Préfixe démarchage ARCEP (03 77)' },
+          { phone: '0378*', reason: 'Préfixe démarchage ARCEP (03 78)' },
+          { phone: '0423*', reason: 'Préfixe démarchage ARCEP (04 23)' },
+          { phone: '0424*', reason: 'Préfixe démarchage ARCEP (04 24)' },
+          { phone: '0425*', reason: 'Préfixe démarchage ARCEP (04 25)' },
+          { phone: '0568*', reason: 'Préfixe démarchage ARCEP (05 68)' },
+          { phone: '0569*', reason: 'Préfixe démarchage ARCEP (05 69)' },
+          { phone: '0948*', reason: 'Préfixe démarchage ARCEP (09 48)' },
+          { phone: '0949*', reason: 'Préfixe démarchage ARCEP (09 49)' },
+          { phone: '07000*', reason: 'Plage M2M (07 000)' },
+          { phone: '07001*', reason: 'Plage M2M (07 001)' },
+          { phone: '07002*', reason: 'Plage M2M (07 002)' },
+          { phone: '07003*', reason: 'Plage M2M (07 003)' },
+          { phone: '07004*', reason: 'Plage M2M (07 004)' },
+          { phone: '07005*', reason: 'Plage M2M (07 005)' },
+          { phone: '07006*', reason: 'Plage M2M (07 006)' },
+          { phone: '07007*', reason: 'Plage M2M (07 007)' },
+          { phone: '07008*', reason: 'Plage M2M (07 008)' },
+          { phone: '07009*', reason: 'Plage M2M (07 009)' },
+        ];
+        let added = 0;
+        for (const entry of spamPrefixes) {
+          await callHistory.addToBlacklist(entry.phone, entry.reason, 'ARCEP');
+          added++;
+        }
+        logger.info('Import préfixes spam FR', { added });
+        res.json({ ok: true, added, prefixes: spamPrefixes.length });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
     // DELETE /api/blacklist/:phone - Retirer un numéro
     router.delete('/api/blacklist/:phone', async (req, res) => {
       try {
         await callHistory.removeFromBlacklist(req.params.phone);
         res.json({ ok: true, message: 'Numéro retiré de la blacklist' });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // POST /api/blacklist/import-spam-fr - Importer les préfixes spam français connus
+    router.post('/api/blacklist/import-spam-fr', async (req, res) => {
+      try {
+        const spamPrefixes = [
+          { prefix: '0162*', reason: 'Plage démarchage ARCEP (01 62)' },
+          { prefix: '0163*', reason: 'Plage démarchage ARCEP (01 63)' },
+          { prefix: '0270*', reason: 'Plage démarchage ARCEP (02 70)' },
+          { prefix: '0271*', reason: 'Plage démarchage ARCEP (02 71)' },
+          { prefix: '0377*', reason: 'Plage démarchage ARCEP (03 77)' },
+          { prefix: '0378*', reason: 'Plage démarchage ARCEP (03 78)' },
+          { prefix: '0423*', reason: 'Plage démarchage ARCEP (04 23)' },
+          { prefix: '0424*', reason: 'Plage démarchage ARCEP (04 24)' },
+          { prefix: '0425*', reason: 'Plage démarchage ARCEP (04 25)' },
+          { prefix: '0568*', reason: 'Plage démarchage ARCEP (05 68)' },
+          { prefix: '0569*', reason: 'Plage démarchage ARCEP (05 69)' },
+          { prefix: '0948*', reason: 'Plage démarchage ARCEP (09 48)' },
+          { prefix: '0949*', reason: 'Plage démarchage ARCEP (09 49)' },
+          { prefix: '07000*', reason: 'Plage M2M (machine-to-machine)' },
+          { prefix: '07001*', reason: 'Plage M2M (machine-to-machine)' },
+          { prefix: '07002*', reason: 'Plage M2M (machine-to-machine)' },
+          { prefix: '07003*', reason: 'Plage M2M (machine-to-machine)' },
+          { prefix: '07004*', reason: 'Plage M2M (machine-to-machine)' },
+          { prefix: '07005*', reason: 'Plage M2M (machine-to-machine)' },
+          { prefix: '07006*', reason: 'Plage M2M (machine-to-machine)' },
+          { prefix: '07007*', reason: 'Plage M2M (machine-to-machine)' },
+          { prefix: '07008*', reason: 'Plage M2M (machine-to-machine)' },
+          { prefix: '07009*', reason: 'Plage M2M (machine-to-machine)' },
+        ];
+        let added = 0;
+        for (const { prefix, reason } of spamPrefixes) {
+          await callHistory.addToBlacklist(prefix, reason, 'import-arcep');
+          added++;
+        }
+        logger.info('Blacklist: import préfixes spam FR', { added });
+        res.json({ ok: true, added });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // POST /api/blacklist/import - Import en masse (liste de numéros)
+    router.post('/api/blacklist/import', async (req, res) => {
+      try {
+        const { numbers, reason = 'Import en masse' } = req.body || {};
+        if (!Array.isArray(numbers) || !numbers.length) {
+          return res.status(400).json({ ok: false, error: 'numbers[] requis' });
+        }
+        let added = 0;
+        for (const num of numbers) {
+          const phone = String(num).trim();
+          if (phone.length >= 4) {
+            await callHistory.addToBlacklist(phone, reason, req.session.username);
+            added++;
+          }
+        }
+        res.json({ ok: true, added });
       } catch (err) {
         res.status(500).json({ ok: false, error: err.message });
       }
@@ -1212,6 +1347,12 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       const { partnerId, siren, siret, companyName } = req.body || {};
       if (!partnerId) return res.status(400).json({ ok: false, error: 'partnerId requis' });
 
+      // Lire le contact avant enrichissement (pour vérifier type + champs existants)
+      const contactBefore = await crm.getContactFull(partnerId);
+      if (contactBefore && !contactBefore.isCompany) {
+        return res.status(400).json({ ok: false, error: 'Ce contact est un particulier, l\'enrichissement SIRENE ne s\'applique qu\'aux sociétés' });
+      }
+
       let sireneData = null;
       let usedSource = 'sirene_insee';
 
@@ -1249,11 +1390,34 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       if (!crm.enrichFromSirene) {
         return res.status(501).json({ ok: false, error: 'CRM ne supporte pas l\'enrichissement SIRENE' });
       }
-      const enriched = await crm.enrichFromSirene(partnerId, sireneData);
+      await crm.enrichFromSirene(partnerId, sireneData);
 
-      res.json({ ok: true, data: { contact: enriched, sirene: sireneData } });
+      // 3. Compléter avec Google Places (téléphone + site web)
+      let placesData = null;
+      if (googlePlacesService?.isConfigured) {
+        try {
+          const searchName = companyName || sireneData.denomination || sireneData.nomCommercial || await _getPartnerName(crm, partnerId);
+          const city = sireneData.adresse?.commune || '';
+          placesData = await googlePlacesService.search(searchName, city);
+          if (placesData) {
+            const updates = {};
+            if (placesData.phoneIntl && !contactBefore?.phone?.trim()) updates.phone = placesData.phoneIntl;
+            if (placesData.website && !contactBefore?.website?.trim()) updates.website = placesData.website;
+            if (Object.keys(updates).length > 0) {
+              await crm.updateContact(partnerId, updates);
+              logger.info('Google Places: contact complété', { partnerId, ...updates });
+            }
+          }
+        } catch (err) {
+          logger.warn('Google Places: erreur (non bloquante)', { error: err.message });
+        }
+      }
+
+      // Relire le contact pour retourner les données à jour
+      const finalContact = await crm.getContactFull(partnerId);
+      res.json({ ok: true, data: { contact: finalContact, sirene: sireneData, places: placesData } });
     } catch (err) {
-      logger.error('SIRENE enrich: erreur', { error: err.message });
+      logger.error('Enrichissement: erreur', { error: err.message });
       res.status(err.message.includes('quota') ? 429 : 500).json({ ok: false, error: err.message });
     }
   });
@@ -1301,6 +1465,25 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
 
       if (crm.enrichFromSirene) {
         await crm.enrichFromSirene(partnerId, sireneData);
+      }
+
+      // 3. Compléter avec Google Places (téléphone + site web)
+      if (googlePlacesService?.isConfigured) {
+        try {
+          const city = sireneData.adresse?.commune || '';
+          const placesData = await googlePlacesService.search(searchName, city);
+          if (placesData) {
+            const updates = {};
+            if (placesData.phoneIntl) updates.phone = placesData.phoneIntl;
+            if (placesData.website) updates.website = placesData.website;
+            if (Object.keys(updates).length > 0) {
+              await crm.updateContact(partnerId, updates);
+              logger.info('Webhook Google Places: contact complété', { partnerId, ...updates });
+            }
+          }
+        } catch (err) {
+          logger.warn('Webhook Google Places: erreur (non bloquante)', { error: err.message });
+        }
       }
 
       res.json({ ok: true, enriched: true, siret: sireneData.siret, source: sireneData.source });

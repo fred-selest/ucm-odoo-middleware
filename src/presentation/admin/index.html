@@ -485,18 +485,25 @@
   <div class="tab-pane fade" id="tab-blacklist" role="tabpanel">
     <div class="card mb-3">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-slash-circle me-1 text-danger"></i>Numéros bloqués</span>
-        <button class="btn btn-sm btn-outline-secondary" onclick="loadBlacklist()"><i class="bi bi-arrow-clockwise"></i></button>
+        <span><i class="bi bi-slash-circle me-1 text-danger"></i>Numéros bloqués <span class="badge bg-danger bg-opacity-25 text-danger ms-1" id="blCount">0</span></span>
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm btn-outline-warning" onclick="importSpamFR()" title="Importer les préfixes de démarchage ARCEP">
+            <i class="bi bi-download me-1"></i>Spam FR
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="loadBlacklist()"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
       </div>
       <div class="card-body border-bottom pb-3 mb-0">
         <div class="row g-2 align-items-end">
           <div class="col-md-4"><label class="form-label small fw-semibold">Numéro</label>
-            <input type="tel" class="form-control form-control-sm" id="blPhone" placeholder="+33612345678"></div>
-          <div class="col-md-5"><label class="form-label small fw-semibold">Raison</label>
+            <input type="tel" class="form-control form-control-sm" id="blPhone" placeholder="+33612345678 ou 0162* (préfixe)"></div>
+          <div class="col-md-4"><label class="form-label small fw-semibold">Raison</label>
             <input type="text" class="form-control form-control-sm" id="blReason" placeholder="Spam, démarchage…"></div>
-          <div class="col-md-3"><button class="btn btn-sm btn-danger w-100"
+          <div class="col-md-2"><button class="btn btn-sm btn-danger w-100"
             onclick="addToBlacklist(document.getElementById('blPhone').value.trim(), document.getElementById('blReason').value.trim()); document.getElementById('blPhone').value=''; document.getElementById('blReason').value='';">
             <i class="bi bi-plus me-1"></i>Bloquer</button></div>
+          <div class="col-md-2"><button class="btn btn-sm btn-outline-info w-100" onclick="checkSpamScore()">
+            <i class="bi bi-search me-1"></i>Tellows</button></div>
         </div>
       </div>
       <div class="card-body p-0">
@@ -1109,6 +1116,7 @@
             </div>
             <h4 class="mb-0 fw-bold" id="incomingCallerName">—</h4>
             <div class="opacity-75" id="incomingCallerPhone">—</div>
+            <div id="incomingSpamBadge" style="display:none" class="mt-1"></div>
           </div>
         </div>
       </div>
@@ -1189,12 +1197,20 @@
             <i class="bi bi-person-circle" style="font-size:3rem;color:#22c55e;"></i>
           </div>
           <div class="flex-grow-1">
-            <h4 class="mb-0 fw-bold text-success" id="popupContactName">—</h4>
+            <div class="d-flex align-items-center gap-2">
+              <h4 class="mb-0 fw-bold text-success" id="popupContactName">—</h4>
+              <span id="popupContactTypeBadge" class="badge rounded-pill"></span>
+            </div>
             <div class="text-success opacity-75" id="popupContactFunction">—</div>
           </div>
-          <button type="button" class="btn btn-sm btn-outline-success" id="popupEditBtn">
-            <i class="bi bi-pencil"></i> Modifier
-          </button>
+          <div class="d-flex gap-1">
+            <button type="button" class="btn btn-sm btn-outline-success" id="popupEditBtn">
+              <i class="bi bi-pencil"></i> Modifier
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="blockFromContact()" title="Bloquer ce numéro">
+              <i class="bi bi-slash-circle"></i>
+            </button>
+          </div>
         </div>
       </div>
       <div class="modal-body p-4">
