@@ -58,6 +58,10 @@ class OdooAdapter extends CrmClientInterface {
     return this._client.updateContact(id, data);
   }
 
+  async enrichFromSirene(partnerId, sireneData) {
+    return this._client.enrichFromSirene(partnerId, sireneData);
+  }
+
   // ── Activités ─────────────────────────────────────────────────────────────
 
   async logCallActivity(contactId, callData) {

@@ -204,7 +204,7 @@ class OdooClient {
     if (contactData.function !== undefined) values.function = contactData.function;
     if (contactData.comment !== undefined) values.comment = contactData.comment;
     if (contactData.website !== undefined) values.website = contactData.website;
-    if (contactData.company) values.company_name = contactData.company;
+    if (contactData.company_registry) values.company_registry = contactData.company_registry;
     if (contactData.company_id !== undefined) values.parent_id = contactData.company_id;
     if (contactData.country) {
       const countries = await this._callModel('res.country', 'search_read',
@@ -251,12 +251,81 @@ class OdooClient {
     ], {
       fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company',
         'street', 'zip', 'city', 'country_id', 'function', 'comment', 'website',
-        'company_name', 'image_128'],
+        'company_registry', 'vat', 'image_128'],
       limit: 1,
     });
 
     if (!result || result.length === 0) return null;
     return this._formatContactFull(result[0]);
+  }
+
+  /**
+   * Enrichit un contact Odoo avec les données SIRENE INSEE.
+   * Mappe : SIRET → company_registry, TVA intra, adresse, is_company, country.
+   */
+  async enrichFromSirene(partnerId, sireneData) {
+    await this.ensureAuthenticated();
+
+    const values = {};
+
+    // SIRET → company_registry (format Odoo standard)
+    if (sireneData.siret) {
+      values.company_registry = sireneData.siret;
+    }
+
+    // TVA intracommunautaire calculée depuis le SIREN
+    if (sireneData.siren && !sireneData.skipVat) {
+      const siren = parseInt(sireneData.siren, 10);
+      const clef = (12 + 3 * (siren % 97)) % 97;
+      values.vat = `FR${String(clef).padStart(2, '0')}${sireneData.siren}`;
+    }
+
+    // Adresse
+    if (sireneData.adresseFormatee || sireneData.adresse) {
+      const addr = sireneData.adresse || {};
+      const rue = [addr.numero, addr.type, addr.voie].filter(Boolean).join(' ');
+      if (rue) values.street = rue;
+      if (addr.complement) values.street2 = addr.complement;
+      if (addr.codePostal) values.zip = addr.codePostal;
+      if (addr.commune) values.city = addr.commune;
+      values.country_id = 75; // France
+    }
+
+    // Dénomination → name (si société)
+    if (sireneData.denomination) {
+      values.is_company = true;
+      values.name = sireneData.denomination;
+    }
+
+    if (Object.keys(values).length === 0) {
+      logger.warn('Odoo SIRENE: aucun champ à enrichir', { partnerId });
+      return null;
+    }
+
+    await this._callModel('res.partner', 'write', [[partnerId], values]);
+    logger.info('Odoo: contact enrichi via SIRENE', { partnerId, siret: sireneData.siret });
+
+    // Note dans le chatter
+    const lines = ['Fiche enrichie via API SIRENE INSEE'];
+    if (sireneData.siret) lines.push(`SIRET : ${sireneData.siret}`);
+    if (sireneData.siren) lines.push(`SIREN : ${sireneData.siren}`);
+    if (sireneData.activite?.code) lines.push(`Activité : ${sireneData.activite.code} (${sireneData.activite.nomenclature || ''})`);
+    if (sireneData.categorieJuridique) lines.push(`Catégorie juridique : ${sireneData.categorieJuridique}`);
+    if (sireneData.categorieEntreprise) lines.push(`Catégorie entreprise : ${sireneData.categorieEntreprise}`);
+    if (sireneData.adresseFormatee) lines.push(`Adresse : ${sireneData.adresseFormatee}`);
+
+    try {
+      await this._callModel('res.partner', 'message_post', [[partnerId]], {
+        body: lines.join('\n'),
+        message_type: 'comment',
+        subtype_xmlid: 'mail.mt_note',
+      });
+    } catch (err) {
+      logger.warn('Odoo SIRENE: échec note chatter', { error: err.message });
+    }
+
+    this.invalidateCache(null);
+    return this.getContactFull(partnerId);
   }
 
   /**
@@ -593,7 +662,7 @@ class OdooClient {
   }
 
   _formatContactFull(partner) {
-    const company = Array.isArray(partner.parent_id) ? partner.parent_id[1] : (partner.company_name || null);
+    const company = Array.isArray(partner.parent_id) ? partner.parent_id[1] : null;
     const country = Array.isArray(partner.country_id) ? partner.country_id[1] : null;
     const name    = partner.is_company || !company
       ? partner.name
@@ -622,7 +691,8 @@ class OdooClient {
     await this.ensureAuthenticated();
     const result = await this._callModel('res.partner', 'read', [[partnerId]], {
       fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company',
-        'street', 'zip', 'city', 'country_id', 'function', 'comment', 'website', 'company_name', 'image_128'],
+        'street', 'zip', 'city', 'country_id', 'function', 'comment', 'website',
+        'company_registry', 'vat', 'image_128'],
     });
     if (!result || !result[0]) return null;
     return result[0];

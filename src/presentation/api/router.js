@@ -52,6 +52,7 @@ function apiRequireSession(req, res, next) {
     !p.startsWith('/api/') ||
     p.startsWith('/api/auth/') ||
     p.startsWith('/api/sirene/') ||
+    p.startsWith('/api/webhook/') ||
     p === '/api/odoo/test';
   if (isPublic) return next();
   return requireSession(req, res, next);
@@ -1177,7 +1178,115 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     }
   });
 
+  // ── SIRENE — Enrichissement automatique d'un contact CRM ─────────────────
+
+  /**
+   * POST /api/sirene/enrich
+   * Body : { partnerId, siren?, siret?, companyName? }
+   *
+   * 1. Si siren/siret fourni → recherche SIRENE directe
+   * 2. Sinon si companyName fourni → recherche par nom
+   * 3. Sinon → lit le contact dans Odoo et cherche par son nom
+   * 4. Met à jour le contact CRM avec les données SIRENE
+   */
+  router.post('/api/sirene/enrich', async (req, res) => {
+    try {
+      if (!sireneService?.isConfigured) {
+        return res.status(501).json({ ok: false, error: 'Service SIRENE non configuré (INSEE_SIRENE_API_KEY manquante)' });
+      }
+
+      const { partnerId, siren, siret, companyName } = req.body || {};
+      if (!partnerId) return res.status(400).json({ ok: false, error: 'partnerId requis' });
+
+      let sireneData = null;
+
+      // Priorité : SIRET > SIREN > nom entreprise > nom du contact Odoo
+      if (siret) {
+        sireneData = await sireneService.searchBySiret(siret);
+      } else if (siren) {
+        const ul = await sireneService.searchBySiren(siren);
+        if (ul?.siretSiege) {
+          sireneData = await sireneService.searchBySiret(ul.siretSiege);
+        }
+        if (!sireneData) sireneData = ul;
+      } else {
+        const searchName = companyName || await _getPartnerName(crm, partnerId);
+        if (!searchName) return res.status(400).json({ ok: false, error: 'Impossible de déterminer le nom à rechercher' });
+
+        const results = await sireneService.searchByName(searchName, 5);
+        // Prendre le siège actif en priorité
+        sireneData = results.find(e => e.siege && e.actif) || results.find(e => e.actif) || results[0];
+      }
+
+      if (!sireneData) return res.status(404).json({ ok: false, error: 'Aucun résultat SIRENE' });
+
+      // Enrichir via l'adaptateur CRM (Odoo ou Dolibarr)
+      if (!crm.enrichFromSirene) {
+        return res.status(501).json({ ok: false, error: 'CRM ne supporte pas l\'enrichissement SIRENE' });
+      }
+      const enriched = await crm.enrichFromSirene(partnerId, sireneData);
+
+      res.json({ ok: true, data: { contact: enriched, sirene: sireneData } });
+    } catch (err) {
+      logger.error('SIRENE enrich: erreur', { error: err.message });
+      res.status(err.message.includes('quota') ? 429 : 500).json({ ok: false, error: err.message });
+    }
+  });
+
+  /**
+   * POST /api/webhook/odoo/partner
+   * Webhook appelé par une action automatisée Odoo lors de la création/modification d'un contact.
+   * Body Odoo : { id, name, company_name, company_registry, ... }
+   */
+  router.post('/api/webhook/odoo/partner', async (req, res) => {
+    try {
+      if (!sireneService?.isConfigured) {
+        return res.status(501).json({ ok: false, error: 'Service SIRENE non configuré' });
+      }
+
+      const record = req.body || {};
+      const partnerId = record.id;
+      if (!partnerId) return res.status(400).json({ ok: false, error: 'id partenaire manquant' });
+
+      // Ne pas re-enrichir si déjà un SIRET
+      if (record.company_registry) {
+        return res.json({ ok: true, skipped: true, reason: 'company_registry déjà renseigné' });
+      }
+
+      const searchName = record.company_name || record.name;
+      if (!searchName || searchName.startsWith('Inconnu ')) {
+        return res.json({ ok: true, skipped: true, reason: 'pas de nom d\'entreprise exploitable' });
+      }
+
+      logger.info('Webhook Odoo → enrichissement SIRENE', { partnerId, name: searchName });
+
+      const results = await sireneService.searchByName(searchName, 5);
+      const sireneData = results.find(e => e.siege && e.actif) || results.find(e => e.actif) || results[0];
+
+      if (!sireneData) {
+        return res.json({ ok: true, skipped: true, reason: 'aucun résultat SIRENE' });
+      }
+
+      if (crm.enrichFromSirene) {
+        await crm.enrichFromSirene(partnerId, sireneData);
+      }
+
+      res.json({ ok: true, enriched: true, siret: sireneData.siret });
+    } catch (err) {
+      logger.error('Webhook SIRENE: erreur', { error: err.message });
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
   return router;
+}
+
+// Helpers hors router
+async function _getPartnerName(crm, partnerId) {
+  try {
+    const contact = await crm.getContactFull(partnerId);
+    return contact?.company || contact?.name || null;
+  } catch { return null; }
 }
 
 module.exports = createRouter;

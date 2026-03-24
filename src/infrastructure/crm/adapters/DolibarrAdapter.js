@@ -479,6 +479,44 @@ class DolibarrAdapter extends CrmClientInterface {
     return this.getContactFull(id);
   }
 
+  // ── enrichFromSirene ───────────────────────────────────────────────────────
+
+  /**
+   * Enrichit un contact Dolibarr avec les données SIRENE INSEE.
+   * Mappe : adresse, SIRET → idprof2, SIREN → idprof1, TVA.
+   */
+  async enrichFromSirene(contactId, sireneData) {
+    const payload = {};
+
+    if (sireneData.siren) payload.idprof1 = sireneData.siren;  // SIREN
+    if (sireneData.siret) payload.idprof2 = sireneData.siret;  // SIRET
+
+    if (sireneData.siren) {
+      const siren = parseInt(sireneData.siren, 10);
+      const clef = (12 + 3 * (siren % 97)) % 97;
+      payload.tva_intra = `FR${String(clef).padStart(2, '0')}${sireneData.siren}`;
+    }
+
+    const addr = sireneData.adresse || {};
+    const rue = [addr.numero, addr.type, addr.voie].filter(Boolean).join(' ');
+    if (rue) payload.address = rue;
+    if (addr.codePostal) payload.zip = addr.codePostal;
+    if (addr.commune) payload.town = addr.commune;
+    payload.country_id = 1; // France dans Dolibarr
+
+    if (sireneData.denomination) {
+      const parts = sireneData.denomination.trim().split(/\s+/);
+      payload.lastname = parts.pop();
+      payload.firstname = parts.join(' ');
+    }
+
+    if (Object.keys(payload).length === 0) return null;
+
+    await this._req('PUT', `/contacts/${contactId}`, {}, payload);
+    this.invalidateCache(null);
+    return this.getContactFull(contactId);
+  }
+
   // ── logCallActivity ────────────────────────────────────────────────────────
 
   /**
