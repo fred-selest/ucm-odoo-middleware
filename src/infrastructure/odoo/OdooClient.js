@@ -299,8 +299,9 @@ class OdooClient {
       return null;
     }
 
-    // Marquer comme société
-    values.is_company = true;
+    // Personne physique (EI, auto-entrepreneur) si catégorie juridique 1000–1999
+    const catJur = parseInt(sireneData.categorieJuridique || '0', 10);
+    values.is_company = catJur === 0 || catJur >= 2000;
 
     await this._callModel('res.partner', 'write', [[partnerId], values]);
     logger.info('Odoo: contact enrichi via SIRENE', { partnerId, siret: sireneData.siret });

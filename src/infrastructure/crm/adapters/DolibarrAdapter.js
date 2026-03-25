@@ -512,6 +512,10 @@ class DolibarrAdapter extends CrmClientInterface {
 
     if (Object.keys(payload).length === 0) return null;
 
+    // Personne physique (EI, auto-entrepreneur) si catégorie juridique 1000–1999
+    const catJur = parseInt(sireneData.categorieJuridique || '0', 10);
+    payload.nature = (catJur === 0 || catJur >= 2000) ? 'c' : 'p'; // c=company, p=person
+
     await this._req('PUT', `/contacts/${contactId}`, {}, payload);
     this.invalidateCache(null);
     return this.getContactFull(contactId);
