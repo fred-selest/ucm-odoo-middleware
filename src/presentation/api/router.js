@@ -1580,12 +1580,13 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       // Relire le contact depuis Odoo (le body webhook est souvent incomplet)
       const existing = crm ? await crm.getContactFull(partnerId) : null;
 
-      // Ne pas re-enrichir si déjà un SIRET ou une adresse complète
-      if (existing?.companyRegistry?.trim()) {
-        return res.json({ ok: true, skipped: true, reason: 'company_registry déjà renseigné' });
-      }
-      if (existing?.street?.trim() && existing?.zip?.trim() && existing?.city?.trim()) {
-        return res.json({ ok: true, skipped: true, reason: 'adresse déjà complète' });
+      // Ne pas re-enrichir si SIRET + TVA + adresse + téléphone sont tous déjà renseignés
+      const alreadyComplete = existing?.companyRegistry?.trim()
+        && existing?.vat?.trim()
+        && existing?.street?.trim()
+        && existing?.phone?.trim();
+      if (alreadyComplete) {
+        return res.json({ ok: true, skipped: true, reason: 'fiche déjà complète' });
       }
 
       logger.info('Webhook Odoo → enrichissement', { partnerId, name: searchName });
