@@ -1572,14 +1572,20 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       const partnerId = record.id;
       if (!partnerId) return res.status(400).json({ ok: false, error: 'id partenaire manquant' });
 
-      // Ne pas re-enrichir si déjà un SIRET
-      if (record.company_registry) {
-        return res.json({ ok: true, skipped: true, reason: 'company_registry déjà renseigné' });
-      }
-
       const searchName = record.company_name || record.name;
       if (!searchName || searchName.startsWith('Inconnu ')) {
         return res.json({ ok: true, skipped: true, reason: 'pas de nom d\'entreprise exploitable' });
+      }
+
+      // Relire le contact depuis Odoo (le body webhook est souvent incomplet)
+      const existing = crm ? await crm.getContactFull(partnerId) : null;
+
+      // Ne pas re-enrichir si déjà un SIRET ou une adresse complète
+      if (existing?.companyRegistry?.trim()) {
+        return res.json({ ok: true, skipped: true, reason: 'company_registry déjà renseigné' });
+      }
+      if (existing?.street?.trim() && existing?.zip?.trim() && existing?.city?.trim()) {
+        return res.json({ ok: true, skipped: true, reason: 'adresse déjà complète' });
       }
 
       logger.info('Webhook Odoo → enrichissement', { partnerId, name: searchName });
