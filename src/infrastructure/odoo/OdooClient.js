@@ -208,7 +208,7 @@ class OdooClient {
     if (contactData.company_id !== undefined) values.parent_id = contactData.company_id;
     if (contactData.country) {
       const countries = await this._callModel('res.country', 'search_read',
-        [['name', 'ilike', contactData.country]], { fields: ['id'], limit: 1 });
+        [[['name', 'ilike', contactData.country]]], { fields: ['id'], limit: 1 });
       if (countries.length > 0) values.country_id = countries[0].id;
     } else if (contactData.country === '') {
       values.country_id = false;
