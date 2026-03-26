@@ -506,116 +506,76 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       }
     });
 
-    // POST /api/blacklist/import-spam-fr - Préfixes spam français ARCEP
-    router.post('/api/blacklist/import-spam-fr', async (req, res) => {
-      try {
-        const spamPrefixes = [
-          { phone: '0162*', reason: 'Préfixe démarchage ARCEP (01 62)' },
-          { phone: '0163*', reason: 'Préfixe démarchage ARCEP (01 63)' },
-          { phone: '0270*', reason: 'Préfixe démarchage ARCEP (02 70)' },
-          { phone: '0271*', reason: 'Préfixe démarchage ARCEP (02 71)' },
-          { phone: '0377*', reason: 'Préfixe démarchage ARCEP (03 77)' },
-          { phone: '0378*', reason: 'Préfixe démarchage ARCEP (03 78)' },
-          { phone: '0423*', reason: 'Préfixe démarchage ARCEP (04 23)' },
-          { phone: '0424*', reason: 'Préfixe démarchage ARCEP (04 24)' },
-          { phone: '0425*', reason: 'Préfixe démarchage ARCEP (04 25)' },
-          { phone: '0568*', reason: 'Préfixe démarchage ARCEP (05 68)' },
-          { phone: '0569*', reason: 'Préfixe démarchage ARCEP (05 69)' },
-          { phone: '0948*', reason: 'Préfixe démarchage ARCEP (09 48)' },
-          { phone: '0949*', reason: 'Préfixe démarchage ARCEP (09 49)' },
-          { phone: '07000*', reason: 'Plage M2M (07 000)' },
-          { phone: '07001*', reason: 'Plage M2M (07 001)' },
-          { phone: '07002*', reason: 'Plage M2M (07 002)' },
-          { phone: '07003*', reason: 'Plage M2M (07 003)' },
-          { phone: '07004*', reason: 'Plage M2M (07 004)' },
-          { phone: '07005*', reason: 'Plage M2M (07 005)' },
-          { phone: '07006*', reason: 'Plage M2M (07 006)' },
-          { phone: '07007*', reason: 'Plage M2M (07 007)' },
-          { phone: '07008*', reason: 'Plage M2M (07 008)' },
-          { phone: '07009*', reason: 'Plage M2M (07 009)' },
-        ];
-        let added = 0;
-        for (const entry of spamPrefixes) {
-          await callHistory.addToBlacklist(entry.phone, entry.reason, 'ARCEP');
+  // POST /api/blacklist/import-spam-fr - Importer les préfixes spam français connus
+  router.post('/api/blacklist/import-spam-fr', async (req, res) => {
+    try {
+      const spamPrefixes = [
+        { prefix: '0162*', reason: 'Plage démarchage ARCEP (01 62)' },
+        { prefix: '0163*', reason: 'Plage démarchage ARCEP (01 63)' },
+        { prefix: '0270*', reason: 'Plage démarchage ARCEP (02 70)' },
+        { prefix: '0271*', reason: 'Plage démarchage ARCEP (02 71)' },
+        { prefix: '0377*', reason: 'Plage démarchage ARCEP (03 77)' },
+        { prefix: '0378*', reason: 'Plage démarchage ARCEP (03 78)' },
+        { prefix: '0423*', reason: 'Plage démarchage ARCEP (04 23)' },
+        { prefix: '0424*', reason: 'Plage démarchage ARCEP (04 24)' },
+        { prefix: '0425*', reason: 'Plage démarchage ARCEP (04 25)' },
+        { prefix: '0568*', reason: 'Plage démarchage ARCEP (05 68)' },
+        { prefix: '0569*', reason: 'Plage démarchage ARCEP (05 69)' },
+        { prefix: '0948*', reason: 'Plage démarchage ARCEP (09 48)' },
+        { prefix: '0949*', reason: 'Plage démarchage ARCEP (09 49)' },
+        { prefix: '07000*', reason: 'Plage M2M (machine-to-machine)' },
+        { prefix: '07001*', reason: 'Plage M2M (machine-to-machine)' },
+        { prefix: '07002*', reason: 'Plage M2M (machine-to-machine)' },
+        { prefix: '07003*', reason: 'Plage M2M (machine-to-machine)' },
+        { prefix: '07004*', reason: 'Plage M2M (machine-to-machine)' },
+        { prefix: '07005*', reason: 'Plage M2M (machine-to-machine)' },
+        { prefix: '07006*', reason: 'Plage M2M (machine-to-machine)' },
+        { prefix: '07007*', reason: 'Plage M2M (machine-to-machine)' },
+        { prefix: '07008*', reason: 'Plage M2M (machine-to-machine)' },
+        { prefix: '07009*', reason: 'Plage M2M (machine-to-machine)' },
+      ];
+      let added = 0;
+      for (const { prefix, reason } of spamPrefixes) {
+        await callHistory.addToBlacklist(prefix, reason, 'import-arcep');
+        added++;
+      }
+      logger.info('Blacklist: import préfixes spam FR', { added });
+      res.json({ ok: true, added });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // DELETE /api/blacklist/:phone - Retirer un numéro
+  router.delete('/api/blacklist/:phone', async (req, res) => {
+    try {
+      await callHistory.removeFromBlacklist(req.params.phone);
+      res.json({ ok: true, message: 'Numéro retiré de la blacklist' });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // POST /api/blacklist/import - Import en masse (liste de numéros)
+  router.post('/api/blacklist/import', async (req, res) => {
+    try {
+      const { numbers, reason = 'Import en masse' } = req.body || {};
+      if (!Array.isArray(numbers) || !numbers.length) {
+        return res.status(400).json({ ok: false, error: 'numbers[] requis' });
+      }
+      let added = 0;
+      for (const num of numbers) {
+        const phone = String(num).trim();
+        if (phone.length >= 4) {
+          await callHistory.addToBlacklist(phone, reason, req.session.username);
           added++;
         }
-        logger.info('Import préfixes spam FR', { added });
-        res.json({ ok: true, added, prefixes: spamPrefixes.length });
-      } catch (err) {
-        res.status(500).json({ ok: false, error: err.message });
       }
-    });
-
-    // DELETE /api/blacklist/:phone - Retirer un numéro
-    router.delete('/api/blacklist/:phone', async (req, res) => {
-      try {
-        await callHistory.removeFromBlacklist(req.params.phone);
-        res.json({ ok: true, message: 'Numéro retiré de la blacklist' });
-      } catch (err) {
-        res.status(500).json({ ok: false, error: err.message });
-      }
-    });
-
-    // POST /api/blacklist/import-spam-fr - Importer les préfixes spam français connus
-    router.post('/api/blacklist/import-spam-fr', async (req, res) => {
-      try {
-        const spamPrefixes = [
-          { prefix: '0162*', reason: 'Plage démarchage ARCEP (01 62)' },
-          { prefix: '0163*', reason: 'Plage démarchage ARCEP (01 63)' },
-          { prefix: '0270*', reason: 'Plage démarchage ARCEP (02 70)' },
-          { prefix: '0271*', reason: 'Plage démarchage ARCEP (02 71)' },
-          { prefix: '0377*', reason: 'Plage démarchage ARCEP (03 77)' },
-          { prefix: '0378*', reason: 'Plage démarchage ARCEP (03 78)' },
-          { prefix: '0423*', reason: 'Plage démarchage ARCEP (04 23)' },
-          { prefix: '0424*', reason: 'Plage démarchage ARCEP (04 24)' },
-          { prefix: '0425*', reason: 'Plage démarchage ARCEP (04 25)' },
-          { prefix: '0568*', reason: 'Plage démarchage ARCEP (05 68)' },
-          { prefix: '0569*', reason: 'Plage démarchage ARCEP (05 69)' },
-          { prefix: '0948*', reason: 'Plage démarchage ARCEP (09 48)' },
-          { prefix: '0949*', reason: 'Plage démarchage ARCEP (09 49)' },
-          { prefix: '07000*', reason: 'Plage M2M (machine-to-machine)' },
-          { prefix: '07001*', reason: 'Plage M2M (machine-to-machine)' },
-          { prefix: '07002*', reason: 'Plage M2M (machine-to-machine)' },
-          { prefix: '07003*', reason: 'Plage M2M (machine-to-machine)' },
-          { prefix: '07004*', reason: 'Plage M2M (machine-to-machine)' },
-          { prefix: '07005*', reason: 'Plage M2M (machine-to-machine)' },
-          { prefix: '07006*', reason: 'Plage M2M (machine-to-machine)' },
-          { prefix: '07007*', reason: 'Plage M2M (machine-to-machine)' },
-          { prefix: '07008*', reason: 'Plage M2M (machine-to-machine)' },
-          { prefix: '07009*', reason: 'Plage M2M (machine-to-machine)' },
-        ];
-        let added = 0;
-        for (const { prefix, reason } of spamPrefixes) {
-          await callHistory.addToBlacklist(prefix, reason, 'import-arcep');
-          added++;
-        }
-        logger.info('Blacklist: import préfixes spam FR', { added });
-        res.json({ ok: true, added });
-      } catch (err) {
-        res.status(500).json({ ok: false, error: err.message });
-      }
-    });
-
-    // POST /api/blacklist/import - Import en masse (liste de numéros)
-    router.post('/api/blacklist/import', async (req, res) => {
-      try {
-        const { numbers, reason = 'Import en masse' } = req.body || {};
-        if (!Array.isArray(numbers) || !numbers.length) {
-          return res.status(400).json({ ok: false, error: 'numbers[] requis' });
-        }
-        let added = 0;
-        for (const num of numbers) {
-          const phone = String(num).trim();
-          if (phone.length >= 4) {
-            await callHistory.addToBlacklist(phone, reason, req.session.username);
-            added++;
-          }
-        }
-        res.json({ ok: true, added });
-      } catch (err) {
-        res.status(500).json({ ok: false, error: err.message });
-      }
-    });
+      res.json({ ok: true, added });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
 
     // GET /api/blacklist/check/:phone - Vérifier si bloqué
     router.get('/api/blacklist/check/:phone', async (req, res) => {
@@ -653,6 +613,17 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
         url:      config.dolibarr?.url      || '',
         userId:   config.dolibarr?.userId   || 1,
         entityId: config.dolibarr?.entityId || null,
+        // apiKey non exposée
+      },
+      whisper: {
+        enabled:        config.whisper.enabled,
+        mode:           config.whisper.mode,
+        model:          config.whisper.model,
+        language:       config.whisper.language,
+        command:        config.whisper.command,
+        maxDurationSec: config.whisper.maxDurationSec,
+        apiUrl:         config.whisper.apiUrl,
+        hasApiKey:      !!config.whisper.apiKey,
         // apiKey non exposée
       },
     });
@@ -730,6 +701,24 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     } catch (err) {
       res.json({ ok: false, message: `Sauvegardé mais auth échouée : ${err.message}` });
     }
+  });
+
+  // POST /api/config/whisper — Configurer la transcription Whisper
+  router.post('/api/config/whisper', (req, res) => {
+    const { enabled, mode, model, language, command, maxDurationSec, apiKey, apiUrl } = req.body || {};
+    const fields = {};
+    if (enabled !== undefined)        fields.enabled        = enabled === true || enabled === 'true';
+    if (mode)                         fields.mode           = mode.trim();
+    if (model)                        fields.model          = model.trim();
+    if (language)                     fields.language       = language.trim();
+    if (command !== undefined)        fields.command        = command.trim();
+    if (maxDurationSec)               fields.maxDurationSec = parseInt(maxDurationSec, 10);
+    if (apiKey !== undefined && apiKey !== '') fields.apiKey = apiKey.trim();
+    if (apiUrl)                       fields.apiUrl         = apiUrl.trim();
+
+    config.applyWhisper(fields);
+    logger.info('Admin: config Whisper mise à jour', { user: req.session?.username, fields: Object.keys(fields) });
+    res.json({ ok: true, message: 'Configuration Whisper sauvegardée' });
   });
 
   // ── Gestion des tokens webhook ───────────────────────────────────────────

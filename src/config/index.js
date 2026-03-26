@@ -133,6 +133,14 @@ const config = {
     this._persist();
   },
 
+  applyWhisper(fields) {
+    const allowed = ['enabled', 'mode', 'model', 'language', 'command', 'maxDurationSec', 'apiKey', 'apiUrl'];
+    for (const [k, v] of Object.entries(fields)) {
+      if (allowed.includes(k)) config.whisper[k] = v;
+    }
+    this._persist();
+  },
+
   applyDolibarr(fields) {
     const allowed = ['url', 'apiKey', 'userId', 'entityId'];
     for (const [k, v] of Object.entries(fields)) {

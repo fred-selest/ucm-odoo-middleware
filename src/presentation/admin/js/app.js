@@ -337,6 +337,29 @@ document.getElementById('modalConfig').addEventListener('show.bs.modal', async (
       document.getElementById('cfgOdooDb').value   = d.odoo.db       || '';
       document.getElementById('cfgOdooUser').value = d.odoo.username  || '';
     }
+
+    // Whisper
+    if (d.whisper) {
+      document.getElementById('cfgWhisperEnabled').checked = !!d.whisper.enabled;
+      document.getElementById('cfgWhisperMode').value      = d.whisper.mode || 'local';
+      document.getElementById('cfgWhisperModel').value     = d.whisper.model || 'tiny';
+      document.getElementById('cfgWhisperLanguage').value  = d.whisper.language || 'fr';
+      document.getElementById('cfgWhisperCommand').value   = d.whisper.command || '';
+      document.getElementById('cfgWhisperMaxDuration').value = d.whisper.maxDurationSec || 600;
+      const apiUrl = d.whisper.apiUrl || '';
+      const sel = document.getElementById('cfgWhisperApiUrlSelect');
+      const knownUrls = Array.from(sel.options).map(o => o.value).filter(v => v !== 'custom');
+      if (knownUrls.includes(apiUrl)) {
+        sel.value = apiUrl;
+        document.getElementById('cfgWhisperApiUrl').style.display = 'none';
+      } else if (apiUrl) {
+        sel.value = 'custom';
+        document.getElementById('cfgWhisperApiUrl').value = apiUrl;
+        document.getElementById('cfgWhisperApiUrl').style.display = '';
+      }
+      document.getElementById('cfgWhisperApiKeyStatus').textContent = d.whisper.hasApiKey ? '✓ Clé API enregistrée' : '';
+      onWhisperModeChange();
+    }
   } catch(e) { console.error('Chargement config échoué:', e); }
 });
 
@@ -392,6 +415,47 @@ async function toggleDnd(exten, enable) {
     fetchAgentStatus();
     showToast(enable ? `DND activé pour ${exten}` : `DND désactivé pour ${exten}`);
   } catch { }
+}
+
+function onWhisperModeChange() {
+  const mode = document.getElementById('cfgWhisperMode').value;
+  document.getElementById('whisperLocalFields').style.display = mode === 'local' ? '' : 'none';
+  document.getElementById('whisperApiFields').style.display   = mode === 'api'   ? '' : 'none';
+}
+
+function onWhisperApiUrlChange() {
+  const val = document.getElementById('cfgWhisperApiUrlSelect').value;
+  document.getElementById('cfgWhisperApiUrl').style.display = val === 'custom' ? '' : 'none';
+}
+
+async function saveWhisperConfig() {
+  const result  = document.getElementById('cfgWhisperResult');
+  const mode    = document.getElementById('cfgWhisperMode').value;
+  const selUrl  = document.getElementById('cfgWhisperApiUrlSelect').value;
+  const apiUrl  = selUrl === 'custom'
+    ? document.getElementById('cfgWhisperApiUrl').value.trim()
+    : selUrl;
+  const body = {
+    enabled:        document.getElementById('cfgWhisperEnabled').checked,
+    mode,
+    model:          document.getElementById('cfgWhisperModel').value,
+    language:       document.getElementById('cfgWhisperLanguage').value,
+    command:        document.getElementById('cfgWhisperCommand').value.trim(),
+    maxDurationSec: parseInt(document.getElementById('cfgWhisperMaxDuration').value || '600', 10),
+    apiKey:         document.getElementById('cfgWhisperApiKey').value,
+    apiUrl,
+  };
+  try {
+    const r = await apiFetch('/api/config/whisper', { method: 'POST', body: JSON.stringify(body) });
+    const d = await r.json();
+    result.innerHTML = `<span class="${d.ok ? 'text-success' : 'text-danger'}">${esc(d.message || d.error)}</span>`;
+    if (d.ok && body.apiKey) {
+      document.getElementById('cfgWhisperApiKeyStatus').textContent = '✓ Clé API enregistrée';
+      document.getElementById('cfgWhisperApiKey').value = '';
+    }
+  } catch(e) {
+    result.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;
+  }
 }
 
 async function saveOdooConfig() {
