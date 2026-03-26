@@ -93,10 +93,14 @@ const config = {
   // ── Whisper Transcription ──────────────────────────────────────────────
   whisper: {
     enabled:  (process.env.WHISPER_ENABLED || 'false') === 'true',
+    mode:     process.env.WHISPER_MODE     || 'local',   // 'local' | 'api'
     model:    process.env.WHISPER_MODEL    || 'base',
     language: process.env.WHISPER_LANGUAGE || 'fr',
     command:  process.env.WHISPER_COMMAND  || '',
     maxDurationSec: parseInt(process.env.WHISPER_MAX_DURATION || '600', 10),
+    // Mode API (OpenAI ou Groq)
+    apiKey:   process.env.WHISPER_API_KEY  || '',
+    apiUrl:   process.env.WHISPER_API_URL  || 'https://api.openai.com/v1/audio/transcriptions',
   },
 
   server: {
