@@ -156,6 +156,40 @@ const config = {
     placesApiKey: process.env.GOOGLE_PLACES_API_KEY || '',
   },
 
+  // ── Telegram Notifications ─────────────────────────────────────────────
+  telegram: {
+    token: process.env.TELEGRAM_TOKEN || '',
+    chatIds: (() => {
+      try {
+        const ids = process.env.TELEGRAM_CHAT_IDS || '[]';
+        return JSON.parse(ids);
+      } catch {
+        return [];
+      }
+    })(),
+  },
+
+  // ── SMTP Email ───────────────────────────────────────────────────────────
+  smtp: {
+    host: process.env.SMTP_HOST || '',
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_SECURE === 'true',
+    user: process.env.SMTP_USER || '',
+    password: process.env.SMTP_PASSWORD || '',
+    from: process.env.SMTP_FROM || '',
+    defaultRecipients: process.env.SMTP_DEFAULT_RECIPIENTS || '',
+  },
+
+  // ── Notifications Settings ───────────────────────────────────────────────
+  notifications: {
+    missedCallThreshold: {
+      count: parseInt(process.env.NOTIFICATION_MISSED_CALL_COUNT || '3', 10),
+      minutes: parseInt(process.env.NOTIFICATION_MISSED_CALL_MINUTES || '15', 10),
+    },
+    dailySummaryEnabled: process.env.NOTIFICATION_DAILY_SUMMARY_ENABLED === 'true',
+    dailySummaryTime: process.env.NOTIFICATION_DAILY_SUMMARY_TIME || '18:00',
+  },
+
   // ── CDR Auto-Sync ──────────────────────────────────────────────────────
   cdrSync: {
     enabled:    (process.env.CDR_SYNC_ENABLED || 'true') === 'true',

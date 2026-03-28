@@ -27,6 +27,7 @@ const GooglePlacesService  = require('./infrastructure/lookup/GooglePlacesServic
 const SpamScoreService     = require('./infrastructure/lookup/SpamScoreService');
 const CdrSyncService       = require('./application/CdrSyncService');
 const WhisperService       = require('./infrastructure/transcription/WhisperService');
+const NotificationService  = require('./application/NotificationService');
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 
@@ -111,9 +112,15 @@ async function main() {
   const googlePlacesService = new GooglePlacesService();
   const whisperService = new WhisperService({ ucmHttpClient, callHistory, crmClient });
   const cdrSyncService = new CdrSyncService({ ucmHttpClient, callHistory, crmClient, wsServer, whisperService });
+  const notificationService = new NotificationService();
 
   // ── Routes ─────────────────────────────────────────────────────────────────
-  const apiRouter = createRouter({ ucmHttpClient, ucmWsClient, crmClient, wsServer, callHandler, webhookManager, callHistory, sireneService, annuaireService, googlePlacesService, spamScoreService, cdrSyncService });
+  const apiRouter = createRouter({ 
+    ucmHttpClient, ucmWsClient, crmClient, wsServer, 
+    callHandler, webhookManager, callHistory, 
+    sireneService, annuaireService, googlePlacesService, 
+    spamScoreService, cdrSyncService, notificationService 
+  });
   app.use('/', apiRouter);
 
   const queuesRouter = createQueuesRouter({ ucmHttpClient, callHistory, wsServer });

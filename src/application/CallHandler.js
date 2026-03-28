@@ -24,14 +24,16 @@ class CallHandler {
    * @param {WebhookManager|null}   webhookManager   Webhook manager (optionnel)
    * @param {CallHistory|null}      callHistory      Service d'historique (optionnel)
    * @param {SpamScoreService|null} spamScoreService Service de vérification spam (optionnel)
+   * @param {NotificationService|null} notificationService Service de notifications (optionnel)
    */
-  constructor(ucmHttpClient, ucmWsClient, crmClient, wsServer, webhookManager = null, callHistory = null, spamScoreService = null) {
+  constructor(ucmHttpClient, ucmWsClient, crmClient, wsServer, webhookManager = null, callHistory = null, spamScoreService = null, notificationService = null) {
     this._http = ucmHttpClient;
     this._wsClient = ucmWsClient;
     this._odoo = crmClient;   // alias conservé pour compatibilité interne
     this._ws   = wsServer;
     this._callHistory = callHistory;
     this._spamScore = spamScoreService;
+    this._notifications = notificationService;
 
     // Registre des appels actifs : uniqueId → callInfo enrichi
     this._activeCalls = new Map();
@@ -306,6 +308,13 @@ class CallHandler {
       } catch (err) {
         logger.error('Erreur mise à jour appel raccroché', { error: err.message, uniqueId });
       }
+    }
+
+    // Notification appel manqué
+    if (this._notifications && !enriched.answeredAt) {
+      this._notifications.checkMissedCallAlert(enriched).catch(err => {
+        logger.warn('Notification: erreur vérification appel manqué', { error: err.message });
+      });
     }
     
     // Log automatique dans Odoo si un contact est associé

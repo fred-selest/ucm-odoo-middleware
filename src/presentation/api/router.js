@@ -778,6 +778,81 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     res.json(entries.slice(-limit));
   });
 
+  // ── Configuration Notifications ────────────────────────────────────────────
+
+  // GET /api/config/notifications — Obtenir la configuration
+  router.get('/api/config/notifications', requireSession, (req, res) => {
+    res.json({
+      telegram: {
+        token: config.telegram.token ? '***' : '',
+        chatIds: config.telegram.chatIds,
+        configured: !!config.telegram.token,
+      },
+      smtp: {
+        host: config.smtp.host,
+        port: config.smtp.port,
+        from: config.smtp.from,
+        configured: !!config.smtp.host && !!config.smtp.from,
+      },
+      missedCallThreshold: config.notifications.missedCallThreshold,
+      dailySummary: {
+        enabled: config.notifications.dailySummaryEnabled,
+        time: config.notifications.dailySummaryTime,
+      },
+    });
+  });
+
+  // POST /api/config/notifications — Sauvegarder la configuration
+  router.post('/api/config/notifications', requireSession, async (req, res) => {
+    try {
+      const { telegram, smtp, missedCallThreshold, dailySummary } = req.body || {};
+      
+      if (telegram?.token) {
+        process.env.TELEGRAM_TOKEN = telegram.token;
+        notificationService._telegramToken = telegram.token;
+      }
+      if (telegram?.chatIds) {
+        notificationService._chatIds = telegram.chatIds;
+      }
+      if (smtp) {
+        notificationService._smtpConfig = { ...notificationService._smtpConfig, ...smtp };
+      }
+      if (missedCallThreshold) {
+        notificationService._missedCallThreshold = missedCallThreshold;
+      }
+      if (dailySummary) {
+        notificationService._dailySummaryEnabled = dailySummary.enabled;
+        if (dailySummary.time) notificationService._dailySummaryTime = dailySummary.time;
+      }
+
+      res.json({ ok: true, message: 'Configuration notifications sauvegardée' });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // POST /api/config/notifications/test — Tester l'envoi
+  router.post('/api/config/notifications/test', requireSession, async (req, res) => {
+    try {
+      const { type = 'telegram' } = req.body || {};
+      const success = await notificationService.testNotification(type);
+      res.json({ ok: success, message: success ? 'Test réussi' : 'Échec du test' });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // POST /api/webpush/subscribe — S'abonner aux notifications Web Push
+  router.post('/api/webpush/subscribe', async (req, res) => {
+    try {
+      const subscription = req.body;
+      notificationService.addSubscription(subscription);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
   // ── Gestion des tokens webhook ───────────────────────────────────────────
   router.get('/api/webhooks', (req, res) => {
     const tokens = webhookManager ? webhookManager.listTokens() : [];
