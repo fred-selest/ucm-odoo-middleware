@@ -19,17 +19,17 @@ async function loadDashboard() {
 // ── KPI du jour ─────────────────────────────────────────────────────────────
 async function loadDashKpi() {
   try {
-    const r = await apiFetch('/api/stats/today');
+    const r = await apiFetch('/api/stats?period=today');
     const d = await r.json();
     if (!d.ok) return;
-    const s = d.stats;
+    const s = d.data;
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    set('dashKpiTotal',    s.total_calls    || 0);
-    set('dashKpiAnswered', s.answered_calls || 0);
-    set('dashKpiMissed',   s.missed_calls   || 0);
-    set('dashKpiRate',     (s.answer_rate   || 0) + '%');
-    set('dashKpiAvgDur',   fmtDur(s.avg_duration || 0));
-    set('dashKpiDurTotal', fmtDur(s.total_duration || 0));
+    set('dashKpiTotal',    s.total      || 0);
+    set('dashKpiAnswered', s.answered   || 0);
+    set('dashKpiMissed',   s.missed     || 0);
+    set('dashKpiRate',     (s.answerRate || 0) + '%');
+    set('dashKpiAvgDur',   fmtDur(s.avgDuration   || 0));
+    set('dashKpiDurTotal', fmtDur(s.totalDuration  || 0));
   } catch { /* ignore */ }
 }
 
@@ -68,7 +68,7 @@ async function loadDashAgents() {
 // ── Appels récents (DB) ──────────────────────────────────────────────────────
 async function loadDashRecentCalls() {
   try {
-    const r = await apiFetch('/api/calls?limit=8');
+    const r = await apiFetch('/api/calls/history?limit=8');
     const d = await r.json();
     const calls = d.data || [];
     const el = document.getElementById('dashRecentCalls');
@@ -102,15 +102,15 @@ async function loadDashChart() {
   try {
     const [hRes, sRes] = await Promise.all([
       apiFetch('/api/stats/hourly').then(r => r.json()).catch(() => ({})),
-      apiFetch('/api/stats/today').then(r => r.json()).catch(() => ({})),
+      apiFetch('/api/stats?period=today').then(r => r.json()).catch(() => ({})),
     ]);
     const hourlyData = Array.from({ length: 24 }, (_, h) => {
       const found = (hRes.data || []).find(d => parseInt(d.hour) === h);
       return found ? (found.count || found.total || 0) : 0;
     });
-    const stats = sRes.stats || {};
-    const missed  = stats.missed_calls || 0;
-    const answered = stats.answered_calls || 0;
+    const stats = sRes.data || {};
+    const missed   = stats.missed   || 0;
+    const answered = stats.answered || 0;
 
     if (_dashChart) {
       _dashChart.data.datasets[0].data = hourlyData;

@@ -5,6 +5,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { EventEmitter } = require('events');
 const logger = require('../logger');
+const { HTTP_TOO_MANY_REQUESTS, SESSION_TTL_MS, WEBHOOK_EVENT_TTL_MS } = require('../config/constants');
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'webhooks.json');
 
@@ -64,6 +65,8 @@ class WebhookManager extends EventEmitter {
 
   /**
    * Traite une requête webhook entrante (query params de l'UCM).
+   * @param {string} token - Token d'authentification du webhook
+   * @param {object} params - Paramètres de la requête (query params UCM)
    * @returns {boolean} true si l'événement a été traité
    */
   processEvent(token, params) {
@@ -72,9 +75,8 @@ class WebhookManager extends EventEmitter {
 
     const now = Date.now();
     const timestamp = params.timestamp ? parseInt(params.timestamp, 10) : Math.floor(now / 1000);
-    const expiry = 30 * 24 * 60 * 60 * 1000; // 30 days
-    
-    if (timestamp && (now - timestamp * 1000 > expiry)) {
+
+    if (timestamp && (now - timestamp * 1000 > WEBHOOK_EVENT_TTL_MS)) {
       logger.warn('Webhook: événement expiré', { client: info.name, event: params.event });
       return false;
     }

@@ -162,8 +162,30 @@ class OdooClient {
     });
     
     if (!result || result.length === 0) return null;
-    
+
     return this._formatContactFull(result[0]);
+  }
+
+  /**
+   * Récupère tous les contacts pour l'annuaire UCM.
+   */
+  async getAllContactsWithPhone(limit = 2000) {
+    await this.ensureAuthenticated();
+    // Odoo 19 SaaS n'a pas le champ 'mobile' sur res.partner
+    const fields = ['id', 'name', 'phone', 'email', 'is_company', 'parent_id'];
+    const domain = [['active', '=', true]];
+    
+    try {
+      const result = await this._callModel('res.partner', 'search_read', [domain], {
+        fields, limit, order: 'name asc',
+      });
+      
+      logger.info('Phonebook: contacts récupérés', { total: result?.length || 0 });
+      return result || [];
+    } catch (err) {
+      logger.error('Phonebook: erreur récupération', { error: err.message });
+      return [];
+    }
   }
 
   async createContact(contactData) {

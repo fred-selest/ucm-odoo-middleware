@@ -2,16 +2,22 @@
 
 const config = require('../config');
 const logger = require('../logger');
+const {
+  UCM_SUB_CDR_KEYS,
+  CDR_SYNC_INITIAL_DELAY_MS,
+  MAX_CALLS_TO_RESOLVE,
+} = require('../config/constants');
 
 /**
  * Aplatit les CDR imbriqués UCM en un tableau de sous-CDR exploitables.
  * Choisit le meilleur sub_cdr (ANSWERED le plus long) et y propage le recordfiles si absent.
+ * @param {Array<object>} records - Tableau des CDR UCM avec sub_cdr imbriqués
+ * @returns {Array<object>} Tableau des CDR aplatis
  */
 function flattenCdrRecords(records) {
   const flat = [];
   for (const cdr of records) {
-    const subs = ['sub_cdr_1', 'sub_cdr_2', 'sub_cdr_3', 'sub_cdr_4']
-      .map(k => cdr[k]).filter(Boolean);
+    const subs = UCM_SUB_CDR_KEYS.map(k => cdr[k]).filter(Boolean);
     const answered = subs.filter(s => s.disposition === 'ANSWERED');
     const best = answered.sort((a, b) => (b.billsec || 0) - (a.billsec || 0))[0]
       || subs[0] || cdr.main_cdr;
@@ -34,6 +40,9 @@ function flattenCdrRecords(records) {
  * 4. Lance la transcription Whisper (si activée)
  */
 class CdrSyncService {
+  /**
+   * @param {{ ucmHttpClient: object, callHistory: object, crmClient: object, wsServer: object, whisperService: object }} deps - Dépendances du service
+   */
   constructor({ ucmHttpClient, callHistory, crmClient, wsServer, whisperService }) {
     this._ucm = ucmHttpClient;
     this._callHistory = callHistory;
@@ -48,7 +57,7 @@ class CdrSyncService {
     const ms = config.cdrSync.intervalMs;
     logger.info('CDR auto-sync: démarré', { intervalMs: ms });
     // Premier sync 30s après le démarrage
-    setTimeout(() => this._runSync().catch(() => {}), 30000);
+    setTimeout(() => this._runSync().catch(() => {}), CDR_SYNC_INITIAL_DELAY_MS);
     this._interval = setInterval(() => this._runSync().catch(() => {}), ms);
   }
 
@@ -141,7 +150,7 @@ class CdrSyncService {
   }
 
   async _resolveUnknownCalls() {
-    const rows = await this._callHistory.getUnresolvedPhones(200);
+    const rows = await this._callHistory.getUnresolvedPhones(MAX_CALLS_TO_RESOLVE);
     if (rows.length === 0) return { checked: 0, resolved: 0 };
 
     let resolved = 0;

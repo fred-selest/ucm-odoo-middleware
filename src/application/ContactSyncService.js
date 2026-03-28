@@ -1,6 +1,7 @@
 'use strict';
 
 const logger = require('../logger');
+const { CONTACT_CACHE_TTL_MS, DEFAULT_CALL_HISTORY_LIMIT } = require('../config/constants');
 
 /**
  * Service de synchronisation des contacts Odoo/UCM
@@ -8,23 +9,23 @@ const logger = require('../logger');
  */
 class ContactSyncService {
   /**
-   * @param {CrmClientInterface} crmClient
-   * @param {CallHistory} callHistory
+   * @param {CrmClientInterface} crmClient - Client CRM pour la recherche de contacts
+   * @param {CallHistory} callHistory - Service d'historique des appels
    */
   constructor(crmClient, callHistory) {
     this._crm = crmClient;
     this._callHistory = callHistory;
-    
+
     // Cache contacts: phone → { contact, timestamp }
     this._cache = new Map();
-    this._cacheTTL = 300 * 1000; // 5 minutes
+    this._cacheTTL = CONTACT_CACHE_TTL_MS; // 5 minutes
   }
 
   /**
    * Recherche un contact par téléphone et met à jour l'historique
    * @param {string} uniqueId - ID unique de l'appel
-   * @param {string} phone - Numéro de téléphone
-   * @returns {Promise<object|null>}
+   * @param {string} phone - Numéro de téléphone à rechercher
+   * @returns {Promise<object|null>} Le contact trouvé ou null
    */
   async syncContactForCall(uniqueId, phone) {
     if (!phone || !uniqueId) {
@@ -59,8 +60,8 @@ class ContactSyncService {
   /**
    * Met à jour TOUS les appels pour un numéro de téléphone donné
    * (quand la fiche contact est modifiée dans Odoo)
-   * @param {string} phone
-   * @param {object} contact
+   * @param {string} phone - Numéro de téléphone
+   * @param {object} contact - Objet contact avec les informations
    * @returns {Promise<number>} Nombre d'appels mis à jour
    */
   async updateCallsForPhone(phone, contact) {
@@ -70,9 +71,9 @@ class ContactSyncService {
 
     try {
       // Récupérer tous les appels pour ce numéro
-      const calls = await this._callHistory.getCalls({ 
+      const calls = await this._callHistory.getCalls({
         callerIdNum: phone,
-        limit: 1000 
+        limit: DEFAULT_CALL_HISTORY_LIMIT
       });
 
       let updated = 0;
@@ -98,7 +99,7 @@ class ContactSyncService {
 
   /**
    * Invalide le cache pour un numéro
-   * @param {string} phone
+   * @param {string} phone - Numéro de téléphone
    */
   invalidateCache(phone) {
     if (phone) {
@@ -118,6 +119,8 @@ class ContactSyncService {
   /**
    * Récupère un contact du cache
    * @private
+   * @param {string} phone - Numéro de téléphone
+   * @returns {object|null} Le contact en cache ou null
    */
   _getFromCache(phone) {
     const entry = this._cache.get(phone);
@@ -134,6 +137,8 @@ class ContactSyncService {
   /**
    * Ajoute un contact au cache
    * @private
+   * @param {string} phone - Numéro de téléphone
+   * @param {object} contact - Objet contact à mettre en cache
    */
   _addToCache(phone, contact) {
     this._cache.set(phone, {
@@ -145,6 +150,8 @@ class ContactSyncService {
   /**
    * Met à jour l'historique d'appel avec les infos contact
    * @private
+   * @param {string} uniqueId - ID unique de l'appel
+   * @param {object} contact - Objet contact avec les informations
    */
   async _updateCallHistory(uniqueId, contact) {
     if (!this._callHistory || !contact) {
@@ -173,7 +180,7 @@ class ContactSyncService {
   /**
    * Synchronise un contact spécifique depuis Odoo
    * @param {number} partnerId - ID du contact Odoo
-   * @returns {Promise<object|null>}
+   * @returns {Promise<object|null>} Le contact synchronisé ou null
    */
   async syncContactFromOdoo(partnerId) {
     try {

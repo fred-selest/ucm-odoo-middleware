@@ -86,7 +86,7 @@ function playRecording(url) {
   container.id = 'audioPlayerBar';
   container.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1e293b;color:#f1f5f9;padding:12px 20px;box-shadow:0 -4px 20px rgba(0,0,0,.4);display:flex;align-items:center;gap:14px;font-size:.85rem';
 
-  const fmtTime = s => { if (!s || !isFinite(s)) return '0:00'; const m = Math.floor(s/60); return m + ':' + String(Math.floor(s%60)).padStart(2,'0'); };
+  const fmtTime = s => { if (!s || !isFinite(s)) return '0:00'; const m = Math.floor(s / 60); return m + ':' + String(Math.floor(s % 60)).padStart(2,'0'); };
 
   container.innerHTML = `
     <button id="apPlayBtn" class="btn btn-sm btn-light rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;flex-shrink:0">
@@ -328,7 +328,7 @@ function callHtmlFromHistory(call) {
     ? `<img src="${call.contact_avatar}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:6px;object-fit:cover">`
     : '';
   const contactHtml = call.contact_name
-    ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 contact-badge-clickable" data-uid="${esc(call.unique_id)}" style="cursor:pointer;display:flex;align-items:center" title="Voir la fiche contact">${avatarHtml}${esc(call.contact_name)}</span>`
+    ? `<span style="max-width:150px;overflow:hidden"><span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 contact-badge-clickable" data-uid="${esc(call.unique_id)}" style="cursor:pointer;display:flex;align-items:center" title="Voir la fiche contact">${avatarHtml}<span class="contact-name text-truncate">${esc(call.contact_name)}</span></span></span>`
     : '<span class="text-muted">—</span>';
   const callbackBtn = (call.status === 'missed' && call.caller_id_num)
     ? ` <button class="btn btn-callback btn-outline-success" title="Rappeler" onclick="dialNumber('${esc(call.caller_id_num)}')"><i class="bi bi-telephone-outbound"></i></button>`
@@ -337,14 +337,14 @@ function callHtmlFromHistory(call) {
     ? ` <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="playRecording('${esc(call.recording_url)}')" title="Écouter l'enregistrement"><i class="bi bi-play-fill" style="font-size:.7rem"></i></button>`
     : '';
   const transBtn = call.transcription
-    ? ` <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="toggleTranscription(this,'${esc(call.unique_id)}')" title="Transcription"><i class="bi bi-chat-left-text" style="font-size:.7rem"></i></button>`
+    ? ` <button class="btn btn-sm btn-outline-info py-0 px-1" onclick="toggleTranscription(this,'${esc(call.unique_id)}')" title="Transcription"><i class="bi bi-chat-left-text" style="font-size:.7rem"></i></button> <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="retranscribe(this,'${esc(call.unique_id)}')" title="Re-transcrire"><i class="bi bi-arrow-clockwise" style="font-size:.7rem"></i></button>`
     : (call.recording_url ? ` <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="toggleTranscription(this,'${esc(call.unique_id)}')" title="Voir transcription"><i class="bi bi-chat-left-text" style="font-size:.65rem"></i></button>` : '');
   return `<td class="text-muted small">${t}</td>
     <td class="text-center">${dir}</td>
-    <td>${phoneLink(call.caller_id_num)}${callbackBtn}</td>
+    <td><div class="d-flex align-items-center gap-1">${phoneLink(call.caller_id_num)}${callbackBtn}</div></td>
     <td><span class="badge bg-primary bg-opacity-10 text-primary">${esc(exten)}</span></td>
     <td class="td-contact">${contactHtml}</td>
-    <td><span class="badge ${call.status === 'hangup' && call.answered_at ? 'bg-success' : (statusBadges[call.status] || 'bg-secondary')}">${call.status === 'hangup' && call.answered_at ? 'Décroché' : (statusLabels[call.status] || call.status || '—')}</span>${recBtn}${transBtn}</td>`;
+    <td><div class="d-flex align-items-center gap-1 flex-nowrap"><span class="badge ${call.status === 'hangup' && call.answered_at ? 'bg-success' : (statusBadges[call.status] || 'bg-secondary')}">${call.status === 'hangup' && call.answered_at ? 'Décroché' : (statusLabels[call.status] || call.status || '—')}</span>${recBtn}${transBtn}</div></td>`;
 }
 
 // ── Transcription toggle ──────────────────────────────────────────────────────
@@ -371,9 +371,52 @@ async function toggleTranscription(btn, uniqueId) {
     if (d.ok && d.transcription) {
       td.innerHTML = `<i class="bi bi-chat-left-text text-info me-1"></i>${esc(d.transcription)}`;
     } else {
-      td.innerHTML = '<span class="text-muted"><i class="bi bi-chat-left-text me-1"></i>Aucune transcription disponible</span>';
+      // Pas de transcription en base → lancer Whisper
+      td.innerHTML = '<i class="bi bi-hourglass-split text-muted"></i> Transcription en cours…';
+      try {
+        const r2 = await apiFetch(`/api/calls/${encodeURIComponent(uniqueId)}/transcribe`, { method: 'POST' });
+        const d2 = await r2.json();
+        if (d2.ok && d2.transcription) {
+          td.innerHTML = `<i class="bi bi-chat-left-text text-info me-1"></i>${esc(d2.transcription)}`;
+          btn.classList.replace('btn-outline-secondary', 'btn-outline-info');
+        } else {
+          td.innerHTML = '<span class="text-muted"><i class="bi bi-chat-left-text me-1"></i>Aucune transcription disponible (enregistrement introuvable ou Whisper désactivé)</span>';
+        }
+      } catch {
+        td.innerHTML = '<span class="text-danger">Erreur lors de la transcription</span>';
+      }
     }
   } catch {
     td.innerHTML = '<span class="text-danger">Erreur chargement transcription</span>';
+  }
+}
+
+// ── Re-transcription ──────────────────────────────────────────────────────────
+async function retranscribe(btn, uniqueId) {
+  if (!confirm('Relancer la transcription pour cet appel ?')) return;
+  
+  const originalIcon = btn.innerHTML;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+  btn.disabled = true;
+  
+  try {
+    const r = await apiFetch(`/api/calls/${encodeURIComponent(uniqueId)}/transcribe`, { method: 'POST' });
+    const d = await r.json();
+    
+    if (d.ok && d.transcription) {
+      showToast('Transcription mise à jour', 'success');
+      // Mettre à jour le bouton de transcription
+      const transBtn = btn.previousElementSibling;
+      if (transBtn) {
+        transBtn.classList.replace('btn-outline-secondary', 'btn-outline-info');
+      }
+    } else {
+      showToast(d.error || 'Erreur transcription', 'danger');
+    }
+  } catch (err) {
+    showToast('Erreur: ' + err.message, 'danger');
+  } finally {
+    btn.innerHTML = originalIcon;
+    btn.disabled = false;
   }
 }

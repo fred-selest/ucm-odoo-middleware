@@ -5,13 +5,14 @@ const path = require('path');
 
 require('dotenv').config();
 
+const ENV_FILE = path.join(process.cwd(), '.env');
+const OVERRIDE_FILE = path.join(process.cwd(), 'data', 'config.json');
+
 function list(name, fallback = []) {
   const val = process.env[name];
   if (!val) return fallback;
   return val.split(',').map(s => s.trim()).filter(Boolean);
 }
-
-const OVERRIDE_FILE = path.join(process.cwd(), 'data', 'config.json');
 
 function loadOverrides() {
   try {
@@ -20,7 +21,78 @@ function loadOverrides() {
   return {};
 }
 
+/**
+ * Sauvegarde les overrides dans .env (persistant) ET config.json (compatibilité)
+ */
 function saveOverrides(overrides) {
+  // 1. Sauvegarder dans .env
+  if (fs.existsSync(ENV_FILE)) {
+    let envContent = fs.readFileSync(ENV_FILE, 'utf8');
+    
+    // Fonction helper pour mettre à jour une variable .env
+    const updateEnvVar = (key, value, section) => {
+      if (value === undefined || value === null || value === '') return;
+      const regex = new RegExp(`^(#\\s*)?${key}=.*$`, 'm');
+      const newLine = `${key}=${value}`;
+      if (regex.test(envContent)) {
+        envContent = envContent.replace(regex, newLine);
+      } else {
+        // Ajouter après la section si elle existe
+        const sectionRegex = new RegExp(`^(#\\s*===\\s*${section}.*===\\s*$)`, 'm');
+        if (sectionRegex.test(envContent)) {
+          envContent = envContent.replace(sectionRegex, `$1\n${newLine}`);
+        } else {
+          envContent += `\n${newLine}`;
+        }
+      }
+    };
+    
+    // Whisper
+    if (overrides.whisper) {
+      updateEnvVar('WHISPER_ENABLED', overrides.whisper.enabled, 'WHISPER TRANSCRIPTION');
+      updateEnvVar('WHISPER_MODE', overrides.whisper.mode, 'WHISPER TRANSCRIPTION');
+      updateEnvVar('WHISPER_MODEL', overrides.whisper.model, 'WHISPER TRANSCRIPTION');
+      updateEnvVar('WHISPER_LANGUAGE', overrides.whisper.language, 'WHISPER TRANSCRIPTION');
+      updateEnvVar('WHISPER_API_URL', overrides.whisper.apiUrl, 'WHISPER TRANSCRIPTION');
+      updateEnvVar('WHISPER_MAX_DURATION', overrides.whisper.maxDurationSec, 'WHISPER TRANSCRIPTION');
+      if (overrides.whisper.apiKey) {
+        updateEnvVar('WHISPER_API_KEY', overrides.whisper.apiKey, 'WHISPER TRANSCRIPTION');
+      }
+    }
+    
+    // UCM
+    if (overrides.ucm) {
+      updateEnvVar('UCM_MODE', overrides.ucm.mode, 'UCM CONFIGURATION');
+      updateEnvVar('UCM_HOST', overrides.ucm.host, 'UCM CONFIGURATION');
+      updateEnvVar('UCM_PORT', overrides.ucm.webPort, 'UCM CONFIGURATION');
+      updateEnvVar('UCM_API_USER', overrides.ucm.webUser, 'UCM CONFIGURATION');
+      updateEnvVar('UCM_API_PASS', overrides.ucm.webPassword, 'UCM CONFIGURATION');
+    }
+    
+    // Odoo
+    if (overrides.odoo) {
+      updateEnvVar('ODOO_URL', overrides.odoo.url, 'ODOO');
+      updateEnvVar('ODOO_DB', overrides.odoo.db, 'ODOO');
+      updateEnvVar('ODOO_USERNAME', overrides.odoo.username, 'ODOO');
+      if (overrides.odoo.apiKey) {
+        updateEnvVar('ODOO_API_KEY', overrides.odoo.apiKey, 'ODOO');
+      }
+    }
+    
+    // Dolibarr
+    if (overrides.dolibarr) {
+      updateEnvVar('DOLIBARR_URL', overrides.dolibarr.url, 'DOLIBARR');
+      if (overrides.dolibarr.apiKey) {
+        updateEnvVar('DOLIBARR_API_KEY', overrides.dolibarr.apiKey, 'DOLIBARR');
+      }
+      updateEnvVar('DOLIBARR_USER_ID', overrides.dolibarr.userId, 'DOLIBARR');
+      updateEnvVar('DOLIBARR_ENTITY_ID', overrides.dolibarr.entityId, 'DOLIBARR');
+    }
+    
+    fs.writeFileSync(ENV_FILE, envContent);
+  }
+  
+  // 2. Sauvegarder dans config.json (compatibilité)
   fs.mkdirSync(path.dirname(OVERRIDE_FILE), { recursive: true });
   fs.writeFileSync(OVERRIDE_FILE, JSON.stringify(overrides, null, 2));
 }
@@ -94,7 +166,7 @@ const config = {
   whisper: {
     enabled:  (process.env.WHISPER_ENABLED || 'false') === 'true',
     mode:     process.env.WHISPER_MODE     || 'local',   // 'local' | 'api'
-    model:    process.env.WHISPER_MODEL    || 'base',
+    model:    process.env.WHISPER_MODEL    || 'tiny',
     language: process.env.WHISPER_LANGUAGE || 'fr',
     command:  process.env.WHISPER_COMMAND  || '',
     maxDurationSec: parseInt(process.env.WHISPER_MAX_DURATION || '600', 10),
@@ -181,6 +253,16 @@ const config = {
         apiKey:   config.dolibarr.apiKey,
         userId:   config.dolibarr.userId,
         entityId: config.dolibarr.entityId,
+      },
+      whisper: {
+        enabled:        config.whisper.enabled,
+        mode:           config.whisper.mode,
+        model:          config.whisper.model,
+        language:       config.whisper.language,
+        apiUrl:         config.whisper.apiUrl,
+        maxDurationSec: config.whisper.maxDurationSec,
+        // apiKey persistée localement (fichier config.json protégé)
+        apiKey:         config.whisper.apiKey || '',
       },
     };
     saveOverrides(overrides);

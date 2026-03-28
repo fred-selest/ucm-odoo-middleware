@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
@@ -10,16 +10,19 @@ COPY package*.json ./
 RUN npm ci --only=production && npm cache clean --force
 
 # Runtime stage
-FROM node:20-alpine AS runtime
+FROM node:20-slim AS runtime
 
 WORKDIR /app
 
-# Install curl for healthcheck + su-exec for entrypoint
-RUN apk add --no-cache curl sqlite su-exec
+# Install system deps + Python/ffmpeg for Whisper
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl sqlite3 gosu python3 python3-pip ffmpeg && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip3 install openai-whisper --break-system-packages
 
 # Create non-root user
-RUN addgroup -g 1001 nodejs && \
-    adduser -S -u 1001 nodejs
+RUN groupadd -g 1001 nodejs && \
+    useradd -m -r -u 1001 -g nodejs nodejs
 
 # Copy dependencies from builder
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules

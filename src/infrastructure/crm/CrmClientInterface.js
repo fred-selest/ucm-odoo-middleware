@@ -191,6 +191,16 @@ class CrmClientInterface {
   getCrmUrl(contactId, isCompany = false) {
     return '#';
   }
+
+  /**
+   * Récupère tous les contacts avec au moins un numéro de téléphone.
+   * Utilisé pour l'annuaire UCM (Remote Phonebook).
+   * @param   {number} [limit=2000]
+   * @returns {Promise<Array>}
+   */
+  async getAllContactsWithPhone(limit = 2000) {
+    return [];
+  }
 }
 
 module.exports = CrmClientInterface;

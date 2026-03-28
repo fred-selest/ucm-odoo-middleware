@@ -17,10 +17,12 @@
 .stat-card .icon-green  { background: linear-gradient(135deg,#dcfce7,#bbf7d0); color:#16a34a; box-shadow:0 4px 12px rgba(22,163,74,.2); }
 .stat-card .icon-yellow { background: linear-gradient(135deg,#fef3c7,#fde68a); color:#d97706; box-shadow:0 4px 12px rgba(217,119,6,.2); }
 .stat-card .icon-red    { background: linear-gradient(135deg,#fee2e2,#fecaca); color:#dc2626; box-shadow:0 4px 12px rgba(220,38,38,.2); }
+.stat-card .icon-purple { background: linear-gradient(135deg,#ede9fe,#ddd6fe); color:#7c3aed; box-shadow:0 4px 12px rgba(124,58,237,.2); }
 [data-bs-theme="dark"] .stat-card .icon-blue   { background: rgba(37,99,235,.18);  color:#60a5fa; box-shadow:0 4px 12px rgba(37,99,235,.25); }
 [data-bs-theme="dark"] .stat-card .icon-green  { background: rgba(22,163,74,.18);  color:#4ade80; box-shadow:0 4px 12px rgba(22,163,74,.25); }
 [data-bs-theme="dark"] .stat-card .icon-yellow { background: rgba(217,119,6,.18);  color:#fbbf24; box-shadow:0 4px 12px rgba(217,119,6,.25); }
 [data-bs-theme="dark"] .stat-card .icon-red    { background: rgba(220,38,38,.18);  color:#f87171; box-shadow:0 4px 12px rgba(220,38,38,.25); }
+[data-bs-theme="dark"] .stat-card .icon-purple { background: rgba(124,58,237,.18); color:#a78bfa; box-shadow:0 4px 12px rgba(124,58,237,.25); }
 .stat-card .value { font-size: 1.875rem; font-weight: 700; line-height: 1; letter-spacing: -0.5px; color: var(--text); }
 .stat-card .label { font-size: .7rem; color: var(--text-muted); margin-top: .4rem; text-transform: uppercase; letter-spacing: .7px; font-weight: 600; }
 
@@ -95,8 +97,9 @@
 /* Contact badge */
 .contact-badge           { display:inline-flex; align-items:center; gap:.5rem; padding:.25rem .75rem; border-radius:999px; font-weight:500; font-size:.85rem; }
 .contact-badge img       { width:24px; height:24px; border-radius:50%; object-fit:cover; }
-.contact-badge-clickable { cursor:pointer; transition:transform .15s; }
+.contact-badge-clickable { cursor:pointer; transition:transform .15s; max-width: 150px; overflow: hidden; white-space: nowrap; }
 .contact-badge-clickable:hover { transform:scale(1.05); }
+.contact-badge-clickable .contact-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Contact card (fiche rapide) */
 #quickContactCard { border:2px solid #22c55e; background:linear-gradient(135deg,#dcfce7 0%,#f0fdf4 100%); }
@@ -123,4 +126,4 @@
 .draggable-column { padding: .5rem; }
 
 /* Divers */
-.btn-callback { font-size:.65rem; padding:.1rem .35rem; line-height:1.2; vertical-align:middle; }
+.btn-callback { font-size:.65rem; padding:.1rem .35rem; line-height:1.2; vertical-align:middle; display:inline-flex; align-items:center; justify-content:center; }

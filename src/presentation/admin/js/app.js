@@ -35,6 +35,13 @@ function startApp() {
     const btn = document.getElementById('notifPermBtn');
     if (btn) btn.style.display = '';
   }
+  // Initialiser l'onglet Annuaire
+  initPhonebookTab();
+  // Initialiser l'onglet Annuaire au clic (refresh info au premier affichage)
+  document.querySelector('[data-bs-target="#tabPhonebook"]')?.addEventListener('shown.bs.tab', () => {
+    const el = document.getElementById('phonebookInfo');
+    if (el && el.textContent.includes('Cliquez')) refreshPhonebookInfo();
+  });
 }
 
 // ── Status polling ─────────────────────────────────────────────────────────
@@ -64,6 +71,17 @@ async function fetchStatus() {
 
     document.getElementById('ucmModeBadge').textContent = isWebhook ? 'Webhook' : 'WebSocket';
     document.getElementById('uptime').textContent = d.uptime ? formatUptime(d.uptime) : '—';
+
+    const w = d.whisper;
+    if (w) {
+      const dot = w.enabled ? 'dot-green' : 'dot-gray';
+      document.getElementById('statWhisper').innerHTML = `<span class="status-dot ${dot}"></span>`;
+      if (w.enabled) {
+        document.getElementById('statWhisperDetail').textContent = `${w.mode} · ${w.model} · ${w.language}`;
+      } else {
+        document.getElementById('statWhisperDetail').textContent = 'Désactivé';
+      }
+    }
   } catch { }
 }
 
@@ -458,6 +476,54 @@ async function saveWhisperConfig() {
   }
 }
 
+async function testWhisper() {
+  const result = document.getElementById('cfgWhisperResult');
+  result.innerHTML = '<i class="bi bi-hourglass-split text-muted me-1"></i>Test en cours…';
+  try {
+    const r = await apiFetch('/api/config/whisper/test');
+    const d = await r.json();
+    const icon = d.ok ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger';
+    result.innerHTML = `<i class="bi ${icon} me-1"></i>${esc(d.message)}`;
+  } catch(e) {
+    result.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>${esc(e.message)}</span>`;
+  }
+}
+
+async function runWhisper() {
+  const result = document.getElementById('cfgWhisperResult');
+  result.innerHTML = '<i class="bi bi-hourglass-split text-muted me-1"></i>Lancement…';
+  try {
+    const r = await apiFetch('/api/config/whisper/run', { method: 'POST' });
+    const d = await r.json();
+    const icon = d.ok ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger';
+    result.innerHTML = `<i class="bi ${icon} me-1"></i>${esc(d.message)}`;
+  } catch(e) {
+    result.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>${esc(e.message)}</span>`;
+  }
+}
+
+async function loadWhisperLogs() {
+  const box = document.getElementById('whisperLogsBox');
+  const list = document.getElementById('whisperLogsList');
+  box.style.display = '';
+  list.innerHTML = '<span class="text-muted">Chargement…</span>';
+  try {
+    const r = await apiFetch('/api/config/whisper/logs?limit=50');
+    const entries = await r.json();
+    if (!entries.length) {
+      list.innerHTML = '<span class="text-muted">Aucun log Whisper trouvé</span>';
+      return;
+    }
+    const levelColor = { error: 'text-danger', warn: 'text-warning', info: 'text-info', debug: 'text-muted' };
+    list.innerHTML = entries.map(e =>
+      `<div><span class="text-muted">${esc(e.ts || '')}</span> <span class="${levelColor[e.level] || ''}">[${esc(e.level || '')}]</span> ${esc(e.msg || '')}</div>`
+    ).join('');
+    list.scrollTop = list.scrollHeight;
+  } catch(e) {
+    list.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;
+  }
+}
+
 async function saveOdooConfig() {
   const result = document.getElementById('cfgOdooResult');
   const body = {
@@ -474,3 +540,125 @@ async function saveOdooConfig() {
     result.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;
   }
 }
+
+// ── Annuaire UCM (Remote Phonebook) ─────────────────────────────────────────
+
+function initPhonebookTab() {
+  const url = `${location.protocol}//${location.host}/api/phonebook/ucm.xml`;
+  const input = document.getElementById('phonebookUrl');
+  const link  = document.getElementById('phonebookTestLink');
+  if (input) input.value = url;
+  if (link)  link.href = url;
+}
+
+async function refreshPhonebookInfo() {
+  const el = document.getElementById('phonebookInfo');
+  if (!el) return;
+  el.innerHTML = '<span class="text-muted">Chargement…</span>';
+  try {
+    const r = await apiFetch('/api/phonebook/info');
+    const d = await r.json();
+    if (d.ok) {
+      el.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i><strong>${d.count}</strong> contact(s) avec numéro de téléphone prêts à synchroniser.`;
+    } else {
+      el.innerHTML = `<span class="text-danger">${esc(d.error)}</span>`;
+    }
+  } catch(e) {
+    el.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;
+  }
+}
+
+function copyPhonebookUrl() {
+  const input = document.getElementById('phonebookUrl');
+  if (!input) return;
+  navigator.clipboard.writeText(input.value).then(() => {
+    showToast('URL copiée dans le presse-papiers', 'success');
+  }).catch(() => {
+    input.select();
+    document.execCommand('copy');
+    showToast('URL copiée', 'success');
+  });
+}
+
+// ── Onglet Contacts ─────────────────────────────────────────────────────────
+
+async function loadContactsTab() {
+  const tbody = document.getElementById('contactsTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Chargement...</td></tr>';
+  
+  try {
+    const r = await apiFetch('/api/odoo/search?q=&limit=100');
+    const d = await r.json();
+    
+    if (d.ok && d.data && d.data.length > 0) {
+      tbody.innerHTML = d.data.map(c => `
+        <tr>
+          <td><strong>${esc(c.name || '—')}</strong></td>
+          <td>${esc(c.phone || '—')}</td>
+          <td>${esc(c.mobile || '—')}</td>
+          <td>${esc(c.email || '—')}</td>
+          <td>${esc(c.company || '—')}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary" onclick="viewContact('${c.id}')">
+              <i class="bi bi-eye"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="callNumber('${esc(c.phone || c.mobile || '')}')">
+              <i class="bi bi-telephone"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Aucun contact trouvé</td></tr>';
+    }
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">Erreur: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function searchContacts() {
+  const query = document.getElementById('contactSearch').value.trim();
+  if (query.length < 2) {
+    loadContactsTab();
+    return;
+  }
+  
+  apiFetch(`/api/odoo/search?q=${encodeURIComponent(query)}&limit=50`)
+    .then(r => r.json())
+    .then(d => {
+      const tbody = document.getElementById('contactsTableBody');
+      if (!tbody) return;
+      
+      if (d.ok && d.data && d.data.length > 0) {
+        tbody.innerHTML = d.data.map(c => `
+          <tr>
+            <td><strong>${esc(c.name || '—')}</strong></td>
+            <td>${esc(c.phone || '—')}</td>
+            <td>${esc(c.mobile || '—')}</td>
+            <td>${esc(c.email || '—')}</td>
+            <td>${esc(c.company || '—')}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary" onclick="viewContact('${c.id}')">
+                <i class="bi bi-eye"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="callNumber('${esc(c.phone || c.mobile || '')}')">
+                <i class="bi bi-telephone"></i>
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      } else {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Aucun contact trouvé</td></tr>';
+      }
+    })
+    .catch(e => {
+      const tbody = document.getElementById('contactsTableBody');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">Erreur: ${esc(e.message)}</td></tr>`;
+    });
+}
+
+function viewContact(id) {
+  window.open(`https://selest-informatique.odoo.com/web#model=res.partner&id=${id}`, '_blank');
+}
+

@@ -41,7 +41,22 @@
   .drag-handle { display: none; }
   .search-input { max-width: 100%; }
   #callSearch   { max-width: 140px; }
-  #chartHourly  { max-height: 200px; }
+  #dashChartHourly { max-height: 200px; }
+}
+
+/* XSmall < 576px */
+@media (max-width: 575.98px) {
+  .stat-card .value { font-size: 1.375rem; }
+  .stat-card .icon  { width: 40px; height: 40px; font-size: 1.1rem; margin-bottom: .625rem; }
+
+  #callTable th:nth-child(2),
+  #callTable td:nth-child(2) { display: none; }
+  #callTable th:nth-child(6),
+  #callTable td:nth-child(6) { white-space: nowrap; }
+}
+
+@media (max-width: 480px) {
+  #dialExten { max-width: 70px !important; }
 }
 
 /* Tablette 768–991px */

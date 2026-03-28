@@ -27,8 +27,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
-          cpus: "0.5"
+          memory: 2G
+          cpus: "2.0"
     healthcheck:
       test:
         - CMD

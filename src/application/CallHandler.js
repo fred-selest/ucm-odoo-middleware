@@ -1,6 +1,11 @@
 'use strict';
 
 const logger = require('../logger');
+const {
+  AUTO_CREATE_LOCK_DELAY_MS,
+  MIN_PHONE_DIGITS_LENGTH,
+  CALL_POLLING_INTERVAL_MS,
+} = require('../config/constants');
 
 /**
  * Orchestre le traitement d'un appel entrant :
@@ -12,12 +17,12 @@ const logger = require('../logger');
  */
 class CallHandler {
   /**
-   * @param {UcmHttpClient}         ucmHttpClient   Client HTTP API UCM6300
-   * @param {UcmWebSocketClient}    ucmWsClient     Client WebSocket UCM6300
-   * @param {CrmClientInterface}    crmClient       Adaptateur CRM (Odoo, Dolibarr…)
-   * @param {WsServer}              wsServer
-   * @param {WebhookManager|null}   webhookManager  Webhook manager (optionnel)
-   * @param {CallHistory|null}      callHistory     Service d'historique (optionnel)
+   * @param {UcmHttpClient}         ucmHttpClient    Client HTTP API UCM6300
+   * @param {UcmWebSocketClient}    ucmWsClient      Client WebSocket UCM6300
+   * @param {CrmClientInterface}    crmClient        Adaptateur CRM (Odoo, Dolibarr…)
+   * @param {WsServer}              wsServer         Serveur WebSocket interne
+   * @param {WebhookManager|null}   webhookManager   Webhook manager (optionnel)
+   * @param {CallHistory|null}      callHistory      Service d'historique (optionnel)
    * @param {SpamScoreService|null} spamScoreService Service de vérification spam (optionnel)
    */
   constructor(ucmHttpClient, ucmWsClient, crmClient, wsServer, webhookManager = null, callHistory = null, spamScoreService = null) {
@@ -52,7 +57,7 @@ class CallHandler {
 
   /**
    * Traite les événements de l'UCM6300
-   * @param {object} event
+   * @param {{ type: string, data: object }} event - Événement UCM avec type et données
    */
   handleUcmEvent(event) {
     const { type, data } = event;
@@ -176,7 +181,7 @@ class CallHandler {
       // Création automatique si aucun contact trouvé et numéro valide
       if (!contact) {
         const digits = callerIdNum.replace(/\D/g, '');
-        const isValidExternal = digits.length > 5 && !/^(anonymous|unknown|restricted|s)$/i.test(callerIdNum);
+        const isValidExternal = digits.length > MIN_PHONE_DIGITS_LENGTH && !/^(anonymous|unknown|restricted|s)$/i.test(callerIdNum);
         if (isValidExternal && !this._autoCreatingPhones.has(callerIdNum)) {
           this._autoCreatingPhones.add(callerIdNum);
           try {
@@ -189,7 +194,7 @@ class CallHandler {
           } catch (err) {
             logger.error('Odoo: échec création contact auto', { phone: callerIdNum, error: err.message });
           } finally {
-            setTimeout(() => this._autoCreatingPhones.delete(callerIdNum), 10000);
+            setTimeout(() => this._autoCreatingPhones.delete(callerIdNum), AUTO_CREATE_LOCK_DELAY_MS);
           }
         }
       }
@@ -344,7 +349,7 @@ class CallHandler {
   // ── Polling HTTP ───────────────────────────────────────────────────────────
 
   _startPolling() {
-    this._pollInterval = setInterval(() => this._poll().catch(() => {}), 3000);
+    this._pollInterval = setInterval(() => this._poll().catch(() => {}), CALL_POLLING_INTERVAL_MS);
   }
 
   async _poll() {

@@ -24,6 +24,12 @@ class OdooAdapter extends CrmClientInterface {
     return `${config.odoo.url}/web#model=res.partner&id=${contactId}`;
   }
 
+  // ── Phonebook ──────────────────────────────────────────────────────────────
+
+  async getAllContactsWithPhone(limit = 2000) {
+    return this._client.getAllContactsWithPhone(limit);
+  }
+
   // ── Authentification ───────────────────────────────────────────────────────
 
   async authenticate()        { return this._client.authenticate(); }
@@ -56,6 +62,10 @@ class OdooAdapter extends CrmClientInterface {
 
   async updateContact(id, data) {
     return this._client.updateContact(id, data);
+  }
+
+  async getAllContactsWithPhone(limit = 2000) {
+    return this._client.getAllContactsWithPhone(limit);
   }
 
   async enrichFromSirene(partnerId, sireneData) {

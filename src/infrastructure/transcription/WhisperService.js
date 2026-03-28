@@ -9,7 +9,8 @@ const axios = require('axios');
 const config = require('../../config');
 const logger = require('../../logger');
 
-const TMP_DIR = path.join(os.tmpdir(), 'ucm-whisper');
+const TMP_DIR   = path.join(os.tmpdir(), 'ucm-whisper');
+const MODEL_DIR = process.env.WHISPER_MODEL_DIR || '/app/data/whisper';
 
 class WhisperService {
   constructor({ ucmHttpClient, callHistory, crmClient }) {
@@ -33,7 +34,8 @@ class WhisperService {
     this._processing = true;
 
     try {
-      const calls = await this._callHistory.getCallsNeedingTranscription(5);
+      // Réduire à 2 appels max pour éviter la surcharge CPU
+      const calls = await this._callHistory.getCallsNeedingTranscription(2);
       if (calls.length === 0) return 0;
 
       // Mode local : vérifier la commande une fois
@@ -44,9 +46,12 @@ class WhisperService {
       }
 
       let count = 0;
+      // Traiter en série pour éviter la surcharge CPU
       for (const call of calls) {
         try {
-          if (call.duration && call.duration > config.whisper.maxDurationSec) {
+          // Skip si trop long (> 10 min pour CPU)
+          const maxDuration = this.mode === 'local' ? 600 : config.whisper.maxDurationSec;
+          if (call.duration && call.duration > maxDuration) {
             logger.debug('Whisper: appel trop long, skip', { uniqueId: call.unique_id, duration: call.duration });
             continue;
           }
@@ -84,8 +89,22 @@ class WhisperService {
 
     logger.info('Whisper: transcription en cours', { uniqueId: call.unique_id, filename, mode: this.mode });
 
-    // 1. Télécharger le WAV depuis le UCM
-    const wavBuffer = await this._ucm.downloadRecording(filename);
+    // 1. Télécharger le WAV via l'API interne (qui gère le cache UCM)
+    const axios = require('axios');
+    const internalUrl = `http://localhost:3000/api/recordings/download/${encodeURIComponent(filename)}`;
+    
+    let wavBuffer;
+    try {
+      const response = await axios.get(internalUrl, { 
+        responseType: 'arraybuffer',
+        timeout: 30000 
+      });
+      wavBuffer = Buffer.from(response.data);
+    } catch (err) {
+      logger.warn('Whisper: erreur téléchargement', { filename, error: err.message });
+      return null;
+    }
+    
     if (!wavBuffer || wavBuffer.length < 1000) {
       logger.warn('Whisper: fichier WAV trop petit ou vide', { filename, size: wavBuffer?.length });
       return null;
@@ -121,11 +140,19 @@ class WhisperService {
     if (!config.whisper.apiKey) throw new Error('WHISPER_API_KEY non configurée');
 
     const form = new FormData();
+    const safeFilename = originalFilename ? path.basename(originalFilename) : 'audio.wav';
     form.append('file', fs.createReadStream(wavPath), {
-      filename: path.basename(originalFilename) || 'audio.wav',
+      filename: safeFilename,
       contentType: 'audio/wav',
     });
-    form.append('model', 'whisper-1');
+
+    // Adapter le modèle selon l'API
+    const isGroq = config.whisper.apiUrl?.includes('groq.com');
+    const model = isGroq
+      ? 'whisper-large-v3'  // Groq utilise ce nom exact
+      : 'whisper-1';        // OpenAI utilise whisper-1
+
+    form.append('model', model);
     form.append('language', config.whisper.language);
     form.append('response_format', 'text');
 
@@ -150,9 +177,12 @@ class WhisperService {
       '--language', config.whisper.language,
       '--output_format', 'txt',
       '--output_dir', TMP_DIR,
+      '--model_dir', MODEL_DIR,
+      '--verbose', 'False',  // Supprimer output console
     ];
 
-    await this._exec(cmd, args, { timeout: 120000 });
+    // Timeout plus long pour CPU (5 min max par appel)
+    await this._exec(cmd, args, { timeout: 300000 });
 
     const txtPath = wavPath.replace('.wav', '.txt');
     if (fs.existsSync(txtPath)) return fs.readFileSync(txtPath, 'utf8');
