@@ -728,6 +728,10 @@
           <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabWhisper">
             <i class="bi bi-mic me-1"></i><span class="d-none d-sm-inline">Transcription</span>
           </button></li>
+          <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabNotifications">
+            <i class="bi bi-bell me-1"></i><span class="d-none d-sm-inline">Notifications</span><span class="d-sm-none">Notif.</span>
+          </button></li>
+
           <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPhonebook">
             <i class="bi bi-person-lines-fill me-1"></i><span class="d-none d-sm-inline">Annuaire</span>
           </button></li>
@@ -920,6 +924,42 @@
                 <button class="btn btn-sm btn-link py-0 text-muted" onclick="document.getElementById('whisperLogsBox').style.display='none'"><i class="bi bi-x"></i></button>
               </div>
               <div id="whisperLogsList" style="max-height:220px;overflow-y:auto;font-size:.78rem;font-family:monospace;background:var(--bg-alt);border-radius:6px;padding:8px"></div>
+            </div>
+          </div>
+
+
+          <!-- Notifications -->
+          <div class="tab-pane fade" id="tabNotifications">
+            <div class="row g-3">
+              <div class="col-12">
+                <h6 class="fw-semibold mb-1"><i class="bi bi-bell me-2 text-primary"></i>Notifications (Telegram, Email)</h6>
+                <p class="text-muted small mb-3">Recevez des alertes pour les appels manqués et un résumé quotidien.</p>
+              </div>
+              <div class="col-md-6">
+                <div class="card h-100">
+                  <div class="card-header bg-primary text-white"><i class="bi bi-telegram me-1"></i>Telegram</div>
+                  <div class="card-body">
+                    <div class="mb-3"><label class="form-label small fw-semibold">Token</label><input type="password" id="notifTelegramToken" class="form-control form-control-sm"></div>
+                    <div class="mb-3"><label class="form-label small fw-semibold">Chat IDs</label><input type="text" id="notifTelegramChatIds" class="form-control form-control-sm" placeholder='["123456789"]'></div>
+                    <button class="btn btn-sm btn-primary" onclick="saveNotifications()"><i class="bi bi-save me-1"></i>Sauvegarder</button>
+                    <button class="btn btn-sm btn-outline-success" onclick="testNotification('telegram')"><i class="bi bi-check-circle me-1"></i>Tester</button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="card h-100">
+                  <div class="card-header bg-success text-white"><i class="bi bi-envelope me-1"></i>Email SMTP</div>
+                  <div class="card-body">
+                    <div class="mb-2"><label class="form-label small fw-semibold">Hôte</label><input type="text" id="notifSmtpHost" class="form-control form-control-sm"></div>
+                    <div class="mb-2"><label class="form-label small fw-semibold">Port</label><input type="number" id="notifSmtpPort" class="form-control form-control-sm" value="587"></div>
+                    <div class="mb-2"><label class="form-label small fw-semibold">De</label><input type="text" id="notifSmtpFrom" class="form-control form-control-sm"></div>
+                    <div class="mb-2"><label class="form-label small fw-semibold">User</label><input type="text" id="notifSmtpUser" class="form-control form-control-sm"></div>
+                    <div class="mb-3"><label class="form-label small fw-semibold">Password</label><input type="password" id="notifSmtpPassword" class="form-control form-control-sm"></div>
+                    <button class="btn btn-sm btn-success" onclick="saveNotifications()"><i class="bi bi-save me-1"></i>Sauvegarder</button>
+                    <button class="btn btn-sm btn-outline-light text-success" onclick="testNotification('email')"><i class="bi bi-check-circle me-1"></i>Tester</button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
