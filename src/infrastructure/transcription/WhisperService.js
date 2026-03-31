@@ -19,12 +19,22 @@ class WhisperService {
     this._crm = crmClient;
     this._processing = false;
     this._whisperCmd = null;
+    this._cmdDetected = false;
 
     if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
   }
 
   get isEnabled() { return config.whisper.enabled; }
   get mode() { return config.whisper.mode; }
+
+  /**
+   * Initialise le service (détecte commande Whisper si mode local).
+   */
+  async init() {
+    if (this.mode === 'local' && !this._cmdDetected) {
+      await this._detectCommand();
+    }
+  }
 
   /**
    * Traite les nouveaux enregistrements sans transcription.
@@ -39,8 +49,8 @@ class WhisperService {
       if (calls.length === 0) return 0;
 
       // Mode local : vérifier la commande une fois
-      let cmd = null;
-      if (this.mode === 'local') {
+      let cmd = this._whisperCmd;
+      if (this.mode === 'local' && !cmd) {
         cmd = await this._detectCommand();
         if (!cmd) return 0;
       }
@@ -89,29 +99,34 @@ class WhisperService {
 
     logger.info('Whisper: transcription en cours', { uniqueId: call.unique_id, filename, mode: this.mode });
 
-    // 1. Télécharger le WAV via l'API interne (qui gère le cache UCM)
-    const axios = require('axios');
     const internalUrl = `http://localhost:3000/api/recordings/download/${encodeURIComponent(filename)}`;
-    
+
     let wavBuffer;
     try {
-      const response = await axios.get(internalUrl, { 
+      const response = await axios.get(internalUrl, {
         responseType: 'arraybuffer',
-        timeout: 30000 
+        timeout: 30000
       });
       wavBuffer = Buffer.from(response.data);
     } catch (err) {
       logger.warn('Whisper: erreur téléchargement', { filename, error: err.message });
       return null;
     }
-    
+
     if (!wavBuffer || wavBuffer.length < 1000) {
       logger.warn('Whisper: fichier WAV trop petit ou vide', { filename, size: wavBuffer?.length });
       return null;
     }
 
-    const wavPath = path.join(TMP_DIR, `${call.unique_id.replace(/[^a-zA-Z0-9.-]/g, '_')}.wav`);
-    fs.writeFileSync(wavPath, wavBuffer);
+    const safeId = call.unique_id.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const wavPath = path.join(TMP_DIR, `${safeId}.wav`);
+
+    try {
+      fs.writeFileSync(wavPath, wavBuffer);
+    } catch (err) {
+      logger.warn('Whisper: erreur écriture fichier temporaire', { wavPath, error: err.message });
+      return null;
+    }
 
     try {
       const text = this.mode === 'api'
@@ -126,9 +141,19 @@ class WhisperService {
 
       return null;
     } finally {
-      try { fs.unlinkSync(wavPath); } catch { /* ignore */ }
-      for (const ext of ['.txt', '.json', '.vtt', '.srt', '.tsv']) {
-        try { fs.unlinkSync(wavPath.replace('.wav', ext)); } catch { /* ignore */ }
+      // Nettoyage complet des fichiers temporaires
+      const cleanupFiles = [
+        wavPath,
+        wavPath.replace('.wav', '.txt'),
+        wavPath.replace('.wav', '.json'),
+        wavPath.replace('.wav', '.vtt'),
+        wavPath.replace('.wav', '.srt'),
+        wavPath.replace('.wav', '.tsv'),
+      ];
+      for (const file of cleanupFiles) {
+        try {
+          if (fs.existsSync(file)) fs.unlinkSync(file);
+        } catch { /* ignore */ }
       }
     }
   }
@@ -137,7 +162,13 @@ class WhisperService {
    * Transcription via API HTTP (OpenAI ou Groq).
    */
   async _transcribeViaApi(wavPath, originalFilename) {
-    if (!config.whisper.apiKey) throw new Error('WHISPER_API_KEY non configurée');
+    if (!config.whisper.apiKey) {
+      throw new Error('WHISPER_API_KEY non configurée');
+    }
+
+    if (!config.whisper.apiUrl) {
+      throw new Error('WHISPER_API_URL non configurée');
+    }
 
     const form = new FormData();
     const safeFilename = originalFilename ? path.basename(originalFilename) : 'audio.wav';
@@ -147,7 +178,7 @@ class WhisperService {
     });
 
     // Adapter le modèle selon l'API
-    const isGroq = config.whisper.apiUrl?.includes('groq.com');
+    const isGroq = config.whisper.apiUrl.includes('groq.com');
     const model = isGroq
       ? 'whisper-large-v3'  // Groq utilise ce nom exact
       : 'whisper-1';        // OpenAI utilise whisper-1
@@ -156,15 +187,48 @@ class WhisperService {
     form.append('language', config.whisper.language);
     form.append('response_format', 'text');
 
-    const response = await axios.post(config.whisper.apiUrl, form, {
-      headers: {
-        ...form.getHeaders(),
-        'Authorization': `Bearer ${config.whisper.apiKey}`,
-      },
-      timeout: 60000,
-    });
+    try {
+      const response = await axios.post(config.whisper.apiUrl, form, {
+        headers: {
+          ...form.getHeaders(),
+          'Authorization': `Bearer ${config.whisper.apiKey}`,
+        },
+        timeout: 60000,
+        validateStatus: (status) => status >= 200 && status < 300,
+      });
 
-    return typeof response.data === 'string' ? response.data : response.data?.text || null;
+      const result = typeof response.data === 'string'
+        ? response.data
+        : response.data?.text;
+
+      if (!result) {
+        logger.warn('Whisper API: réponse vide', { status: response.status, data: response.data });
+        return null;
+      }
+
+      return result;
+    } catch (err) {
+      const status = err.response?.status;
+      const data = err.response?.data;
+
+      if (status === 401) {
+        throw new Error('Whisper API: clé invalide (401)');
+      } else if (status === 429) {
+        throw new Error('Whisper API: rate limit dépassé (429)');
+      } else if (status && status >= 500) {
+        throw new Error(`Whisper API: erreur serveur (${status})`);
+      } else if (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT') {
+        throw new Error('Whisper API: timeout dépassé (60s)');
+      } else {
+        logger.warn('Whisper API: erreur inattendue', {
+          status,
+          code: err.code,
+          message: err.message,
+          data: typeof data === 'string' ? data : JSON.stringify(data),
+        });
+        throw err;
+      }
+    }
   }
 
   /**
@@ -178,14 +242,18 @@ class WhisperService {
       '--output_format', 'txt',
       '--output_dir', TMP_DIR,
       '--model_dir', MODEL_DIR,
-      '--verbose', 'False',  // Supprimer output console
+      '--verbose', 'False',
     ];
 
     // Timeout plus long pour CPU (5 min max par appel)
     await this._exec(cmd, args, { timeout: 300000 });
 
     const txtPath = wavPath.replace('.wav', '.txt');
-    if (fs.existsSync(txtPath)) return fs.readFileSync(txtPath, 'utf8');
+    if (fs.existsSync(txtPath)) {
+      const content = fs.readFileSync(txtPath, 'utf8');
+      // Nettoyer les artefacts Whisper (timestamps, etc.)
+      return content.trim().replace(/^\[.*?\]\s*/gm, '').trim();
+    }
     return null;
   }
 
@@ -197,26 +265,32 @@ class WhisperService {
 
     if (config.whisper.command) {
       this._whisperCmd = config.whisper.command;
+      this._cmdDetected = true;
       return this._whisperCmd;
     }
 
     for (const cmd of ['whisper', '/usr/local/bin/whisper', '/usr/bin/whisper']) {
       try {
-        await this._exec(cmd, ['--help']);
+        await this._exec(cmd, ['--help'], { timeout: 5000 });
         this._whisperCmd = cmd;
+        this._cmdDetected = true;
         logger.info('Whisper: commande locale détectée', { command: cmd });
         return cmd;
       } catch { /* pas trouvé */ }
     }
 
     logger.warn('Whisper: aucune commande locale trouvée');
+    this._cmdDetected = true;
     return null;
   }
 
   _exec(cmd, args, options = {}) {
     return new Promise((resolve, reject) => {
-      execFile(cmd, args, { timeout: options.timeout || 10000, ...options }, (err, stdout) => {
-        if (err) return reject(err);
+      execFile(cmd, args, { timeout: options.timeout || 10000, ...options }, (err, stdout, stderr) => {
+        if (err) {
+          logger.debug('Whisper exec error', { cmd, args, error: err.message, stderr });
+          return reject(err);
+        }
         resolve(stdout);
       });
     });

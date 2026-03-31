@@ -31,7 +31,7 @@ function saveOverrides(overrides) {
     
     // Fonction helper pour mettre à jour une variable .env
     const updateEnvVar = (key, value, section) => {
-      if (value === undefined || value === null || value === '') return;
+      if (value === undefined || value === null) return;
       const regex = new RegExp(`^(#\\s*)?${key}=.*$`, 'm');
       const newLine = `${key}=${value}`;
       if (regex.test(envContent)) {
@@ -46,7 +46,7 @@ function saveOverrides(overrides) {
         }
       }
     };
-    
+
     // Whisper
     if (overrides.whisper) {
       updateEnvVar('WHISPER_ENABLED', overrides.whisper.enabled, 'WHISPER TRANSCRIPTION');
@@ -55,7 +55,8 @@ function saveOverrides(overrides) {
       updateEnvVar('WHISPER_LANGUAGE', overrides.whisper.language, 'WHISPER TRANSCRIPTION');
       updateEnvVar('WHISPER_API_URL', overrides.whisper.apiUrl, 'WHISPER TRANSCRIPTION');
       updateEnvVar('WHISPER_MAX_DURATION', overrides.whisper.maxDurationSec, 'WHISPER TRANSCRIPTION');
-      if (overrides.whisper.apiKey) {
+      // Sauvegarder la clé API même si vide (pour suppression)
+      if ('apiKey' in overrides.whisper) {
         updateEnvVar('WHISPER_API_KEY', overrides.whisper.apiKey, 'WHISPER TRANSCRIPTION');
       }
     }
@@ -198,15 +199,15 @@ const config = {
 
   // ── Whisper Transcription ──────────────────────────────────────────────
   whisper: {
-    enabled:  (process.env.WHISPER_ENABLED || 'false') === 'true',
-    mode:     process.env.WHISPER_MODE     || 'local',   // 'local' | 'api'
-    model:    process.env.WHISPER_MODEL    || 'tiny',
-    language: process.env.WHISPER_LANGUAGE || 'fr',
-    command:  process.env.WHISPER_COMMAND  || '',
-    maxDurationSec: parseInt(process.env.WHISPER_MAX_DURATION || '600', 10),
-    // Mode API (OpenAI ou Groq)
-    apiKey:   process.env.WHISPER_API_KEY  || '',
-    apiUrl:   process.env.WHISPER_API_URL  || 'https://api.openai.com/v1/audio/transcriptions',
+    enabled:        ov.whisper?.enabled     ?? (process.env.WHISPER_ENABLED || 'false') === 'true',
+    mode:           ov.whisper?.mode        ?? process.env.WHISPER_MODE     ?? 'local',
+    model:          ov.whisper?.model       ?? process.env.WHISPER_MODEL    ?? 'tiny',
+    language:       ov.whisper?.language    ?? process.env.WHISPER_LANGUAGE ?? 'fr',
+    command:        ov.whisper?.command     ?? process.env.WHISPER_COMMAND  ?? '',
+    maxDurationSec: ov.whisper?.maxDurationSec ?? parseInt(process.env.WHISPER_MAX_DURATION || '600', 10),
+    // Mode API (OpenAI ou Groq) - priorité à config.json pour persistance
+    apiKey:         ov.whisper?.apiKey      ?? process.env.WHISPER_API_KEY  ?? '',
+    apiUrl:         ov.whisper?.apiUrl      ?? process.env.WHISPER_API_URL  ?? 'https://api.openai.com/v1/audio/transcriptions',
   },
 
   server: {

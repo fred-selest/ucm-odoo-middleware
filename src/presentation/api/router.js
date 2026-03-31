@@ -3,9 +3,23 @@
 const path       = require('path');
 const fs         = require('fs');
 const { Router } = require('express');
-const { v4: uuidv4 } = require('uuid');
 const config     = require('../../config');
 const logger     = require('../../logger');
+const {
+  errorHandler,
+  notFoundHandler,
+  AppError,
+  requestLogger,
+  validate,
+  rules,
+  authLimiter,
+  apiLimiter,
+  webhookLimiter,
+  sanitizeInput,
+  requireSession,
+  createSession,
+  checkSession,
+} = require('./middleware');
 
 const BUILD_VERSION = Date.now();
 
@@ -16,34 +30,6 @@ logger.on('data', (info) => {
   LOG_BUFFER.push({ ts: new Date().toISOString(), level: info.level, msg: info.message });
   if (LOG_BUFFER.length > LOG_BUFFER_MAX) LOG_BUFFER.shift();
 });
-
-// ── Sessions Odoo en mémoire ──────────────────────────────────────────────
-// token → { uid, username, expiresAt }
-const SESSIONS      = new Map();
-const SESSION_TTL   = 8 * 60 * 60 * 1000;   // 8 heures
-
-function createSession(uid, username) {
-  const token = uuidv4();
-  SESSIONS.set(token, { uid, username, expiresAt: Date.now() + SESSION_TTL });
-  return token;
-}
-
-function checkSession(token) {
-  if (!token) return null;
-  const s = SESSIONS.get(token);
-  if (!s) return null;
-  if (s.expiresAt < Date.now()) { SESSIONS.delete(token); return null; }
-  return s;
-}
-
-// ── Middleware auth session ───────────────────────────────────────────────
-function requireSession(req, res, next) {
-  const token = (req.headers['x-session-token'] || '').trim();
-  const session = checkSession(token);
-  if (!session) return res.status(401).json({ error: 'Non authentifié' });
-  req.session = session;
-  next();
-}
 
 // Middleware pour protéger les routes /api/* (sauf auth, test et santé)
 function apiRequireSession(req, res, next) {
@@ -85,6 +71,13 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   // Rétrocompatibilité : accepter odooClient ou crmClient
   const crm = crmClient || odooClient;
   const router = Router();
+
+  // ── Middlewares globaux ──────────────────────────────────────────────────
+  // Logging des requêtes
+  router.use(requestLogger);
+
+  // Sanitization des entrées
+  router.use(sanitizeInput);
 
   // ── Authentification obligatoire sur toutes les routes /api/* ────────────
   // Routes publiques (sans auth)
@@ -228,40 +221,41 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // ── Auth : login Odoo ───────────────────────────────────────────────────
-  router.post('/api/auth/login', async (req, res) => {
-    const { username, password } = req.body || {};
-    if (!username || !password)
-      return res.status(400).json({ error: 'username et password requis' });
-    try {
-      const axios = require('axios');
-      const r = await axios.post(`${config.odoo.url}/web/session/authenticate`, {
-        jsonrpc: '2.0', method: 'call', id: 1,
-        params: { db: config.odoo.db, login: username, password },
-      }, { timeout: 8000 });
-      const uid = r.data?.result?.uid;
-      if (!uid) return res.status(401).json({ error: 'Identifiants incorrects' });
-      const token = createSession(uid, username);
-      logger.info('Admin: connexion', { username, uid });
-      res.json({ ok: true, token, username, uid });
-    } catch (err) {
-      logger.error('Admin: échec login', { error: err.message });
-      res.status(500).json({ error: err.message });
+  router.post('/api/auth/login',
+    authLimiter,
+    rules.login,
+    validate,
+    async (req, res) => {
+      const { username, password } = req.body;
+      try {
+        const axios = require('axios');
+        const r = await axios.post(`${config.odoo.url}/web/session/authenticate`, {
+          jsonrpc: '2.0', method: 'call', id: 1,
+          params: { db: config.odoo.db, login: username, password },
+        }, { timeout: 8000 });
+        const uid = r.data?.result?.uid;
+        if (!uid) return res.status(401).json({ error: 'Identifiants incorrects' });
+        const token = createSession(uid, username);
+        logger.info('Admin: connexion', { username, uid });
+        res.json({ ok: true, token, username, uid });
+      } catch (err) {
+        logger.error('Admin: échec login', { error: err.message });
+        res.status(500).json({ error: err.message });
+      }
     }
-  });
+  );
 
   // ── Auth : logout ───────────────────────────────────────────────────────
-  router.post('/api/auth/logout', (req, res) => {
+  router.post('/api/auth/logout', requireSession, (req, res) => {
     const token = req.headers['x-session-token'] || '';
-    SESSIONS.delete(token);
+    const { SESSIONS } = require('./middleware');
+    SESSIONS.delete(token); // Nettoyage immédiat
     res.json({ ok: true });
   });
 
   // ── Auth : vérifier session ─────────────────────────────────────────────
-  router.get('/api/auth/me', (req, res) => {
-    const token = req.headers['x-session-token'] || '';
-    const s = checkSession(token);
-    if (!s) return res.status(401).json({ error: 'Non authentifié' });
-    res.json({ ok: true, username: s.username, uid: s.uid });
+  router.get('/api/auth/me', requireSession, (req, res) => {
+    res.json({ ok: true, username: req.session.username, uid: req.session.uid });
   });
 
   // ── Routes protégées (session requise) ──────────────────────────────────
@@ -484,7 +478,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
         if (!phoneNumber) {
           return res.status(400).json({ ok: false, error: 'phoneNumber requis' });
         }
-        await callHistory.addToBlacklist(phoneNumber, reason, req.session.username);
+        await callHistory.addToBlacklist(phoneNumber, reason, req.session?.username);
         res.json({ ok: true, message: 'Numéro ajouté à la blacklist' });
       } catch (err) {
         res.status(500).json({ ok: false, error: err.message });
@@ -503,7 +497,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
           const phone = typeof entry === 'string' ? entry : entry.phone;
           const reason = typeof entry === 'string' ? (source || 'Import') : (entry.reason || source || 'Import');
           if (!phone) continue;
-          await callHistory.addToBlacklist(phone, reason, req.session.username);
+          await callHistory.addToBlacklist(phone, reason, req.session?.username);
           added++;
         }
         logger.info('Blacklist import', { added, source });
@@ -574,7 +568,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
         for (const num of numbers) {
           const phone = String(num).trim();
           if (phone.length >= 4) {
-            await callHistory.addToBlacklist(phone, reason, req.session.username);
+            await callHistory.addToBlacklist(phone, reason, req.session?.username);
             added++;
           }
         }
@@ -651,7 +645,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
         ? watchExtensions : watchExtensions.split(',').map(s => s.trim()).filter(Boolean);
 
     config.applyUcm(fields);
-    logger.info('Admin: config UCM mise à jour', { user: req.session.username, fields: Object.keys(fields) });
+    logger.info('Admin: config UCM mise à jour', { user: req.session?.username, fields: Object.keys(fields) });
 
     // Reconnexion UCM
     await ucmHttpClient.disconnect();
@@ -677,7 +671,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     if (apiKey)   fields.apiKey   = apiKey.trim();
 
     config.applyOdoo(fields);
-    logger.info('Admin: config Odoo mise à jour', { user: req.session.username, fields: Object.keys(fields) });
+    logger.info('Admin: config Odoo mise à jour', { user: req.session?.username, fields: Object.keys(fields) });
 
     // Ré-authentification
     crm.invalidateCache();
@@ -699,7 +693,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     if (entityId) fields.entityId = entityId;
 
     config.applyDolibarr(fields);
-    logger.info('Admin: config Dolibarr mise à jour', { user: req.session.username, fields: Object.keys(fields) });
+    logger.info('Admin: config Dolibarr mise à jour', { user: req.session?.username, fields: Object.keys(fields) });
 
     crm.invalidateCache();
     try {
@@ -806,27 +800,21 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   router.post('/api/config/notifications', requireSession, async (req, res) => {
     try {
       const { telegram, smtp, missedCallThreshold, dailySummary } = req.body || {};
-      
-      if (telegram?.token) {
-        process.env.TELEGRAM_TOKEN = telegram.token;
-        notificationService._telegramToken = telegram.token;
-      }
-      if (telegram?.chatIds) {
-        notificationService._chatIds = telegram.chatIds;
-      }
-      if (smtp) {
-        notificationService._smtpConfig = { ...notificationService._smtpConfig, ...smtp };
-      }
-      if (missedCallThreshold) {
-        notificationService._missedCallThreshold = missedCallThreshold;
-      }
-      if (dailySummary) {
-        notificationService._dailySummaryEnabled = dailySummary.enabled;
-        if (dailySummary.time) notificationService._dailySummaryTime = dailySummary.time;
-      }
+
+      // Mettre à jour le service
+      notificationService.updateConfig({
+        telegram,
+        smtp,
+        missedCallThreshold,
+        dailySummary: {
+          enabled: dailySummary?.enabled,
+          time: dailySummary?.time,
+        },
+      });
 
       res.json({ ok: true, message: 'Configuration notifications sauvegardée' });
     } catch (err) {
+      logger.error('Erreur config notifications', { error: err.message });
       res.status(500).json({ ok: false, error: err.message });
     }
   });
@@ -862,7 +850,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     const { name } = req.body || {};
     if (!name?.trim()) return res.status(400).json({ error: 'name requis' });
     const entry = webhookManager.createToken(name.trim());
-    logger.info('Admin: token webhook créé', { name, user: req.session.username });
+    logger.info('Admin: token webhook créé', { name, user: req.session?.username });
     res.json(entry);
   });
 
@@ -877,7 +865,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       ...(notes          !== undefined && { notes }),
     });
     if (!updated) return res.status(404).json({ error: 'Token introuvable' });
-    logger.info('Admin: webhook mis à jour', { user: req.session.username, token: req.params.token.slice(0,8) });
+    logger.info('Admin: webhook mis à jour', { user: req.session?.username, token: req.params.token.slice(0,8) });
     res.json(updated);
   });
 
@@ -904,7 +892,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   router.delete('/api/webhooks/:token', (req, res) => {
     const deleted = webhookManager?.deleteToken(req.params.token);
     if (!deleted) return res.status(404).json({ error: 'Token introuvable' });
-    logger.info('Admin: token webhook supprimé', { user: req.session.username });
+    logger.info('Admin: token webhook supprimé', { user: req.session?.username });
     res.json({ ok: true });
   });
 
@@ -960,11 +948,11 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       };
 
       wsServer.broadcast('call:outbound', callInfo);
-      
-      logger.info('Click-to-call initié', { phone, exten, uniqueId, user: req.session.username });
-      
-      res.json({ 
-        ok: true, 
+
+      logger.info('Click-to-call initié', { phone, exten, uniqueId, user: req.session?.username });
+
+      res.json({
+        ok: true,
         uniqueId,
         message: `Appel en cours vers ${phone}`,
         call: callInfo
@@ -987,7 +975,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
         return res.status(400).json({ ok: false, error: 'Note requise' });
       }
 
-      await callHistory.addCallNote(req.params.uniqueId, note.trim(), req.session.username);
+      await callHistory.addCallNote(req.params.uniqueId, note.trim(), req.session?.username);
       res.json({ ok: true, message: 'Note ajoutée' });
     } catch (err) {
       logger.error('Erreur ajout note', { error: err.message, uniqueId: req.params.uniqueId });
@@ -1084,15 +1072,15 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       }
 
       await callHistory.updateAgentStatus(req.params.exten, status);
-      
+
       // Diffuser le changement de statut à tous les clients WebSocket
       wsServer.broadcast('agent:status_changed', {
         exten: req.params.exten,
         status,
         timestamp: new Date().toISOString()
       });
-      
-      logger.info('Statut agent mis à jour', { exten: req.params.exten, status, user: req.session.username });
+
+      logger.info('Statut agent mis à jour', { exten: req.params.exten, status, user: req.session?.username });
       res.json({ ok: true, message: 'Statut mis à jour', status });
     } catch (err) {
       logger.error('Erreur mise à jour statut agent', { error: err.message, exten: req.params.exten });
@@ -1117,7 +1105,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       const enable = !!req.body?.enable;
       await ucmHttpClient.doNotDisturb(req.params.exten, enable);
       wsServer.broadcast('agent:dnd_changed', { exten: req.params.exten, dnd: enable });
-      logger.info('DND mis à jour', { exten: req.params.exten, dnd: enable, user: req.session.username });
+      logger.info('DND mis à jour', { exten: req.params.exten, dnd: enable, user: req.session?.username });
       res.json({ ok: true, dnd: enable });
     } catch (err) {
       logger.error('Erreur DND', { error: err.message, exten: req.params.exten });
@@ -1163,7 +1151,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       if (!channel) return res.status(404).json({ ok: false, error: 'Channel introuvable pour cet appel' });
 
       await ucmHttpClient.callTransfer(channel, extension);
-      logger.info('Appel transféré', { uniqueId: req.params.uniqueId, extension, user: req.session.username });
+      logger.info('Appel transféré', { uniqueId: req.params.uniqueId, extension, user: req.session?.username });
       res.json({ ok: true, message: `Appel transféré vers ${extension}` });
     } catch (err) {
       logger.error('Erreur transfert', { error: err.message, uniqueId: req.params.uniqueId });
@@ -1248,39 +1236,29 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // POST /api/odoo/contacts - Créer un nouveau contact
-  router.post('/api/odoo/contacts', async (req, res) => {
-    try {
-      const contactData = req.body;
-      
-      if (!contactData.name) {
-        return res.status(400).json({ ok: false, error: 'Nom requis' });
-      }
-      
-      const contact = await crm.createContact(contactData);
-      logger.info('Contact créé via API', { id: contact.id, name: contact.name, user: req.session.username });
-      
+  router.post('/api/odoo/contacts',
+    rules.createContact,
+    validate,
+    requireSession,
+    async (req, res) => {
+      const contact = await crm.createContact(req.body);
+      logger.info('Contact créé via API', { id: contact.id, name: contact.name, user: req.session?.username });
       res.json({ ok: true, data: contact });
-    } catch (err) {
-      logger.error('Erreur création contact', { error: err.message });
-      res.status(500).json({ ok: false, error: err.message });
     }
-  });
+  );
 
   // PUT /api/odoo/contacts/:id - Modifier un contact
-  router.put('/api/odoo/contacts/:id', async (req, res) => {
-    try {
-      const contactId = parseInt(req.params.id);
-      const contactData = req.body;
-      
-      const contact = await crm.updateContact(contactId, contactData);
-      logger.info('Contact modifié via API', { id: contactId, user: req.session?.username });
-      
+  router.put('/api/odoo/contacts/:id',
+    rules.contactId,
+    rules.updateContact,
+    validate,
+    requireSession,
+    async (req, res) => {
+      const contact = await crm.updateContact(parseInt(req.params.id), req.body);
+      logger.info('Contact modifié via API', { id: req.params.id, user: req.session?.username });
       res.json({ ok: true, data: contact });
-    } catch (err) {
-      logger.error('Erreur modification contact', { error: err.message, id: req.params.id });
-      res.status(500).json({ ok: false, error: err.message });
     }
-  });
+  );
 
   // POST /api/calls/:uniqueId/link-contact - Associer un contact à un appel
   router.post('/api/calls/:uniqueId/link-contact', async (req, res) => {
@@ -1834,6 +1812,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       res.status(500).json({ ok: false, error: err.message });
     }
   });
+
+  // ── Gestion d'erreurs (à placer en dernier) ───────────────────────────────
+  router.use(notFoundHandler);
+  router.use(errorHandler);
 
   return router;
 }

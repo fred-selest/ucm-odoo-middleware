@@ -731,7 +731,6 @@
           <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabNotifications">
             <i class="bi bi-bell me-1"></i><span class="d-none d-sm-inline">Notifications</span><span class="d-sm-none">Notif.</span>
           </button></li>
-
           <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPhonebook">
             <i class="bi bi-person-lines-fill me-1"></i><span class="d-none d-sm-inline">Annuaire</span>
           </button></li>
@@ -932,31 +931,95 @@
           <div class="tab-pane fade" id="tabNotifications">
             <div class="row g-3">
               <div class="col-12">
-                <h6 class="fw-semibold mb-1"><i class="bi bi-bell me-2 text-primary"></i>Notifications (Telegram, Email)</h6>
+                <h6 class="fw-semibold mb-1"><i class="bi bi-bell me-2 text-primary"></i>Notifications (Telegram, Email, Web Push)</h6>
                 <p class="text-muted small mb-3">Recevez des alertes pour les appels manqués et un résumé quotidien.</p>
               </div>
+              
+              <!-- Alertes appels manqués -->
+              <div class="col-12">
+                <div class="card border-warning">
+                  <div class="card-header bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Alertes appels manqués</div>
+                  <div class="card-body">
+                    <div class="row g-3 align-items-end">
+                      <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Nombre d'appels</label>
+                        <input type="number" id="notifMissedCount" class="form-control form-control-sm" value="3" min="1" max="20">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Période (minutes)</label>
+                        <input type="number" id="notifMissedMinutes" class="form-control form-control-sm" value="15" min="1" max="60">
+                      </div>
+                      <div class="col-md-4">
+                        <button class="btn btn-sm btn-warning" onclick="saveNotifications()"><i class="bi bi-save me-1"></i>Sauvegarder seuil</button>
+                      </div>
+                    </div>
+                    <div class="form-text mt-2">Ex: Si 3 appels manqués en 15 minutes → envoi d'une alerte Telegram + Email</div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Résumé quotidien -->
+              <div class="col-12">
+                <div class="card">
+                  <div class="card-header bg-info text-white"><i class="bi bi-calendar-check me-1"></i>Résumé quotidien</div>
+                  <div class="card-body">
+                    <div class="row g-3 align-items-end">
+                      <div class="col-md-3">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" id="notifDailyEnabled">
+                          <label class="form-check-label small fw-semibold" for="notifDailyEnabled">Activer</label>
+                        </div>
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Heure d'envoi</label>
+                        <input type="time" id="notifDailyTime" class="form-control form-control-sm" value="18:00">
+                      </div>
+                      <div class="col-md-3">
+                        <button class="btn btn-sm btn-info" onclick="saveNotifications()"><i class="bi bi-save me-1"></i>Sauvegarder</button>
+                      </div>
+                    </div>
+                    <div class="form-text mt-2">Recevez un récapitulatif des appels de la veille (total, décrochés, manqués, top appelants)</div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Telegram -->
               <div class="col-md-6">
                 <div class="card h-100">
                   <div class="card-header bg-primary text-white"><i class="bi bi-telegram me-1"></i>Telegram</div>
                   <div class="card-body">
-                    <div class="mb-3"><label class="form-label small fw-semibold">Token</label><input type="password" id="notifTelegramToken" class="form-control form-control-sm"></div>
-                    <div class="mb-3"><label class="form-label small fw-semibold">Chat IDs</label><input type="text" id="notifTelegramChatIds" class="form-control form-control-sm" placeholder='["123456789"]'></div>
+                    <div class="mb-3"><label class="form-label small fw-semibold">Token Bot</label><input type="password" id="notifTelegramToken" class="form-control form-control-sm" placeholder="Ex: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz"></div>
+                    <div class="mb-3"><label class="form-label small fw-semibold">Chat IDs</label><input type="text" id="notifTelegramChatIds" class="form-control form-control-sm font-monospace" placeholder='["123456789"]'><div class="form-text">ID du canal/groupe (ex: <code>-1001234567890</code>) ou ID utilisateur</div></div>
                     <button class="btn btn-sm btn-primary" onclick="saveNotifications()"><i class="bi bi-save me-1"></i>Sauvegarder</button>
                     <button class="btn btn-sm btn-outline-success" onclick="testNotification('telegram')"><i class="bi bi-check-circle me-1"></i>Tester</button>
                   </div>
                 </div>
               </div>
+              
+              <!-- Email SMTP -->
               <div class="col-md-6">
                 <div class="card h-100">
                   <div class="card-header bg-success text-white"><i class="bi bi-envelope me-1"></i>Email SMTP</div>
                   <div class="card-body">
-                    <div class="mb-2"><label class="form-label small fw-semibold">Hôte</label><input type="text" id="notifSmtpHost" class="form-control form-control-sm"></div>
+                    <div class="mb-2"><label class="form-label small fw-semibold">Hôte</label><input type="text" id="notifSmtpHost" class="form-control form-control-sm" placeholder="smtp.gmail.com"></div>
                     <div class="mb-2"><label class="form-label small fw-semibold">Port</label><input type="number" id="notifSmtpPort" class="form-control form-control-sm" value="587"></div>
-                    <div class="mb-2"><label class="form-label small fw-semibold">De</label><input type="text" id="notifSmtpFrom" class="form-control form-control-sm"></div>
+                    <div class="mb-2"><label class="form-label small fw-semibold">De</label><input type="email" id="notifSmtpFrom" class="form-control form-control-sm" placeholder="noreply@entreprise.com"></div>
                     <div class="mb-2"><label class="form-label small fw-semibold">User</label><input type="text" id="notifSmtpUser" class="form-control form-control-sm"></div>
                     <div class="mb-3"><label class="form-label small fw-semibold">Password</label><input type="password" id="notifSmtpPassword" class="form-control form-control-sm"></div>
                     <button class="btn btn-sm btn-success" onclick="saveNotifications()"><i class="bi bi-save me-1"></i>Sauvegarder</button>
                     <button class="btn btn-sm btn-outline-light text-success" onclick="testNotification('email')"><i class="bi bi-check-circle me-1"></i>Tester</button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Web Push -->
+              <div class="col-12">
+                <div class="card">
+                  <div class="card-header bg-dark text-white"><i class="bi bi-browser-chrome me-1"></i>Notifications Navigateur (Web Push)</div>
+                  <div class="card-body">
+                    <p class="small text-muted mb-3">Recevez des notifications directement dans votre navigateur (Chrome, Firefox, Edge). Aucune installation requise.</p>
+                    <button class="btn btn-sm btn-primary" id="btnEnableWebPush" onclick="requestNotifPermission()"><i class="bi bi-bell me-1"></i>Activer les notifications</button>
+                    <span id="webPushStatus" class="ms-2 small text-muted"></span>
                   </div>
                 </div>
               </div>
@@ -1565,5 +1628,6 @@
 <script src="/admin/js/journal.js"></script>
 <script src="/admin/js/stats.js"></script>
 <script src="/admin/js/dashboard.js"></script>
+<script src="/admin/js/notifications.js"></script>
 <script src="/admin/js/app.js"></script>
 </body></html>

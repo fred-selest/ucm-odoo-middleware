@@ -12,7 +12,8 @@ const DATA_FILE = path.join(process.cwd(), 'data', 'notifications.json');
  * Service de notifications (Telegram, Email, Web Push)
  */
 class NotificationService {
-  constructor() {
+  constructor(callHistory = null) {
+    this._callHistory = callHistory;
     this._telegramToken = config.telegram?.token || process.env.TELEGRAM_TOKEN;
     this._chatIds = config.telegram?.chatIds || [];
     this._smtpConfig = config.smtp || {};
@@ -20,10 +21,10 @@ class NotificationService {
     this._missedCallThreshold = config.notifications?.missedCallThreshold || { count: 3, minutes: 15 };
     this._dailySummaryEnabled = config.notifications?.dailySummaryEnabled || false;
     this._dailySummaryTime = config.notifications?.dailySummaryTime || '18:00';
-    
+
     this._missedCallBuffer = [];
     this._lastSummarySent = null;
-    
+
     this._loadSubscriptions();
     this._startDailySummaryScheduler();
   }
@@ -85,10 +86,12 @@ class NotificationService {
     }
 
     const nodemailer = require('nodemailer');
-    
+
+    const DEFAULT_SMTP_PORT = 587;
+
     const transporter = nodemailer.createTransport({
       host: this._smtpConfig.host,
-      port: this._smtpConfig.port || 587,
+      port: this._smtpConfig.port || DEFAULT_SMTP_PORT,
       secure: this._smtpConfig.secure || false,
       auth: {
         user: this._smtpConfig.user,
@@ -203,17 +206,18 @@ class NotificationService {
 
   /**
    * Vérifie et envoie une alerte si seuil d'appels manqués dépassé
+   * @param {object} call - Objet appel avec status, caller_id_num, exten
    */
   async checkMissedCallAlert(call) {
     if (call.status !== 'missed') return;
 
     const now = Date.now();
     const windowMs = this._missedCallThreshold.minutes * 60 * 1000;
-    
+
     // Ajouter au buffer
     this._missedCallBuffer.push({
       time: now,
-      caller: call.caller_id_num,
+      caller: call.caller_id_num || call.callerIdNum,
       exten: call.exten,
     });
 
@@ -233,16 +237,16 @@ class NotificationService {
    * Envoie l'alerte d'appels manqués
    */
   async _sendMissedCallAlert() {
-    const count = this._missedCallThreshold.count;
-    const minutes = this._missedCallThreshold.minutes;
+    const { count } = this._missedCallThreshold;
+    const { minutes } = this._missedCallThreshold;
     
     const callers = this._missedCallBuffer.map(item => item.caller).join(', ');
     
     // Message Telegram
-    const telegramMsg = `🚨 <b>Alerte Appels Manqués</b>\n\n` +
+    const telegramMsg = '🚨 <b>Alerte Appels Manqués</b>\n\n' +
       `${count} appels manqués en ${minutes} minutes\n\n` +
       `📞 Numéros: ${callers}\n\n` +
-      `<i>Vérifiez votre standard téléphonique</i>`;
+      '<i>Vérifiez votre standard téléphonique</i>';
     
     await this.sendTelegram(telegramMsg);
 
@@ -269,6 +273,35 @@ class NotificationService {
   }
 
   // ── Résumé quotidien ───────────────────────────────────────────────────────
+
+  /**
+   * Récupère les statistiques pour une date donnée
+   */
+  async _getDailyStats(dateStr) {
+    if (!this._callHistory) {
+      return { total: 0, answered: 0, missed: 0, duration: 0, topCallers: [] };
+    }
+
+    try {
+      const stats = await this._callHistory.getStats('yesterday');
+      const topCallers = await this._callHistory.getTopCallers(5, 1);
+
+      return {
+        total: stats.total,
+        answered: stats.answered,
+        missed: stats.missed,
+        duration: stats.totalDuration || 0,
+        topCallers: topCallers.map(c => ({
+          phone: c.caller_id_num,
+          name: c.contact_name || c.caller_id_name || 'Inconnu',
+          count: c.call_count,
+        })),
+      };
+    } catch (err) {
+      logger.error('Notification: erreur récupération stats', { error: err.message });
+      return { total: 0, answered: 0, missed: 0, duration: 0, topCallers: [] };
+    }
+  }
 
   /**
    * Planifie l'envoi du résumé quotidien
@@ -307,39 +340,42 @@ class NotificationService {
     yesterday.setDate(yesterday.getDate() - 1);
     const dateStr = yesterday.toISOString().split('T')[0];
 
-    // TODO: Récupérer les stats depuis CallHistory
-    const stats = {
-      total: 0,
-      answered: 0,
-      missed: 0,
-      duration: 0,
-      topCallers: [],
-    };
-
+    // Récupérer les stats depuis CallHistory
+    const stats = await this._getDailyStats(dateStr);
     const answerRate = stats.total > 0 ? Math.round((stats.answered / stats.total) * 100) : 0;
 
     // Message Telegram
+    const topCallersText = stats.topCallers.length > 0
+      ? `\n📞 Top appelants:\n${stats.topCallers.map(c => `  • ${c.name} (${c.phone}) - ${c.count} appels`).join('\n')}`
+      : '';
+
     const telegramMsg = `📊 <b>Résumé Quotidien - ${dateStr}</b>\n\n` +
       `📞 Appels totaux: <b>${stats.total}</b>\n` +
       `✅ Décrochés: <b>${stats.answered}</b>\n` +
       `❌ Manqués: <b>${stats.missed}</b>\n` +
       `📈 Taux de réponse: <b>${answerRate}%</b>\n` +
-      `⏱️ Durée totale: <b>${Math.round(stats.duration / 60)} min</b>\n\n` +
-      `<i>Configurez les notifications dans l'interface admin</i>`;
+      `⏱️ Durée totale: <b>${Math.round(stats.duration / 60)} min</b>${topCallersText}\n\n` +
+      '<i>Configurez les notifications dans l\'interface admin</i>';
 
     await this.sendTelegram(telegramMsg);
 
     // Email
     if (this._smtpConfig.host) {
+      const topCallersHtml = stats.topCallers.length > 0
+        ? `<h3>Top appelants:</h3>
+           <ul>${stats.topCallers.map(c => `<li>${c.name} (${c.phone}) - ${c.count} appels</li>`).join('')}</ul>`
+        : '';
+
       const emailHtml = `
         <h2>📊 Résumé Quotidien - ${dateStr}</h2>
-        <table style="width:100%;border-collapse:collapse">
+        <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
           <tr><td style="padding:8px;border:1px solid #ddd">📞 Total</td><td style="padding:8px;border:1px solid #ddd"><b>${stats.total}</b></td></tr>
           <tr><td style="padding:8px;border:1px solid #ddd">✅ Décrochés</td><td style="padding:8px;border:1px solid #ddd"><b>${stats.answered}</b></td></tr>
           <tr><td style="padding:8px;border:1px solid #ddd">❌ Manqués</td><td style="padding:8px;border:1px solid #ddd"><b>${stats.missed}</b></td></tr>
           <tr><td style="padding:8px;border:1px solid #ddd">📈 Taux de réponse</td><td style="padding:8px;border:1px solid #ddd"><b>${answerRate}%</b></td></tr>
           <tr><td style="padding:8px;border:1px solid #ddd">⏱️ Durée totale</td><td style="padding:8px;border:1px solid #ddd"><b>${Math.round(stats.duration / 60)} min</b></td></tr>
         </table>
+        ${topCallersHtml}
       `;
       await this.sendEmail(`Résumé appels - ${dateStr}`, emailHtml);
     }
@@ -395,19 +431,19 @@ class NotificationService {
    * Teste l'envoi d'une notification
    */
   async testNotification(type = 'telegram') {
-    const testMsg = `✅ <b>Test de notification</b>\n\n` +
-      `Les notifications fonctionnent correctement !\n\n` +
-      `<i>Envoyé depuis UCM-Odoo Middleware</i>`;
+    const testMsg = '✅ <b>Test de notification</b>\n\n' +
+      'Les notifications fonctionnent correctement !\n\n' +
+      '<i>Envoyé depuis UCM-Odoo Middleware</i>';
 
     switch (type) {
-      case 'telegram':
-        return await this.sendTelegram(testMsg);
-      case 'email':
-        return await this.sendEmail('Test de notification', '<h2>✅ Test réussi</h2><p>Les notifications email fonctionnent !</p>');
-      case 'webpush':
-        return await this.sendWebPush('✅ Test réussi', 'Les notifications Web Push fonctionnent !');
-      default:
-        return false;
+    case 'telegram':
+      return await this.sendTelegram(testMsg);
+    case 'email':
+      return await this.sendEmail('Test de notification', '<h2>✅ Test réussi</h2><p>Les notifications email fonctionnent !</p>');
+    case 'webpush':
+      return await this.sendWebPush('✅ Test réussi', 'Les notifications Web Push fonctionnent !');
+    default:
+      return false;
     }
   }
 }

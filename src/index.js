@@ -66,19 +66,20 @@ async function main() {
 
   // ── Serveur HTTP + WebSocket ───────────────────────────────────────────────
   const app        = express();
-  
+
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
-  
+
   app.use(compression({ threshold: 1024 }));
-  
+
   app.use(cors({
     origin: config.app.allowedOrigins || ['https://admin.ucm.local'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Token'],
     credentials: true,
   }));
-  
+
+  // Rate limiting global (utilisé par le middleware de sécurité)
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5000,
@@ -88,11 +89,9 @@ async function main() {
     skip: (req) => !req.path.startsWith('/api/'),
   });
   app.use(apiLimiter);
-  
+
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
-  
-  // Routes API
 
   // Documentation Swagger
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -106,13 +105,20 @@ async function main() {
 
   // ── Application ────────────────────────────────────────────────────────────
   const spamScoreService = new SpamScoreService();
-  const callHandler = new CallHandler(ucmHttpClient, ucmWsClient, crmClient, wsServer, webhookManager, callHistory, spamScoreService);
+  const notificationService = new NotificationService(callHistory);
+  const callHandler = new CallHandler(ucmHttpClient, ucmWsClient, crmClient, wsServer, webhookManager, callHistory, spamScoreService, notificationService);
   const sireneService = new SireneService();
   const annuaireService = new AnnuaireService();
   const googlePlacesService = new GooglePlacesService();
   const whisperService = new WhisperService({ ucmHttpClient, callHistory, crmClient });
   const cdrSyncService = new CdrSyncService({ ucmHttpClient, callHistory, crmClient, wsServer, whisperService });
-  const notificationService = new NotificationService();
+
+  // Initialiser WhisperService (détecte commande locale si nécessaire)
+  try {
+    await whisperService.init();
+  } catch (err) {
+    logger.warn('WhisperService: initialisation échouée', { error: err.message });
+  }
 
   // ── Routes ─────────────────────────────────────────────────────────────────
   const apiRouter = createRouter({ 
@@ -126,8 +132,7 @@ async function main() {
   const queuesRouter = createQueuesRouter({ ucmHttpClient, callHistory, wsServer });
   app.use('/api/queues', queuesRouter);
 
-  // 404 catch-all
-  app.use((req, res) => res.status(404).json({ error: 'Not found' }));
+  // Note: La gestion 404 et erreurs est gérée dans le router principal
 
   // ── Démarrage ──────────────────────────────────────────────────────────────
 

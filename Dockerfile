@@ -1,13 +1,21 @@
+# syntax=docker/dockerfile:1
+
 # Build stage
 FROM node:20-slim AS builder
 
 WORKDIR /app
 
+# Install Python and build tools needed for native modules
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install dependencies with cache mount for faster builds
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --only=production && npm cache clean --force
 
 # Runtime stage
 FROM node:20-slim AS runtime

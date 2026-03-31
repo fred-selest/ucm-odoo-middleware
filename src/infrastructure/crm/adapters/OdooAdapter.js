@@ -64,10 +64,6 @@ class OdooAdapter extends CrmClientInterface {
     return this._client.updateContact(id, data);
   }
 
-  async getAllContactsWithPhone(limit = 2000) {
-    return this._client.getAllContactsWithPhone(limit);
-  }
-
   async enrichFromSirene(partnerId, sireneData) {
     return this._client.enrichFromSirene(partnerId, sireneData);
   }
