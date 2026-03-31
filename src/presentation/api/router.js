@@ -714,7 +714,10 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     if (language)                     fields.language       = language.trim();
     if (command !== undefined)        fields.command        = command.trim();
     if (maxDurationSec)               fields.maxDurationSec = parseInt(maxDurationSec, 10);
-    if (apiKey !== undefined && apiKey !== '') fields.apiKey = apiKey.trim();
+    // apiKey : seulement si fourni (non vide) pour ne pas écraser l'existant
+    if (apiKey !== undefined && apiKey !== null && apiKey.trim() !== '') {
+      fields.apiKey = apiKey.trim();
+    }
     if (apiUrl)                       fields.apiUrl         = apiUrl.trim();
 
     config.applyWhisper(fields);
