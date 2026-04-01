@@ -284,6 +284,8 @@ class OdooClient {
   /**
    * Enrichit un contact Odoo avec les données SIRENE INSEE.
    * Mappe : SIRET → company_registry, TVA intra, adresse, is_company, country.
+   * 
+   * RÈGLE : Ne jamais écraser les champs déjà remplis manuellement dans Odoo.
    */
   async enrichFromSirene(partnerId, sireneData) {
     await this.ensureAuthenticated();
@@ -292,14 +294,31 @@ class OdooClient {
     const existing = await this.getContactFull(partnerId);
 
     const values = {};
+    const skipFields = new Set(); // Champs à ne pas écraser (déjà remplis manuellement)
+
+    // Vérifier quels champs sont déjà remplis (même partiellement)
+    if (existing?.companyRegistry?.trim()) skipFields.add('company_registry');
+    if (existing?.vat?.trim()) skipFields.add('vat');
+    if (existing?.street?.trim()) skipFields.add('street');
+    if (existing?.street2?.trim()) skipFields.add('street2');
+    if (existing?.zip?.trim()) skipFields.add('zip');
+    if (existing?.city?.trim()) skipFields.add('city');
+    if (existing?.phone?.trim()) skipFields.add('phone');
+    if (existing?.email?.trim()) skipFields.add('email');
+    if (existing?.website?.trim()) skipFields.add('website');
+
+    logger.info('Odoo SIRENE: champs existants détectés', { 
+      partnerId, 
+      existingFields: Array.from(skipFields) 
+    });
 
     // SIRET → company_registry (seulement si vide)
-    if (sireneData.siret && !existing?.companyRegistry?.trim()) {
+    if (sireneData.siret && !skipFields.has('company_registry')) {
       values.company_registry = sireneData.siret;
     }
 
     // TVA intracommunautaire calculée depuis le SIREN (seulement si vide)
-    if (sireneData.siren && !sireneData.skipVat && !existing?.vat?.trim()) {
+    if (sireneData.siren && !sireneData.skipVat && !skipFields.has('vat')) {
       const siren = parseInt(sireneData.siren, 10);
       const clef = (12 + 3 * (siren % 97)) % 97;
       values.vat = `FR${String(clef).padStart(2, '0')}${sireneData.siren}`;
@@ -309,15 +328,27 @@ class OdooClient {
     if (sireneData.adresseFormatee || sireneData.adresse) {
       const addr = sireneData.adresse || {};
       const rue = [addr.numero, addr.type, addr.voie].filter(Boolean).join(' ');
-      if (rue && !existing?.street?.trim()) values.street = rue;
-      if (addr.complement && !existing?.street2?.trim()) values.street2 = addr.complement;
-      if (addr.codePostal && !existing?.zip?.trim()) values.zip = addr.codePostal;
-      if (addr.commune && !existing?.city?.trim()) values.city = addr.commune;
-      if (!existing?.country?.trim()) values.country_id = 75; // France
+      if (rue && !skipFields.has('street')) values.street = rue;
+      if (addr.complement && !skipFields.has('street2')) values.street2 = addr.complement;
+      if (addr.codePostal && !skipFields.has('zip')) values.zip = addr.codePostal;
+      if (addr.commune && !skipFields.has('city')) values.city = addr.commune;
+      if (!skipFields.has('country_id')) values.country_id = 75; // France
     }
 
     if (Object.keys(values).length === 0) {
-      logger.warn('Odoo SIRENE: aucun champ à enrichir', { partnerId });
+      logger.warn('Odoo SIRENE: aucun champ à enrichir (tous déjà remplis)', { partnerId });
+      
+      // Note dans le chatter pour informer l'utilisateur
+      try {
+        await this._callModel('res.partner', 'message_post', [[partnerId]], {
+          body: '⚠️ Enrichissement SIRENE tenté mais tous les champs sont déjà renseignés manuellement. Aucune modification appliquée.',
+          message_type: 'comment',
+          subtype_xmlid: 'mail.mt_note',
+        });
+      } catch (err) {
+        logger.warn('Odoo SIRENE: échec note chatter', { error: err.message });
+      }
+      
       return null;
     }
 
@@ -326,7 +357,7 @@ class OdooClient {
     values.is_company = catJur === 0 || catJur >= 2000;
 
     await this._callModel('res.partner', 'write', [[partnerId], values]);
-    logger.info('Odoo: contact enrichi via SIRENE', { partnerId, siret: sireneData.siret });
+    logger.info('Odoo: contact enrichi via SIRENE', { partnerId, siret: sireneData.siret, updatedFields: Object.keys(values) });
 
     // Note dans le chatter
     const lines = ['Fiche enrichie via API SIRENE INSEE'];
@@ -336,6 +367,9 @@ class OdooClient {
     if (sireneData.categorieJuridique) lines.push(`Catégorie juridique : ${sireneData.categorieJuridique}`);
     if (sireneData.categorieEntreprise) lines.push(`Catégorie entreprise : ${sireneData.categorieEntreprise}`);
     if (sireneData.adresseFormatee) lines.push(`Adresse : ${sireneData.adresseFormatee}`);
+    if (skipFields.size > 0) {
+      lines.push(`\n⚠️ Champs préservés (déjà remplis manuellement) : ${Array.from(skipFields).join(', ')}`);
+    }
 
     try {
       await this._callModel('res.partner', 'message_post', [[partnerId]], {
@@ -609,11 +643,51 @@ class OdooClient {
 
   _buildPhoneDomain(variants) {
     if (variants.length === 0) return [['phone', '=', false]];
-    const conditions = variants.map(v => ['phone', 'like', v]);
+    
+    // Pour chaque variante, on ajoute une recherche avec et sans espaces
+    // Car Odoo peut stocker les numéros avec des espaces (+33 6 12 34 56 78)
+    // ou sans (+33612345678)
+    const conditions = [];
+    for (const v of variants) {
+      // Recherche normale
+      conditions.push(['phone', 'like', v]);
+      // Recherche avec espaces (si la variante n'en a pas)
+      if (!v.includes(' ')) {
+        // Ajouter une recherche avec le numéro formaté avec espaces
+        const spaced = this._addSpacesToPhone(v);
+        if (spaced && spaced !== v) {
+          conditions.push(['phone', 'like', spaced]);
+        }
+      }
+    }
+    
     if (conditions.length === 1) return conditions;
     const domain = [];
     for (let i = 0; i < conditions.length - 1; i++) domain.push('|');
     return [...domain, ...conditions];
+  }
+  
+  /**
+   * Ajoute des espaces à un numéro de téléphone français
+   * Ex: 0613417742 → 06 13 41 77 42
+   * Ex: +33613417742 → +33 6 13 41 77 42
+   */
+  _addSpacesToPhone(phone) {
+    const clean = phone.replace(/[\s\-\.\(\)]/g, '');
+    
+    // Format français : 06 12 34 56 78
+    if (/^0[1-9]\d{8}$/.test(clean)) {
+      return clean.replace(/^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/, '$1 $2 $3 $4 $5');
+    }
+    // Format international : +33 6 12 34 56 78
+    if (/^\+33[1-9]\d{8}$/.test(clean)) {
+      return clean.replace(/^\+33(\d)(\d{2})(\d{2})(\d{2})(\d{2})$/, '+33 $1 $2 $3 $4 $5');
+    }
+    // Format 0033 : 0033 6 12 34 56 78
+    if (/^0033[1-9]\d{8}$/.test(clean)) {
+      return clean.replace(/^0033(\d)(\d{2})(\d{2})(\d{2})(\d{2})$/, '0033 $1 $2 $3 $4 $5');
+    }
+    return null;
   }
 
   _normalizePhone(phone) {

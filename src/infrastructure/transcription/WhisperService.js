@@ -31,8 +31,13 @@ class WhisperService {
    * Initialise le service (détecte commande Whisper si mode local).
    */
   async init() {
+    // Mode local : détecter la commande Whisper
     if (this.mode === 'local' && !this._cmdDetected) {
       await this._detectCommand();
+    } else if (this.mode === 'api') {
+      // Mode API : ne pas chercher de commande locale
+      logger.info('Whisper: mode API activé', { apiUrl: config.whisper.apiUrl, model: config.whisper.model });
+      this._cmdDetected = true;
     }
   }
 
@@ -52,14 +57,23 @@ class WhisperService {
       let cmd = this._whisperCmd;
       if (this.mode === 'local' && !cmd) {
         cmd = await this._detectCommand();
-        if (!cmd) return 0;
+        if (!cmd) {
+          logger.warn('Whisper: commande locale non disponible, transcription impossible');
+          return 0;
+        }
+      }
+
+      // Mode API : vérifier la clé API
+      if (this.mode === 'api' && !config.whisper.apiKey) {
+        logger.error('Whisper: mode API activé mais clé API manquante');
+        return 0;
       }
 
       let count = 0;
       // Traiter en série pour éviter la surcharge CPU
       for (const call of calls) {
         try {
-          // Skip si trop long (> 10 min pour CPU)
+          // Skip si trop long
           const maxDuration = this.mode === 'local' ? 600 : config.whisper.maxDurationSec;
           if (call.duration && call.duration > maxDuration) {
             logger.debug('Whisper: appel trop long, skip', { uniqueId: call.unique_id, duration: call.duration });

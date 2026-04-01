@@ -714,10 +714,18 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     if (language)                     fields.language       = language.trim();
     if (command !== undefined)        fields.command        = command.trim();
     if (maxDurationSec)               fields.maxDurationSec = parseInt(maxDurationSec, 10);
-    // apiKey : seulement si fourni (non vide) pour ne pas écraser l'existant
-    if (apiKey !== undefined && apiKey !== null && apiKey.trim() !== '') {
+    
+    // PROTECTION MAXIMALE API KEY :
+    // 1. Si apiKey est absente du body → on ne touche à rien (fields.apiKey ne sera pas défini)
+    // 2. Si apiKey est présente mais vide → on l'ignore (ne pas écraser l'existant)
+    // 3. Si apiKey est présente et non vide → on la met à jour
+    if (apiKey !== undefined && apiKey !== null && typeof apiKey === 'string' && apiKey.trim() !== '') {
       fields.apiKey = apiKey.trim();
+      logger.info('Config Whisper: API key mise à jour (nouvelle valeur fournie)');
+    } else if (apiKey !== undefined) {
+      logger.warn('Config Whisper: API key ignorée (valeur vide ou null) - conservation de l\'existant');
     }
+    
     if (apiUrl)                       fields.apiUrl         = apiUrl.trim();
 
     config.applyWhisper(fields);
@@ -1694,16 +1702,33 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       // Relire le contact depuis Odoo (le body webhook est souvent incomplet)
       const existing = crm ? await crm.getContactFull(partnerId) : null;
 
-      // Ne pas re-enrichir si SIRET + TVA + adresse + téléphone sont tous déjà renseignés
-      const alreadyComplete = existing?.companyRegistry?.trim()
-        && existing?.vat?.trim()
-        && existing?.street?.trim()
-        && existing?.phone?.trim();
-      if (alreadyComplete) {
+      // Ne pas re-enrichir si la fiche contient DÉJÀ des données manuelles
+      // On vérifie chaque champ critique individuellement
+      const hasVat = existing?.vat?.trim();
+      const hasSiret = existing?.companyRegistry?.trim();
+      const hasAddress = existing?.street?.trim() || existing?.city?.trim();
+      const hasPhone = existing?.phone?.trim();
+      
+      // Si l'utilisateur a rempli manuellement le SIRET ou la TVA, on ne touche pas
+      if (hasVat || hasSiret) {
+        logger.info('Webhook Odoo: fiche protégée (SIRET/TVA déjà renseignés)', { 
+          partnerId, 
+          hasVat: !!hasVat, 
+          hasSiret: !!hasSiret 
+        });
+        return res.json({ 
+          ok: true, 
+          skipped: true, 
+          reason: 'SIRET ou TVA déjà renseignés manuellement - enrichissement ignoré' 
+        });
+      }
+      
+      // Si la fiche est déjà complète, on ne fait rien
+      if (hasAddress && hasPhone) {
         return res.json({ ok: true, skipped: true, reason: 'fiche déjà complète' });
       }
 
-      logger.info('Webhook Odoo → enrichissement', { partnerId, name: searchName });
+      logger.info('Webhook Odoo → enrichissement', { partnerId, name: searchName, missingFields: { hasVat, hasSiret, hasAddress, hasPhone } });
 
       // 1. Essayer SIRENE INSEE
       let sireneData = null;

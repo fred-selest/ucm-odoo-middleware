@@ -4,6 +4,9 @@ const { createLogger, format, transports } = require('winston');
 require('winston-daily-rotate-file');
 const config = require('./config');
 
+// Définir le fuseau horaire pour les logs (utilise celui du système)
+const tz = process.env.TZ || 'Europe/Paris';
+
 const { combine, timestamp, errors, printf, colorize, json } = format;
 
 const humanFormat = printf(({ level, message, timestamp, stack, ...meta }) => {
@@ -14,7 +17,18 @@ const humanFormat = printf(({ level, message, timestamp, stack, ...meta }) => {
 const consoleTransport = new transports.Console({
   format: combine(
     colorize({ all: true }),
-    timestamp({ format: 'HH:mm:ss' }),
+    timestamp({
+      format: () => {
+        // Utilise l'heure locale avec le fuseau horaire configuré
+        return new Date().toLocaleTimeString('fr-FR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+          timeZone: tz
+        });
+      }
+    }),
     errors({ stack: true }),
     humanFormat,
   ),

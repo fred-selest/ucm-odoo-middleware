@@ -662,6 +662,30 @@ function viewContact(id) {
   window.open(`https://selest-informatique.odoo.com/web#model=res.partner&id=${id}`, '_blank');
 }
 
+// ── Lecture audio enregistrements ────────────────────────────────────────────
+let _currentAudio = null;
+
+/**
+ * Joue un enregistrement audio
+ * @param {string} url - URL de l'enregistrement (ex: /api/recordings/download/fichier.wav)
+ */
+function playRecording(url) {
+  // Stopper la lecture en cours si existe
+  if (_currentAudio) {
+    _currentAudio.pause();
+    _currentAudio = null;
+  }
+  
+  // Créer un nouvel élément audio
+  _currentAudio = new Audio(url);
+  _currentAudio.play().catch(err => {
+    console.error('Erreur lecture audio:', err);
+    showToast('Erreur lors de la lecture', 'danger');
+  });
+  
+  // Feedback visuel optionnel
+  console.log('Lecture audio:', url);
+}
 
 // ── Notifications Configuration ──────────────────────────────────────────────
 const DEFAULT_SMTP_PORT = 587;

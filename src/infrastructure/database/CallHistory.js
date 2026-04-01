@@ -167,7 +167,7 @@ class CallHistory {
        FROM calls
        WHERE recording_url IS NOT NULL AND recording_url != ''
          AND (transcription IS NULL OR transcription = '')
-         AND status IN ('hangup', 'answered')
+         AND status IN ('hangup', 'answered', 'missed')
        ORDER BY started_at DESC
        LIMIT ?`,
       [limit]

@@ -19,10 +19,13 @@ services:
       - "3000:3000"
     volumes:
       - ./data:/app/data
+      - ./src/logger.js:/app/src/logger.js:ro
+      - ./src/infrastructure/database/CallHistory.js:/app/src/infrastructure/database/CallHistory.js:ro
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     environment:
       - NODE_ENV=production
+      - TZ=Europe/Paris
       - DB_PATH=/app/data/middleware.db
     deploy:
       resources:

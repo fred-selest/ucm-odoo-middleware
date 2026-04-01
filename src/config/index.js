@@ -243,7 +243,14 @@ const config = {
   applyWhisper(fields) {
     const allowed = ['enabled', 'mode', 'model', 'language', 'command', 'maxDurationSec', 'apiKey', 'apiUrl'];
     for (const [k, v] of Object.entries(fields)) {
-      if (allowed.includes(k)) config.whisper[k] = v;
+      if (allowed.includes(k)) {
+        // PROTECTION : Ne jamais écraser apiKey avec une valeur vide/null/undefined
+        if (k === 'apiKey' && (v === '' || v === null || v === undefined)) {
+          logger.warn('Config Whisper: tentative écrasement apiKey par valeur vide - IGNORÉ');
+          continue;
+        }
+        config.whisper[k] = v;
+      }
     }
     this._persist();
   },
