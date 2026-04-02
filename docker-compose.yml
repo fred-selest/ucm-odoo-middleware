@@ -7,6 +7,7 @@ services:
     image: ucm-odoo-middleware:latest
     container_name: ucm_odoo_middleware
     hostname: ucm-odoo-middleware
+    user: root
     restart: unless-stopped
     dns:
       - 1.1.1.1
@@ -18,7 +19,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./data:/app/data
+      - /opt/stacks/ucm-odoo-middleware/data:/app/data:rw
       - ./src/logger.js:/app/src/logger.js:ro
       - ./src/infrastructure/database/CallHistory.js:/app/src/infrastructure/database/CallHistory.js:ro
       - /etc/localtime:/etc/localtime:ro
@@ -26,7 +27,8 @@ services:
     environment:
       - NODE_ENV=production
       - TZ=Europe/Paris
-      - DB_PATH=/app/data/middleware.db
+      - DB_PATH=/tmp/middleware.db
+    entrypoint: ["/bin/sh", "-c", "cp /app/data/middleware.db /tmp/middleware.db 2>/dev/null || true; chmod 666 /tmp/middleware.db 2>/dev/null || true; exec gosu nodejs node src/index.js"]
     deploy:
       resources:
         limits:

@@ -19,7 +19,8 @@ class Database {
     }
 
     return new Promise((resolve, reject) => {
-      this.db = new sqlite3.Database(DB_PATH, (err) => {
+      // Ouverture explicite en lecture-écriture (flag SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE)
+      this.db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
         if (err) {
           logger.error('Erreur connexion base de données', { error: err.message });
           reject(err);
