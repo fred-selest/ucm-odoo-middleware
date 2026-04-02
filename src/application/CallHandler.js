@@ -305,6 +305,14 @@ class CallHandler {
     if (this._callHistory) {
       try {
         await this._callHistory.updateCallHangup(uniqueId, duration);
+        
+        // Recharger l'appel complet depuis la BDD pour avoir les infos contact
+        const callFromDb = await this._callHistory.getCallByUniqueId(uniqueId);
+        if (callFromDb) {
+          enriched.contact_id = callFromDb.contact_id;
+          enriched.contact_name = callFromDb.contact_name;
+          enriched.contact_odoo_url = callFromDb.contact_odoo_url;
+        }
       } catch (err) {
         logger.error('Erreur mise à jour appel raccroché', { error: err.message, uniqueId });
       }
@@ -318,12 +326,22 @@ class CallHandler {
     }
     
     // Log automatique dans Odoo si un contact est associé
-    const { contact } = enriched;
+    let { contact } = enriched;
+    
+    // Si contact manquant mais contact_id présent en BDD, recharger le contact depuis Odoo
+    if (!contact?.id && enriched.contact_id && this._odoo) {
+      try {
+        contact = await this._odoo.getContactFull(enriched.contact_id);
+        logger.debug('CallHandler: contact rechargé depuis Odoo', { uniqueId, contactId: enriched.contact_id, name: contact?.name });
+      } catch (err) {
+        logger.warn('CallHandler: erreur rechargement contact', { error: err.message, uniqueId, contactId: enriched.contact_id });
+      }
+    }
+    
     if (contact?.id && this._odoo) {
       const callStatus = enriched.answeredAt ? 'answered' : 'missed';
 
       // Ne pas logger "missed" si un autre appel actif existe pour le même contact
-      // (cas des canaux Asterisk internes créés lors du routing qui disparaissent rapidement)
       if (callStatus === 'missed') {
         const hasOtherActiveCall = [...this._activeCalls.values()].some(
           c => c.contact?.id === contact.id
@@ -342,7 +360,9 @@ class CallHandler {
         callerIdNum: enriched.callerIdNum,
         exten:     enriched.exten || enriched.agentExten,
         timestamp: enriched.timestamp,
-      }).catch(() => {});
+      }).catch(err => {
+        logger.warn('CallHandler: erreur log Odoo', { error: err.message, partnerId: contact.id });
+      });
     }
 
     logger.info('Appel raccroché', { uniqueId, target, duration });
