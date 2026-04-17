@@ -22,11 +22,10 @@ FROM node:20-slim AS runtime
 
 WORKDIR /app
 
-# Install system deps + Python/ffmpeg for Whisper
+# Install system deps (Whisper local s'installe manuellement via WHISPER_MODE=local)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl sqlite3 gosu python3 python3-pip ffmpeg && \
-    rm -rf /var/lib/apt/lists/* && \
-    pip3 install openai-whisper --break-system-packages
+    curl sqlite3 gosu && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN groupadd -g 1001 nodejs && \
