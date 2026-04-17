@@ -37,43 +37,43 @@ const rules = {
       .withMessage('Le nom est requis')
       .isLength({ max: 200 })
       .withMessage('Le nom ne doit pas dépasser 200 caractères'),
-    
+
     body('phone')
-      .optional()
+      .optional({ checkFalsy: true })
       .trim()
       .matches(/^[\d\s\+\-\.\(\)]+$/)
       .withMessage('Numéro de téléphone invalide'),
-    
+
     body('email')
-      .optional()
+      .optional({ checkFalsy: true })
       .trim()
       .isEmail()
       .withMessage('Email invalide'),
-    
+
     body('company')
-      .optional()
+      .optional({ checkFalsy: true })
       .trim(),
-    
+
     body('function')
-      .optional()
+      .optional({ checkFalsy: true })
       .trim(),
   ],
 
   updateContact: [
     body('name')
-      .optional()
+      .optional({ checkFalsy: true })
       .trim()
       .isLength({ max: 200 })
       .withMessage('Le nom ne doit pas dépasser 200 caractères'),
-    
+
     body('phone')
-      .optional()
+      .optional({ checkFalsy: true })
       .trim()
       .matches(/^[\d\s\+\-\.\(\)]+$/)
       .withMessage('Numéro de téléphone invalide'),
-    
+
     body('email')
-      .optional()
+      .optional({ checkFalsy: true })
       .trim()
       .isEmail()
       .withMessage('Email invalide'),
