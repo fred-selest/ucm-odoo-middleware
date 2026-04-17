@@ -1,5 +1,6 @@
 /* ═══════════════════════════════════════════════════════
    RESPONSIVE — Media queries (mobile, tablette, desktop)
+   Correction mobile : suppression des superpositions
 ═══════════════════════════════════════════════════════ */
 
 /* Mobile < 768px */
@@ -42,6 +43,60 @@
   .search-input { max-width: 100%; }
   #callSearch   { max-width: 140px; }
   #dashChartHourly { max-height: 200px; }
+
+  /* ── CORRECTION MOBILE: Suppression superpositions ── */
+  
+  /* Colonne droite: supprimer hauteur fixe qui cause superposition */
+  .col-lg-5 .draggable-column {
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+  
+  /* Cards dans colonne droite: layout vertical propre */
+  .col-lg-5 .draggable-sub-card {
+    margin-bottom: 1rem !important;
+    max-height: none !important;
+  }
+  
+  /* Zone Click-to-Call: hauteur adaptative */
+  .col-lg-5 .card[data-card="click-to-call"] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  
+  /* Zone Agents: hauteur adaptative avec scroll interne si nécessaire */
+  .col-lg-5 .card[data-card="agents"] .tab-content {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  
+  /* Tableau appelants: scroll sans superposition */
+  #tab-live .col-lg-7 .table-responsive {
+    max-height: calc(100vh - 320px) !important;
+  }
+  
+  /* Compensation pour la barre audio player (si ouverte) */
+  body.has-audio-player #tab-live .col-lg-7 .table-responsive,
+  body.has-audio-player .container-fluid {
+    padding-bottom: 70px !important;
+  }
+  
+  /* Tables avec sticky-top: éviter que le header mange le contenu */
+  .table-responsive .sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  
+  /* Réduire les marges sur mobile pour éviter les superpositions */
+  .col-lg-7, .col-lg-5 {
+    margin-bottom: 1rem !important;
+  }
+  
+  /* Stats bar dans historique: scroll horizontal si nécessaire */
+  #journalFilters .p-2.border-bottom .row {
+    flex-wrap: wrap;
+  }
 }
 
 /* XSmall < 576px */
@@ -53,10 +108,31 @@
   #callTable td:nth-child(2) { display: none; }
   #callTable th:nth-child(6),
   #callTable td:nth-child(6) { white-space: nowrap; }
+  
+  /* Mobile très étroit: cards empilées sans superposition */
+  .col-lg-5 .draggable-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  /* Input Click-to-Call: full width */
+  #dialExten { max-width: 80px !important; }
+  #dialPhone { min-width: 0 !important; }
+  
+  /* Tableau appelants: hauteur réduite sur très petit écran */
+  #tab-live .col-lg-7 .table-responsive {
+    max-height: calc(100vh - 380px) !important;
+  }
 }
 
 @media (max-width: 480px) {
   #dialExten { max-width: 70px !important; }
+  
+  /* Padding bottom supplémentaire pour audio player sur très petit écran */
+  body.has-audio-player {
+    padding-bottom: 80px !important;
+  }
 }
 
 /* Tablette 768–991px */
