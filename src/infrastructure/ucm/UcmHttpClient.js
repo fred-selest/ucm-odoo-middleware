@@ -471,8 +471,15 @@ class UcmHttpClient {
     if (endTime)   params.endTime   = endTime;
     try {
       // cdrapi retourne {"cdr_root":[...]} sans wrapper "response" ni "status"
-      const payload = { request: { action: 'cdrapi', cookie: this._cookie, ...params } };
-      const resp = await this._axiosInstance.post(this._baseUrl, payload);
+      let payload = { request: { action: 'cdrapi', cookie: this._cookie, ...params } };
+      let resp = await this._axiosInstance.post(this._baseUrl, payload);
+      // -6 = cookie expiré → re-authentifier et réessayer
+      if (resp.data?.status === -6) {
+        logger.warn('UCM CDR: cookie expiré, re-authentification');
+        await this.connect();
+        payload = { request: { action: 'cdrapi', cookie: this._cookie, ...params } };
+        resp = await this._axiosInstance.post(this._baseUrl, payload);
+      }
       const { data } = resp;
       if (data?.status !== undefined && data.status !== 0) {
         throw new Error(`CDR API error: status ${data.status}`);

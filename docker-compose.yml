@@ -27,8 +27,6 @@ services:
     environment:
       - NODE_ENV=production
       - TZ=Europe/Paris
-      - DB_PATH=/tmp/middleware.db
-    entrypoint: ["/bin/sh", "-c", "cp /app/data/middleware.db /tmp/middleware.db 2>/dev/null || true; chmod 666 /tmp/middleware.db 2>/dev/null || true; exec gosu nodejs node src/index.js"]
     deploy:
       resources:
         limits:
