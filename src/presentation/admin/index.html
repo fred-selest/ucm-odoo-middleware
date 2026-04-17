@@ -148,7 +148,7 @@
   </div>
 
   <!-- Navigation principale par onglets -->
-  <div class="d-flex align-items-center justify-content-between mb-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 main-tabs-row">
     <ul class="nav nav-pills" id="mainTabs" role="tablist">
       <li class="nav-item" role="presentation">
         <button class="nav-link active" id="tab-live-btn" data-bs-toggle="pill" data-bs-target="#tab-live" role="tab">
@@ -189,7 +189,7 @@
         </button>
       </li>
     </ul>
-    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalConfig" title="Configuration">
+    <button class="btn btn-sm btn-outline-secondary tabs-config-btn" data-bs-toggle="modal" data-bs-target="#modalConfig" title="Configuration">
       <i class="bi bi-gear me-1"></i>Configuration
     </button>
   </div>
@@ -198,10 +198,10 @@
 
   <!-- ══ Onglet Live ══════════════════════════════════════════════════════ -->
   <div class="tab-pane fade show active" id="tab-live" role="tabpanel">
-  <div class="row g-3 mb-3">
+  <div class="row g-3 mb-3 live-mobile-stack">
     <!-- Journal d'appels -->
-    <div class="col-lg-7">
-      <div class="card draggable-main-card" draggable="true" data-card="journal" style="max-height: calc(100vh - 200px);">
+    <div class="col-lg-7 live-main-column">
+      <div class="card draggable-main-card live-journal-card" draggable="true" data-card="journal" style="max-height: calc(100vh - 200px);">
         <span class="drag-handle" title="Déplacer"><i class="bi bi-grip-horizontal"></i></span>
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
           <span><i class="bi bi-telephone-fill me-1 text-primary"></i>Journal d'appels</span>
@@ -216,7 +216,7 @@
           </div>
         </div>
         <div class="card-body p-0 d-flex flex-column">
-          <div class="table-responsive flex-grow-1" style="overflow-y:auto">
+          <div class="table-responsive flex-grow-1 live-journal-table-wrap" style="overflow-y:auto">
             <table class="table table-hover table-sm mb-0" id="callTable">
               <thead class="table-light sticky-top">
                 <tr><th style="width:75px">Heure</th><th style="width:28px" class="text-center"></th><th>De</th><th>Extension</th><th>Contact Odoo</th><th style="width:90px">Statut</th></tr>
@@ -231,8 +231,8 @@
 </div>
 
       <!-- Colonne droite : Click-to-call + Recherche + Agents -->
-    <div class="col-lg-5">
-      <div class="draggable-column" style="max-height: calc(100vh - 200px); overflow-y: auto;">
+    <div class="col-lg-5 live-side-column">
+      <div class="draggable-column live-right-column" style="max-height: calc(100vh - 200px); overflow-y: auto;">
       <!-- Click-to-call (Ringover style) -->
       <div class="card mb-3 draggable-sub-card border-primary border-opacity-25" draggable="true" data-card="click-to-call">
         <span class="drag-handle" title="Déplacer"><i class="bi bi-grip-horizontal"></i></span>

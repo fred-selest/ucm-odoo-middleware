@@ -670,6 +670,11 @@ let _currentAudio = null;
  * @param {string} url - URL de l'enregistrement (ex: /api/recordings/download/fichier.wav)
  */
 function playRecording(url) {
+  if (typeof window.playRecordingBar === 'function') {
+    window.playRecordingBar(url);
+    return;
+  }
+
   // Stopper la lecture en cours si existe
   if (_currentAudio) {
     _currentAudio.pause();

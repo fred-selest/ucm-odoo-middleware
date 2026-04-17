@@ -2,7 +2,13 @@
    LAYOUT — Body, navbar, login, bandeau, onglets
 ═══════════════════════════════════════════════════════ */
 
-body { background: var(--bg); font-family: 'Inter', sans-serif; color: var(--text); }
+:root { --audio-player-offset: 0px; }
+
+body {
+  background: var(--bg);
+  font-family: 'Inter', sans-serif;
+  color: var(--text);
+}
 
 /* Navbar */
 .navbar       { background: var(--bg-card) !important; border-bottom: 1px solid var(--border); box-shadow: 0 1px 8px rgba(0,0,0,.06); }

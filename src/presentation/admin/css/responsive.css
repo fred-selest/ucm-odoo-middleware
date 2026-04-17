@@ -23,7 +23,31 @@
   #mainTabs .nav-link { padding: .5rem .75rem; font-size: .82rem; }
   #mainTabs .nav-link .tab-text-full  { display: none; }
   #mainTabs .nav-link .tab-text-short { display: inline; }
+  .main-tabs-row { flex-wrap: wrap; gap: .5rem; align-items: stretch !important; }
+  .main-tabs-row #mainTabs { flex: 1 1 100%; }
+  .main-tabs-row .tabs-config-btn { width: 100%; }
 
+  /* Journal: pas de hauteur fixe, mais overflow:hidden obligatoire pour clipper le contenu */
+  .live-mobile-stack .live-journal-card {
+    max-height: none !important;
+    overflow: hidden !important;
+  }
+
+  /* Colonne droite: layout vertical libre */
+  .live-mobile-stack .live-right-column {
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+
+  .live-mobile-stack .live-journal-table-wrap {
+    max-height: min(44vh, 360px);
+    overflow-y: auto !important;
+  }
+
+  #tab-live .sticky-top,
+  #tab-historique .sticky-top {
+    position: static;
+  }
   .table-responsive { -webkit-overflow-scrolling: touch; }
   .table td, .table th { padding: .75rem .625rem; }
 
@@ -45,54 +69,54 @@
   #dashChartHourly { max-height: 200px; }
 
   /* ── CORRECTION MOBILE: Suppression superpositions ── */
-  
+
   /* Colonne droite: supprimer hauteur fixe qui cause superposition */
   .col-lg-5 .draggable-column {
     max-height: none !important;
     overflow-y: visible !important;
   }
-  
+
   /* Cards dans colonne droite: layout vertical propre */
   .col-lg-5 .draggable-sub-card {
     margin-bottom: 1rem !important;
     max-height: none !important;
   }
-  
+
   /* Zone Click-to-Call: hauteur adaptative */
   .col-lg-5 .card[data-card="click-to-call"] {
     max-height: none !important;
     overflow: visible !important;
   }
-  
+
   /* Zone Agents: hauteur adaptative avec scroll interne si nécessaire */
   .col-lg-5 .card[data-card="agents"] .tab-content {
     max-height: 200px;
     overflow-y: auto;
   }
-  
+
   /* Tableau appelants: scroll sans superposition */
   #tab-live .col-lg-7 .table-responsive {
     max-height: calc(100vh - 320px) !important;
   }
-  
+
   /* Compensation pour la barre audio player (si ouverte) */
   body.has-audio-player #tab-live .col-lg-7 .table-responsive,
   body.has-audio-player .container-fluid {
     padding-bottom: 70px !important;
   }
-  
+
   /* Tables avec sticky-top: éviter que le header mange le contenu */
   .table-responsive .sticky-top {
     position: sticky;
     top: 0;
     z-index: 10;
   }
-  
+
   /* Réduire les marges sur mobile pour éviter les superpositions */
   .col-lg-7, .col-lg-5 {
     margin-bottom: 1rem !important;
   }
-  
+
   /* Stats bar dans historique: scroll horizontal si nécessaire */
   #journalFilters .p-2.border-bottom .row {
     flex-wrap: wrap;
