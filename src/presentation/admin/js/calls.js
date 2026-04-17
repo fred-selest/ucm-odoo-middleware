@@ -81,10 +81,14 @@ function playRecording(url) {
   // Arrêter et fermer le lecteur précédent
   if (_playerAudio) { _playerAudio.pause(); _playerAudio.src = ''; _playerAudio = null; }
   if (_playerContainer) { _playerContainer.remove(); _playerContainer = null; }
+  
+  // Ajouter classe pour compenser la barre audio en mobile
+  document.body.classList.add('has-audio-player');
 
   const container = document.createElement('div');
   container.id = 'audioPlayerBar';
-  container.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1e293b;color:#f1f5f9;padding:12px 20px;box-shadow:0 -4px 20px rgba(0,0,0,.4);display:flex;align-items:center;gap:14px;font-size:.85rem';
+  // Utilisation d'une hauteur fixe (60px) pour compensation CSS
+  container.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1e293b;color:#f1f5f9;padding:12px 20px;box-shadow:0 -4px 20px rgba(0,0,0,.4);display:flex;align-items:center;gap:14px;font-size:.85rem;height:60px;box-sizing:border-box';
 
   const fmtTime = s => { if (!s || !isFinite(s)) return '0:00'; const m = Math.floor(s / 60); return m + ':' + String(Math.floor(s % 60)).padStart(2,'0'); };
 
@@ -147,7 +151,15 @@ function playRecording(url) {
     document.addEventListener('mouseup', onUp);
   });
 
-  container.querySelector('#apCloseBtn').onclick = () => { audio.pause(); audio.src = ''; _playerAudio = null; container.remove(); _playerContainer = null; };
+  container.querySelector('#apCloseBtn').onclick = () => { 
+    audio.pause(); 
+    audio.src = ''; 
+    _playerAudio = null; 
+    container.remove(); 
+    _playerContainer = null;
+    // Retirer la classe de compensation quand le player est fermé
+    document.body.classList.remove('has-audio-player');
+  };
 
   audio.play().then(() => { playBtn.querySelector('i').className = 'bi bi-pause-fill'; }).catch(() => {});
 }
