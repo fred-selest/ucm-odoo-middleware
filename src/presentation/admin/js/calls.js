@@ -76,12 +76,36 @@ function callHtml(call, status) {
 
 let _playerContainer = null;
 let _playerAudio = null;
+let _playerResizeObserver = null;
+
+const AUDIO_PLAYER_OFFSET_VAR = '--audio-player-offset';
+
+function setAudioPlayerOffset(px = 0) {
+  document.documentElement.style.setProperty(AUDIO_PLAYER_OFFSET_VAR, `${Math.max(0, Math.round(px))}px`);
+}
+
+function updateAudioPlayerOffset() {
+  if (!_playerContainer) {
+    setAudioPlayerOffset(0);
+    return;
+  }
+  setAudioPlayerOffset(_playerContainer.getBoundingClientRect().height);
+}
+
+function cleanupAudioPlayerOffset() {
+  if (_playerResizeObserver) {
+    _playerResizeObserver.disconnect();
+    _playerResizeObserver = null;
+  }
+  setAudioPlayerOffset(0);
+}
+
+window.addEventListener('resize', updateAudioPlayerOffset);
 
 function playRecording(url) {
   // Arrêter et fermer le lecteur précédent
   if (_playerAudio) { _playerAudio.pause(); _playerAudio.src = ''; _playerAudio = null; }
   if (_playerContainer) { _playerContainer.remove(); _playerContainer = null; }
-  
   // Ajouter classe pour compenser la barre audio en mobile
   document.body.classList.add('has-audio-player');
 
@@ -112,6 +136,11 @@ function playRecording(url) {
 
   document.body.appendChild(container);
   _playerContainer = container;
+  updateAudioPlayerOffset();
+  if (typeof ResizeObserver === 'function') {
+    _playerResizeObserver = new ResizeObserver(() => updateAudioPlayerOffset());
+    _playerResizeObserver.observe(container);
+  }
 
   const audio = new Audio(url);
   _playerAudio = audio;
@@ -151,11 +180,11 @@ function playRecording(url) {
     document.addEventListener('mouseup', onUp);
   });
 
-  container.querySelector('#apCloseBtn').onclick = () => { 
-    audio.pause(); 
-    audio.src = ''; 
-    _playerAudio = null; 
-    container.remove(); 
+  container.querySelector('#apCloseBtn').onclick = () => {
+    audio.pause();
+    audio.src = '';
+    _playerAudio = null;
+    container.remove();
     _playerContainer = null;
     // Retirer la classe de compensation quand le player est fermé
     document.body.classList.remove('has-audio-player');
@@ -163,6 +192,8 @@ function playRecording(url) {
 
   audio.play().then(() => { playBtn.querySelector('i').className = 'bi bi-pause-fill'; }).catch(() => {});
 }
+
+window.playRecordingBar = playRecording;
 
 // ── Incoming Call Popup ─────────────────────────────────────────────────────
 let incomingCallModal;
@@ -216,7 +247,7 @@ function showIncomingCallPopup(call) {
         const statLabels = { answered:'Décroché', missed:'Manqué', hangup:'Raccroché', ringing:'Sonnerie' };
         const statClass  = { answered:'text-success', missed:'text-danger', hangup:'text-muted', ringing:'text-primary' };
         historyEl.innerHTML = d.data.map(c => {
-          const dt = new Date(c.started_at.replace(' ','T') + 'Z');
+          const dt = new Date(c.started_at.replace(' ','T'));
           const ts = dt.toLocaleDateString('fr-FR',{ day:'2-digit',month:'2-digit' }) + ' ' +
                      dt.toLocaleTimeString('fr-FR',{ hour:'2-digit',minute:'2-digit' });
           return `<div class="d-flex justify-content-between border-bottom py-1" style="font-size:.78rem">
@@ -294,7 +325,7 @@ function playIncomingCallSound() {
 // ── Call History ────────────────────────────────────────────────────────────
 async function loadCallHistory() {
   try {
-    const r = await apiFetch('/api/calls/history?limit=50');
+    const r = await apiFetch('/api/calls/history?limit=25');
     if (!r.ok) return;
     const d = await r.json();
     if (!d.ok || !d.data || d.data.length === 0) return;
@@ -323,7 +354,7 @@ async function loadCallHistory() {
 function callHtmlFromHistory(call) {
   let t = '—';
   if (call.started_at) {
-    const dt = new Date(call.started_at.replace(' ', 'T') + 'Z');
+    const dt = new Date(call.started_at.replace(' ', 'T'));
     const today = new Date();
     const isToday = dt.toDateString() === today.toDateString();
     t = isToday

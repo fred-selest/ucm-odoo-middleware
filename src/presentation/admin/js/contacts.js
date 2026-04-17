@@ -139,7 +139,7 @@ async function loadQuickHistory(contact) {
       const icons  = { answered:'📞', missed:'📵', hangup:'📴', ringing:'🔔' };
       const labels = { answered:'Décroché', missed:'Manqué', hangup:'Raccroché', ringing:'Sonnerie' };
       callResult.data.forEach(c => {
-        const dt  = new Date(c.started_at.replace(' ', 'T') + 'Z');
+        const dt  = new Date(c.started_at.replace(' ', 'T'));
         const dur = c.duration > 0 ? ` · ${c.duration >= 60 ? Math.floor(c.duration / 60) + 'min ' : ''}${c.duration % 60}s` : '';
         const recBtn = c.recording_url
           ? `<button class="btn btn-sm btn-outline-danger py-0 px-1 ms-1" onclick="playRecording('${esc(c.recording_url)}')" title="Écouter"><i class="bi bi-play-fill" style="font-size:.7rem"></i></button>`
@@ -159,7 +159,7 @@ async function loadQuickHistory(contact) {
 
     if (msgResult.ok && msgResult.data) {
       msgResult.data.forEach(m => {
-        const dt = new Date((m.date || '').replace(' ', 'T') + 'Z');
+        const dt = new Date((m.date || '').replace(' ', 'T'));
         const preview = m.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
         const isNote = preview.startsWith('📝');
         const icon = isNote ? '' : '💬 ';

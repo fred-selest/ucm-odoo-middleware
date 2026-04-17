@@ -58,7 +58,7 @@ function renderJournalTable(calls, tbody) {
         phone: c.contact_phone || '—', email: c.contact_email || '—', company: '',
         odooUrl: c.contact_odoo_url || '#', avatar: c.contact_avatar || null };
     }
-    const dt  = new Date(c.started_at.replace(' ', 'T') + 'Z');
+    const dt  = new Date(c.started_at.replace(' ', 'T'));
     const dateStr = dt.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit' });
     const timeStr = dt.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
     const dir = c.direction === 'outbound'
@@ -144,7 +144,7 @@ document.getElementById('exportCsvBtn').onclick = () => {
   if (!jData.length) { alert('Aucune donnée à exporter.'); return; }
   const rows = [['Date','Heure','Direction','De','Extension','Contact','Durée(s)','Statut']];
   jData.forEach(c => {
-    const dt = new Date(c.started_at.replace(' ', 'T') + 'Z');
+    const dt = new Date(c.started_at.replace(' ', 'T'));
     rows.push([
       dt.toLocaleDateString('fr-FR'),
       dt.toLocaleTimeString('fr-FR', { hour:'2-digit',minute:'2-digit' }),

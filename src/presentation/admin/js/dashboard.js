@@ -161,7 +161,7 @@ async function loadDashRecordings() {
       return;
     }
     el.innerHTML = recs.map(rec => {
-      const dt = rec.started_at ? new Date(rec.started_at.replace(' ', 'T') + 'Z') : null;
+      const dt = rec.started_at ? new Date(rec.started_at.replace(' ', 'T')) : null;
       const time = dt ? dt.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' }) + ' ' + dt.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' }) : '';
       return `
       <div class="d-flex align-items-center gap-2 py-1 border-bottom">

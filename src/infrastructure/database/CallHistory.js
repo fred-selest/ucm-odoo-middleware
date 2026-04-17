@@ -31,9 +31,9 @@ class CallHistory {
 
     try {
       const result = await this.db.run(
-        `INSERT INTO calls (unique_id, caller_id_num, caller_id_name, exten, agent_exten, direction, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [uniqueId, callerIdNum, callerIdName, exten, agentExten, direction, 'ringing']
+        `INSERT INTO calls (unique_id, caller_id_num, caller_id_name, exten, agent_exten, direction, status, started_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uniqueId, callerIdNum, callerIdName, exten, agentExten, direction, 'ringing', new Date().toISOString()]
       );
       
       logger.debug('Appel créé dans l\'historique', { id: result.id, uniqueId });
@@ -99,10 +99,10 @@ class CallHistory {
   async updateCallAnswered(uniqueId, data = {}) {
     try {
       await this.db.run(
-        `UPDATE calls 
-         SET status = 'answered', answered_at = CURRENT_TIMESTAMP
+        `UPDATE calls
+         SET status = 'answered', answered_at = ?
          WHERE unique_id = ?`,
-        [uniqueId]
+        [new Date().toISOString(), uniqueId]
       );
       logger.debug('Appel marqué comme décroché', { uniqueId });
     } catch (err) {
@@ -120,10 +120,10 @@ class CallHistory {
       const status = call && call.answered_at ? 'hangup' : 'missed';
 
       await this.db.run(
-        `UPDATE calls 
-         SET status = ?, hung_up_at = CURRENT_TIMESTAMP, duration = ?
+        `UPDATE calls
+         SET status = ?, hung_up_at = ?, duration = ?
          WHERE unique_id = ?`,
-        [status, duration, uniqueId]
+        [status, new Date().toISOString(), duration, uniqueId]
       );
 
       await this._updateDailyStats();
