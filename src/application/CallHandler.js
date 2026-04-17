@@ -116,8 +116,16 @@ class CallHandler {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   async _onIncoming(call) {
-    const { uniqueId, callerIdNum } = call;
+    const { uniqueId, callerIdNum, callerIdName } = call;
     
+    logger.info('🔔 DEBUG: Appel entrant reçu', { 
+      uniqueId, 
+      callerIdNum, 
+      callerIdName,
+      callerIdNumType: typeof callerIdNum,
+      callerIdNumLength: callerIdNum ? callerIdNum.length : 0
+    });
+
     // Eviter les duplications si l'appel est déjà en cours (même uniqueId ou même numéro)
     if (this._activeCalls.has(uniqueId)) {
       logger.debug('Appel déjà en cours (doublon ignoré)', { uniqueId });
@@ -132,7 +140,7 @@ class CallHandler {
       return;
     }
     
-    const { callerIdName, exten, agentExten } = call;
+    const { exten, agentExten } = call;
 
     // Ignorer les appels sur trunk SIP (pas un vrai poste)
     const target = exten || agentExten || '';
@@ -141,7 +149,7 @@ class CallHandler {
       return;
     }
 
-    logger.info('Appel entrant', { from: callerIdNum, to: target, uniqueId });
+    logger.info('Appel entrant', { from: callerIdNum, name: callerIdName, to: target, uniqueId });
 
     // Vérifier si le numéro est blacklisté
     if (this._callHistory && callerIdNum) {
@@ -172,19 +180,52 @@ class CallHandler {
 
     let contact = null;
 
-    // Recherche Odoo uniquement si numéro externe (non interne)
+    // DEBUG: Vérification détaillée avant recherche Odoo
+    logger.info('🔍 DEBUG: Analyse du numéro avant recherche Odoo', {
+      callerIdNum,
+      isTruthy: !!callerIdNum,
+      isInternal: this._isInternalNumber(callerIdNum),
+      digits: callerIdNum ? callerIdNum.replace(/\D/g, '') : 'N/A',
+      digitsLength: callerIdNum ? callerIdNum.replace(/\D/g, '').length : 0
+    });
+
+    // recherche Odoo uniquement si numéro externe (non interne)
     if (callerIdNum && !this._isInternalNumber(callerIdNum)) {
       try {
+        logger.info('🔎 DEBUG: Début recherche Odoo pour', { phone: callerIdNum });
         contact = await this._odoo.findContactByPhone(callerIdNum);
+        logger.info('🔎 DEBUG: Résultat recherche Odoo', { 
+          phone: callerIdNum, 
+          contactFound: !!contact,
+          contactId: contact?.id,
+          contactName: contact?.name,
+          contactPhone: contact?.phone
+        });
       } catch (err) {
-        logger.error('Odoo: échec recherche contact', { phone: callerIdNum, error: err.message });
+        logger.error('❌ Odoo: échec recherche contact', { phone: callerIdNum, error: err.message, stack: err.stack });
       }
 
-      // Création automatique si aucun contact trouvé et numéro valide
+      // DEBUG: Afficher si contact est null ou non
       if (!contact) {
+        logger.info('⚠️ DEBUG: Contact null après recherche Odoo', { phone: callerIdNum });
+        
+        // DEBUG: Vérifier les critères de création auto
         const digits = callerIdNum.replace(/\D/g, '');
         const isValidExternal = digits.length > MIN_PHONE_DIGITS_LENGTH && !/^(anonymous|unknown|restricted|s)$/i.test(callerIdNum);
-        if (isValidExternal && !this._autoCreatingPhones.has(callerIdNum)) {
+        const isAutoCreating = this._autoCreatingPhones.has(callerIdNum);
+        
+        logger.info('⚠️ DEBUG: Analyse création auto', {
+          phone: callerIdNum,
+          digits,
+          digitsLength: digits.length,
+          minRequired: MIN_PHONE_DIGITS_LENGTH,
+          isValidExternal,
+          isAutoCreating,
+          shouldCreate: isValidExternal && !isAutoCreating
+        });
+
+        // Création automatique si aucun contact trouvé et numéro valide
+        if (isValidExternal && !isAutoCreating) {
           this._autoCreatingPhones.add(callerIdNum);
           try {
             this._odoo.invalidateCache(callerIdNum);
@@ -192,18 +233,27 @@ class CallHandler {
               name:  `Inconnu ${callerIdNum}`,
               phone: callerIdNum,
             });
-            logger.info('Odoo: contact auto-créé', { callerIdNum, id: contact?.id });
+            logger.info('✅ Odoo: contact auto-créé', { callerIdNum, id: contact?.id, name: contact?.name });
           } catch (err) {
-            logger.error('Odoo: échec création contact auto', { phone: callerIdNum, error: err.message });
+            logger.error('❌ Odoo: échec création contact auto', { phone: callerIdNum, error: err.message });
           } finally {
             setTimeout(() => this._autoCreatingPhones.delete(callerIdNum), AUTO_CREATE_LOCK_DELAY_MS);
           }
         }
       }
+    } else {
+      logger.info('ℹ️ DEBUG: Numéro ignoré (interne ou vide)', { callerIdNum, isInternal: this._isInternalNumber(callerIdNum) });
     }
 
     const enriched = { ...call, contact, spamInfo };
     this._activeCalls.set(uniqueId, enriched);
+
+    logger.info('📋 DEBUG: Appel enrichi avec contact', {
+      uniqueId,
+      hasContact: !!contact,
+      contactId: contact?.id,
+      contactName: contact?.name
+    });
 
     // Créer l'appel dans l'historique
     if (this._callHistory) {
@@ -219,6 +269,7 @@ class CallHandler {
         
         // Mettre à jour avec le contact si trouvé
         if (contact) {
+          logger.info('💾 DEBUG: Sauvegarde contact en BDD', { uniqueId, contactId: contact.id });
           await this._callHistory.updateCallContact(uniqueId, contact);
         }
       } catch (err) {
@@ -228,13 +279,17 @@ class CallHandler {
 
     // Notifier l'extension cible
     if (target) {
+      logger.info('📡 DEBUG: Envoi notification call:incoming', { target, uniqueId });
       this._ws.notifyExtension(target, 'call:incoming', enriched);
     }
 
     // Notifier le contact Odoo séparément si trouvé
     if (contact && target) {
+      logger.info('📡 DEBUG: Envoi notification contact', { target, uniqueId, contactId: contact.id });
       this._ws.notifyExtension(target, 'contact', { uniqueId, contact });
     }
+    
+    logger.info('🏁 DEBUG: Fin traitement _onIncoming', { uniqueId, hasContact: !!contact });
   }
 
   async _onAnswered(call) {
@@ -372,7 +427,7 @@ class CallHandler {
 
   _isInternalNumber(number) {
     // Numéros internes : 1 à 5 chiffres
-    return /^\d{1,5}$/.test(number.replace(/\D/g, ''));
+    return /^\d{1,5}$/.test(number?.replace(/\D/g, '') || '');
   }
 
   // ── Polling HTTP ───────────────────────────────────────────────────────────
