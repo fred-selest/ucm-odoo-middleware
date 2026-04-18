@@ -1,6 +1,6 @@
 {
   "name": "ucm-odoo-middleware",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Middleware CTI entre Grandstream UCM6300 et Odoo - Style Ringover",
   "main": "src/index.js",
   "scripts": {

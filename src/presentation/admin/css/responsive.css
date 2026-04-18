@@ -27,18 +27,6 @@
   .main-tabs-row #mainTabs { flex: 1 1 100%; }
   .main-tabs-row .tabs-config-btn { width: 100%; }
 
-  /* Journal: pas de hauteur fixe, mais overflow:hidden obligatoire pour clipper le contenu */
-  .live-mobile-stack .live-journal-card {
-    max-height: none !important;
-    overflow: hidden !important;
-  }
-
-  /* Colonne droite: layout vertical libre */
-  .live-mobile-stack .live-right-column {
-    max-height: none !important;
-    overflow-y: visible !important;
-  }
-
   .live-mobile-stack .live-journal-table-wrap {
     max-height: min(44vh, 360px);
     overflow-y: auto !important;
@@ -170,4 +158,16 @@
   #mainTabs .nav-link .tab-text-short { display: none; }
   #mainTabs .nav-link .tab-text-full  { display: inline; }
   #logoutBtn .btn-text { display: inline; }
+}
+
+/* Colonnes empilées < 992px (mobile + tablette + paysage) : fix overflow journal */
+@media (max-width: 991.98px) {
+  .live-mobile-stack .live-journal-card {
+    max-height: none !important;
+    overflow: hidden !important;
+  }
+  .live-mobile-stack .live-right-column {
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
 }

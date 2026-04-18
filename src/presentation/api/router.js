@@ -258,6 +258,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     res.json({ ok: true, username: req.session.username, uid: req.session.uid });
   });
 
+
   // ── Routes protégées (session requise) ──────────────────────────────────
 
 

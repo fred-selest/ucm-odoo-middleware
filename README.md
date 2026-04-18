@@ -196,6 +196,18 @@ Le dossier `odoo_addons/ucm_connector/` contient un module Odoo optionnel qui aj
 - Modèles pour les logs d'appels, statuts agents, files d'attente
 - Vues et wizard de configuration
 
+## Changelog
+
+### v2.1.2 — 2026-04-18
+- **Fix responsive** : les cards de la colonne droite (Click-to-Call, Recherche, Agents) n'apparaissent plus intercalées entre les lignes du journal d'appels sur mobile/tablette/paysage. La règle `overflow: hidden` sur `.live-journal-card` couvre désormais toutes les largeurs `< 992px` (au lieu de `< 768px` seulement).
+
+### v2.1.1 — 2026-04-17
+- Fix timestamps ISO uniformes + heures affichées correctes
+- Fix superpositions mobile (tentative initiale, couvrait < 768px uniquement)
+
+### v2.1.0 — 2026-03-28
+- Améliorations complètes du middleware (multi-CRM, health checks, refactoring)
+
 ## Licence
 
 MIT — [Selest Informatique](https://selest.info)
