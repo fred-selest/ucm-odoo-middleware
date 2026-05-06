@@ -5,6 +5,7 @@ const fs         = require('fs');
 const { Router } = require('express');
 const config     = require('../../config');
 const logger     = require('../../logger');
+const axios      = require('axios');
 const {
   errorHandler,
   notFoundHandler,
@@ -90,6 +91,12 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     '/api/recordings',          // enregistrements (accès restreint au réseau local)
     '/api/recordings/download', // téléchargement enregistrements
     '/api/phonebook',           // annuaire UCM (accès sans auth pour le PABX)
+    // Dougs proxy routes (Cloudflare bypass)
+    '/api/dougs/login',
+    '/api/dougs/operations',
+    '/api/dougs/upload',
+    '/api/dougs/attach',
+    '/api/dougs/match',
   ];
   
   router.use('/api', (req, res, next) => {
@@ -1843,6 +1850,154 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   });
 
   // ── Gestion d'erreurs (à placer en dernier) ───────────────────────────────
+
+  // ═══════════════════════════════════════════════════════════
+  // Dougs Proxy — route vers app.dougs.fr (Cloudflare bypass)
+  // ═══════════════════════════════════════════════════════════
+
+  // POST /api/dougs/login → { accessToken, refreshToken }
+  router.post('/api/dougs/login', async (req, res) => {
+    try {
+      let { email, password } = req.body;
+      // Mode proxy: n8n passe juste l'email, le password vient du .env
+      if (email && !password) {
+        password = process.env.DOUGS_PASSWORD;
+        if (!password) {
+          return res.status(500).json({ error: 'DOUGS_PASSWORD non configure sur le proxy' });
+        }
+      }
+      if (!email || !password) {
+        return res.status(400).json({ error: 'email et password requis' });
+      }
+      const response = await axios.post(
+        'https://app.dougs.fr/auth/api/login',
+        { email, password },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+      );
+      const { accessToken, refreshToken } = response.data;
+      if (!accessToken) {
+        return res.status(401).json({ error: 'Login Dougs echoue', detail: response.data });
+      }
+      res.json({ accessToken, refreshToken });
+    } catch (err) {
+      const status = err.response?.status || 500;
+      const message = err.response?.data?.message || err.message;
+      logger.error('Dougs login proxy error', { status, message });
+      res.status(status).json({ error: message });
+    }
+  });
+
+  // GET /api/dougs/operations?token=&limit=&page= → liste des operations
+  router.get('/api/dougs/operations', async (req, res) => {
+    try {
+      const { token, limit = 10, page = 1 } = req.query;
+      if (!token) return res.status(401).json({ error: 'token requis' });
+      const response = await axios.get(
+        'https://app.dougs.fr/companies/124694/operations',
+        { params: { limit, page }, headers: { Authorization: 'Bearer ' + token }, timeout: 15000 }
+      );
+      res.json(response.data);
+    } catch (err) {
+      res.status(err.response?.status || 500).json({ error: err.message });
+    }
+  });
+
+  // POST /api/dougs/upload → { sourceDocumentId }
+  // Body: { token, pdfBase64, fileName }
+  router.post('/api/dougs/upload', async (req, res) => {
+    try {
+      const { token, pdfBase64, fileName = 'facture.pdf' } = req.body;
+      if (!token) return res.status(401).json({ error: 'token requis' });
+      if (!pdfBase64) return res.status(400).json({ error: 'pdfBase64 manquant' });
+
+      const base64Data = pdfBase64.replace(/^data:[^;]+;base64,/, '');
+      const pdfBuffer = Buffer.from(base64Data, 'base64');
+
+      const FormData = require('form-data');
+      const Form = new FormData();
+      Form.append('file', pdfBuffer, { filename: fileName, contentType: 'application/pdf' });
+
+      const response = await axios.post(
+        'https://app.dougs.fr/companies/124694/vendor-invoices',
+        Form,
+        { headers: { Authorization: 'Bearer ' + token, ...Form.getHeaders() }, timeout: 30000 }
+      );
+      logger.info('Dougs upload OK', { sourceDocumentId: response.data.sourceDocumentId });
+      res.json({
+        sourceDocumentId: response.data.sourceDocumentId,
+        vendorInvoiceId: response.data.id,
+        fileId: response.data.fileId
+      });
+    } catch (err) {
+      const status = err.response?.status || 500;
+      const message = err.response?.data?.message || err.message;
+      logger.error('Dougs upload proxy error', { status, message });
+      res.status(status).json({ error: message });
+    }
+  });
+
+  // POST /api/dougs/attach → attacher sourceDocument a une operation
+  // Body: { token, operationId, sourceDocumentId }
+  router.post('/api/dougs/attach', async (req, res) => {
+    try {
+      const { token, operationId, sourceDocumentId } = req.body;
+      if (!token || !operationId || !sourceDocumentId) {
+        return res.status(400).json({ error: 'token, operationId et sourceDocumentId requis' });
+      }
+      const url = 'https://app.dougs.fr/companies/124694/operations/' + operationId + '/source-document-attachments';
+      const response = await axios.post(
+        url,
+        { sourceDocumentId },
+        { headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, timeout: 15000 }
+      );
+      res.json({ ok: true, data: response.data });
+    } catch (err) {
+      const status = err.response?.status || 500;
+      const message = err.response?.data?.message || err.message;
+      logger.error('Dougs attach proxy error', { status, message });
+      res.status(status).json({ error: message });
+    }
+  });
+
+  // GET /api/dougs/match?token=&amount=&date= → operations matchees
+  router.get('/api/dougs/match', async (req, res) => {
+    try {
+      const { token, amount, date } = req.query;
+      if (!token) return res.status(401).json({ error: 'token requis' });
+
+      const ops = [];
+      let page = 1, hasMore = true;
+      while (hasMore && ops.length < 100) {
+        const r = await axios.get(
+          'https://app.dougs.fr/companies/124694/operations',
+          { params: { limit: 100, page }, headers: { Authorization: 'Bearer ' + token }, timeout: 15000 }
+        );
+        const items = r.data;
+        if (!Array.isArray(items) || items.length === 0) break;
+        ops.push(...items);
+        if (items.length < 100) hasMore = false;
+        page++;
+      }
+
+      const targetAmount = parseFloat(amount);
+      const targetDate = date ? new Date(date) : null;
+      const tolerance = 3 * 24 * 60 * 60 * 1000;
+
+      const matches = ops.filter(function(op) {
+        if (Math.abs(op.amount - targetAmount) > 0.01) return false;
+        if (targetDate && op.date) {
+          const opDate = new Date(op.date);
+          if (Math.abs(opDate.getTime() - targetDate.getTime()) > tolerance) return false;
+        }
+        return true;
+      });
+
+      res.json({ matches: matches, searched: ops.length });
+    } catch (err) {
+      res.status(err.response?.status || 500).json({ error: err.message });
+    }
+  });
+
   router.use(notFoundHandler);
   router.use(errorHandler);
 
