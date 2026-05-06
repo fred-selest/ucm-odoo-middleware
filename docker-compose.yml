@@ -22,6 +22,7 @@ services:
       - /opt/stacks/ucm-odoo-middleware/data:/app/data:rw
       - ./src/logger.js:/app/src/logger.js:ro
       - ./src/infrastructure/database/CallHistory.js:/app/src/infrastructure/database/CallHistory.js:ro
+      - ./src/presentation/api/router.js:/app/src/presentation/api/router.js:ro
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     environment:
