@@ -26,7 +26,7 @@ const BUILD_VERSION = Date.now();
 
 // ── Tampon de logs en mémoire ─────────────────────────────────────────────
 const LOG_BUFFER     = [];
-const LOG_BUFFER_MAX = 300;
+const LOG_BUFFER_MAX = 2000;
 logger.on('data', (info) => {
   LOG_BUFFER.push({ ts: new Date().toISOString(), level: info.level, msg: info.message });
   if (LOG_BUFFER.length > LOG_BUFFER_MAX) LOG_BUFFER.shift();
