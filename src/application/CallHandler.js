@@ -433,6 +433,8 @@ class CallHandler {
   // ── Polling HTTP ───────────────────────────────────────────────────────────
 
   _startPolling() {
+    const config = require('../config');
+    if (config.ucm.mode === 'webhook') return;
     this._pollInterval = setInterval(() => this._poll().catch(() => {}), CALL_POLLING_INTERVAL_MS);
   }
 
