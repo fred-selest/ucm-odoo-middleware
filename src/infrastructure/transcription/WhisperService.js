@@ -192,14 +192,17 @@ class WhisperService {
     });
 
     // Adapter le modèle selon l'API
-    const isGroq = config.whisper.apiUrl.includes('groq.com');
-    const model = isGroq
-      ? 'whisper-large-v3'  // Groq utilise ce nom exact
-      : 'whisper-1';        // OpenAI utilise whisper-1
+    const isOpenAI = config.whisper.apiUrl.includes('openai.com');
+    const model = isOpenAI
+      ? 'whisper-1'                  // OpenAI n'accepte que ce nom
+      : config.whisper.model;        // Groq, faster-whisper, etc. : utiliser le modèle configuré
 
     form.append('model', model);
     form.append('language', config.whisper.language);
     form.append('response_format', 'text');
+
+    // Timeout = 2x la durée max configurée (en ms), minimum 120s
+    const timeoutMs = Math.max(config.whisper.maxDurationSec * 2 * 1000, 120000);
 
     try {
       const response = await axios.post(config.whisper.apiUrl, form, {
@@ -207,7 +210,7 @@ class WhisperService {
           ...form.getHeaders(),
           'Authorization': `Bearer ${config.whisper.apiKey}`,
         },
-        timeout: 60000,
+        timeout: timeoutMs,
         validateStatus: (status) => status >= 200 && status < 300,
       });
 
