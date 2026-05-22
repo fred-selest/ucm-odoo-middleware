@@ -741,6 +741,22 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     res.json({ ok: true, message: 'Configuration Whisper sauvegardée' });
   });
 
+  // GET /api/config/whisper/models — Liste des modèles disponibles sur le serveur configuré
+  router.get('/api/config/whisper/models', requireSession, async (req, res) => {
+    const serverModels = [];
+    try {
+      const whisperUrl = config.whisper.apiUrl || '';
+      if (whisperUrl) {
+        const modelsUrl = whisperUrl.replace(/\/audio\/transcriptions.*$/, '/models');
+        const response = await axios.get(modelsUrl, { timeout: 5000 });
+        if (Array.isArray(response.data?.data)) {
+          serverModels.push(...response.data.data.map(m => m.id).sort());
+        }
+      }
+    } catch { /* serveur inaccessible ou non compatible */ }
+    res.json({ ok: true, models: serverModels });
+  });
+
   // GET /api/config/whisper/test — Tester la disponibilité de Whisper
   router.get('/api/config/whisper/test', requireSession, async (req, res) => {
     const whisper = cdrSyncService?._whisper;
@@ -1369,8 +1385,12 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       if (!call) return res.status(404).json({ ok: false, error: 'Appel non trouvé' });
       if (!call.recording_url) return res.status(400).json({ ok: false, error: 'Pas d\'enregistrement' });
 
-      const cmd = await cdrSyncService._whisper._detectCommand();
-      if (!cmd) return res.status(500).json({ ok: false, error: 'Whisper non disponible' });
+      const whisperMode = cdrSyncService._whisper.mode;
+      let cmd = null;
+      if (whisperMode === 'local') {
+        cmd = await cdrSyncService._whisper._detectCommand();
+        if (!cmd) return res.status(500).json({ ok: false, error: 'Whisper non disponible' });
+      }
 
       const text = await cdrSyncService._whisper._transcribeCall(call, cmd);
       
@@ -1998,6 +2018,56 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
     }
   });
 
+
+  // Webhook: email → Hermes pour opportunités tickets
+  router.post('/webhooks/email-opportunite', async (req, res) => {
+    try {
+      const { from_email, from_name, subject, body, body_text, date, message_id } = req.body || {};
+      
+      if (!from_email && !subject) {
+        return res.status(400).json({ ok: false, error: "Payload invalide — besoin de from_email ou subject" });
+      }
+      
+      // Classifier l'email
+      const emailText = (body_text || body || '').toLowerCase();
+      const subjectLower = (subject || '').toLowerCase();
+      const combined = emailText + ' ' + subjectLower;
+      
+      // Signaux opportunité business
+      const oppSignals = ['devis', 'prix', 'tarif', 'coût', 'budg', 'cmd', 'commande', 'pc fixe', 'pc portable', 'ordinateur', 'materiel', 'matériel', 'hardware', 'serveur', 'écran', 'ecran', 'imprimante', 'impression', 'reseau', 'réseau', 'switch', 'routeur', 'licence', 'abonnement', 'cloud', 'config', 'catalogue', 'quantité', 'quantite', 'offre', 'fourn', 'fournisseur'];
+      const supportSignals = ['probleme', 'panne', 'bug', 'erreur', 'ne marche', 'ne fonctionne', 'incident', 'defecteu', 'support', 'help', 'urgent', 'cass', 'casse', 'gravel', 'grève', 'pas de son', 'pas d\'image', 'écran noir'];
+      
+      const oppScore = oppSignals.filter(s => combined.includes(s)).length;
+      const suppScore = supportSignals.filter(s => combined.includes(s)).length;
+      
+      const type = oppScore >= suppScore ? 'opportunity' : 'support';
+      const confidence = oppScore + suppScore;
+      
+      console.log('[email-opportunite] type=' + type + ' from=' + from_email + ' subject=' + subject);
+      
+      res.json({
+        ok: true,
+        type: type,
+        from_email: from_email,
+        from_name: from_name,
+        subject: subject,
+        body: body_text || body,
+        date: date || new Date().toISOString(),
+        message_id: message_id,
+        classification: {
+          type: type,
+          opp_score: oppScore,
+          support_score: suppScore,
+          confidence: confidence
+        }
+      });
+      
+    } catch (err) {
+      console.error('[email-opportunite] error:', err.message);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+  
   router.use(notFoundHandler);
   router.use(errorHandler);
 

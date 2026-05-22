@@ -390,6 +390,11 @@ function callHtmlFromHistory(call) {
     <td><div class="d-flex align-items-center gap-1 flex-nowrap"><span class="badge ${call.status === 'hangup' && call.answered_at ? 'bg-success' : (statusBadges[call.status] || 'bg-secondary')}">${call.status === 'hangup' && call.answered_at ? 'Décroché' : (statusLabels[call.status] || call.status || '—')}</span>${recBtn}${transBtn}</div></td>`;
 }
 
+// ── Transcription helpers ─────────────────────────────────────────────────────
+function formatTranscription(text) {
+  return esc(text).replace(/\n/g, '<br>');
+}
+
 // ── Transcription toggle ──────────────────────────────────────────────────────
 async function toggleTranscription(btn, uniqueId) {
   const row = btn.closest('tr');
@@ -412,7 +417,7 @@ async function toggleTranscription(btn, uniqueId) {
     const r = await apiFetch(`/api/calls/${encodeURIComponent(uniqueId)}/transcription`);
     const d = await r.json();
     if (d.ok && d.transcription) {
-      td.innerHTML = `<i class="bi bi-chat-left-text text-info me-1"></i>${esc(d.transcription)}`;
+      td.innerHTML = `<i class="bi bi-chat-left-text text-info me-1"></i><div style="margin-top:4px;line-height:1.7">${formatTranscription(d.transcription)}</div>`;
     } else {
       // Pas de transcription en base → lancer Whisper
       td.innerHTML = '<i class="bi bi-hourglass-split text-muted"></i> Transcription en cours…';
@@ -420,7 +425,7 @@ async function toggleTranscription(btn, uniqueId) {
         const r2 = await apiFetch(`/api/calls/${encodeURIComponent(uniqueId)}/transcribe`, { method: 'POST' });
         const d2 = await r2.json();
         if (d2.ok && d2.transcription) {
-          td.innerHTML = `<i class="bi bi-chat-left-text text-info me-1"></i>${esc(d2.transcription)}`;
+          td.innerHTML = `<i class="bi bi-chat-left-text text-info me-1"></i><div style="margin-top:4px;line-height:1.7">${formatTranscription(d2.transcription)}</div>`;
           btn.classList.replace('btn-outline-secondary', 'btn-outline-info');
         } else {
           td.innerHTML = '<span class="text-muted"><i class="bi bi-chat-left-text me-1"></i>Aucune transcription disponible (enregistrement introuvable ou Whisper désactivé)</span>';
@@ -448,10 +453,14 @@ async function retranscribe(btn, uniqueId) {
     
     if (d.ok && d.transcription) {
       showToast('Transcription mise à jour', 'success');
-      // Mettre à jour le bouton de transcription
       const transBtn = btn.previousElementSibling;
-      if (transBtn) {
-        transBtn.classList.replace('btn-outline-secondary', 'btn-outline-info');
+      if (transBtn) transBtn.classList.replace('btn-outline-secondary', 'btn-outline-info');
+      // Mettre à jour la ligne affichée si elle est ouverte
+      const row = btn.closest('tr');
+      const existingRow = row?.nextElementSibling;
+      if (existingRow?.classList.contains('transcription-row')) {
+        const td = existingRow.querySelector('td');
+        if (td) td.innerHTML = `<i class="bi bi-chat-left-text text-info me-1"></i><div style="margin-top:4px;line-height:1.7">${formatTranscription(d.transcription)}</div>`;
       }
     } else {
       showToast(d.error || 'Erreur transcription', 'danger');

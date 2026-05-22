@@ -332,6 +332,7 @@ document.getElementById('dialBtn').addEventListener('click', async () => {
 
 // ── Configuration modal ─────────────────────────────────────────────────────
 document.getElementById('modalConfig').addEventListener('show.bs.modal', async () => {
+  loadWhisperModels();
   try {
     const r = await apiFetch('/api/config');
     const d = await r.json();
@@ -375,6 +376,8 @@ document.getElementById('modalConfig').addEventListener('show.bs.modal', async (
         document.getElementById('cfgWhisperApiUrl').value = apiUrl;
         document.getElementById('cfgWhisperApiUrl').style.display = '';
       }
+      // Modèle API (combobox texte)
+      document.getElementById('cfgWhisperApiModel').value = d.whisper.model || '';
       document.getElementById('cfgWhisperApiKeyStatus').textContent = d.whisper.hasApiKey ? '✓ Clé API enregistrée' : '';
       onWhisperModeChange();
     }
@@ -446,6 +449,150 @@ function onWhisperApiUrlChange() {
   document.getElementById('cfgWhisperApiUrl').style.display = val === 'custom' ? '' : 'none';
 }
 
+// ── Whisper model combobox ──────────────────────────────────────────────────
+const WHISPER_RECOMMENDED = [
+  { id: 'Systran/faster-whisper-large-v3',        label: 'large-v3 — qualité maximale (recommandé)' },
+  { id: 'Systran/faster-whisper-large-v3-turbo',  label: 'large-v3-turbo — rapide, très bonne qualité' },
+  { id: 'distil-whisper/distil-large-v3',          label: 'distil-large-v3 — très rapide' },
+  { id: 'Systran/faster-whisper-medium',           label: 'medium' },
+  { id: 'Systran/faster-whisper-small',            label: 'small' },
+  { id: 'voxtral-mini-2507',                       label: 'Voxtral Mini (Mistral AI)' },
+  { id: 'whisper-1',                               label: 'whisper-1 (OpenAI)' },
+  { id: 'whisper-large-v3',                        label: 'whisper-large-v3 (Groq)' },
+  { id: 'whisper-large-v3-turbo',                  label: 'whisper-large-v3-turbo (Groq)' },
+];
+let _whisperServerModels = [];
+let _whisperModelHovered = -1;
+
+async function loadWhisperModels() {
+  try {
+    const r = await apiFetch('/api/config/whisper/models');
+    const d = await r.json();
+    if (d.ok) _whisperServerModels = d.models || [];
+  } catch {}
+}
+
+function openWhisperModelDropdown() {
+  const drop = document.getElementById('whisperModelDropdown');
+  if (!drop) return;
+  renderWhisperModelDropdown(document.getElementById('cfgWhisperApiModel').value);
+  drop.style.display = '';
+  document.getElementById('whisperModelChevron').className = 'bi bi-chevron-up';
+  if (!drop._clickOutside) {
+    drop._clickOutside = e => {
+      const wrap = document.getElementById('whisperModelComboWrap');
+      if (wrap && !wrap.contains(e.target)) closeWhisperModelDropdown();
+    };
+    setTimeout(() => document.addEventListener('click', drop._clickOutside), 0);
+  }
+}
+
+function closeWhisperModelDropdown() {
+  const drop = document.getElementById('whisperModelDropdown');
+  if (!drop) return;
+  drop.style.display = 'none';
+  const chevron = document.getElementById('whisperModelChevron');
+  if (chevron) chevron.className = 'bi bi-chevron-down';
+  if (drop._clickOutside) {
+    document.removeEventListener('click', drop._clickOutside);
+    drop._clickOutside = null;
+  }
+  _whisperModelHovered = -1;
+}
+
+function toggleWhisperModelDropdown() {
+  const drop = document.getElementById('whisperModelDropdown');
+  if (!drop) return;
+  if (drop.style.display === 'none' || !drop.style.display) {
+    if (_whisperServerModels.length === 0) loadWhisperModels().then(() => {
+      renderWhisperModelDropdown(document.getElementById('cfgWhisperApiModel').value);
+    });
+    openWhisperModelDropdown();
+    document.getElementById('cfgWhisperApiModel').focus();
+  } else {
+    closeWhisperModelDropdown();
+  }
+}
+
+function filterWhisperModels() {
+  const drop = document.getElementById('whisperModelDropdown');
+  if (!drop) return;
+  const query = document.getElementById('cfgWhisperApiModel').value;
+  renderWhisperModelDropdown(query);
+  if (drop.style.display === 'none' || !drop.style.display) openWhisperModelDropdown();
+}
+
+function renderWhisperModelDropdown(query) {
+  const list = document.getElementById('whisperModelList');
+  if (!list) return;
+  const q = (query || '').toLowerCase().trim();
+  const recFiltered = WHISPER_RECOMMENDED.filter(m =>
+    !q || m.id.toLowerCase().includes(q) || m.label.toLowerCase().includes(q)
+  );
+  const recIds = new Set(WHISPER_RECOMMENDED.map(m => m.id));
+  const srvFiltered = _whisperServerModels.filter(id =>
+    !recIds.has(id) && (!q || id.toLowerCase().includes(q))
+  );
+  let html = '';
+  if (recFiltered.length > 0) {
+    html += '<div style="padding:.25rem .75rem;font-size:.7rem;font-weight:600;letter-spacing:.05em;color:var(--bs-secondary-color,#6c757d)">⭐ RECOMMANDÉS</div>';
+    recFiltered.forEach(m => {
+      html += `<button type="button" class="whisper-model-item" style="display:block;width:100%;text-align:left;padding:.3rem .75rem;border:none;background:none;cursor:pointer;font-size:.82rem" data-model="${esc(m.id)}" onmousedown="selectWhisperModel('${esc(m.id)}')" onmouseover="whisperModelHover(this)"><span class="font-monospace">${esc(m.id)}</span> <span style="color:var(--bs-secondary-color,#6c757d);font-size:.75rem">${esc(m.label)}</span></button>`;
+    });
+  }
+  if (srvFiltered.length > 0) {
+    if (recFiltered.length > 0) html += '<div style="border-top:1px solid var(--bs-border-color);margin:.25rem 0"></div>';
+    html += `<div style="padding:.25rem .75rem;font-size:.7rem;font-weight:600;letter-spacing:.05em;color:var(--bs-secondary-color,#6c757d)">📡 SERVEUR (${srvFiltered.length})</div>`;
+    srvFiltered.forEach(id => {
+      html += `<button type="button" class="whisper-model-item" style="display:block;width:100%;text-align:left;padding:.3rem .75rem;border:none;background:none;cursor:pointer;font-size:.82rem;font-family:monospace" data-model="${esc(id)}" onmousedown="selectWhisperModel('${esc(id)}')" onmouseover="whisperModelHover(this)">${esc(id)}</button>`;
+    });
+  }
+  if (!html) {
+    html = '<div style="padding:.5rem .75rem;color:var(--bs-secondary-color,#6c757d);font-size:.82rem">Aucun modèle trouvé</div>';
+  }
+  list.innerHTML = html;
+  _whisperModelHovered = -1;
+}
+
+function whisperModelHover(el) {
+  const items = document.querySelectorAll('.whisper-model-item');
+  items.forEach((it, i) => {
+    const active = it === el;
+    it.style.background = active ? 'var(--bs-primary-bg-subtle,#cfe2ff)' : '';
+    if (active) _whisperModelHovered = i;
+  });
+}
+
+function selectWhisperModel(modelId) {
+  document.getElementById('cfgWhisperApiModel').value = modelId;
+  closeWhisperModelDropdown();
+}
+
+function whisperModelKeydown(e) {
+  const drop = document.getElementById('whisperModelDropdown');
+  if (!drop || (drop.style.display === 'none' || !drop.style.display)) {
+    if (e.key === 'ArrowDown' || e.key === 'Enter') { filterWhisperModels(); e.preventDefault(); }
+    return;
+  }
+  const items = Array.from(drop.querySelectorAll('.whisper-model-item'));
+  if (!items.length) return;
+  if (e.key === 'Escape') { closeWhisperModelDropdown(); e.preventDefault(); return; }
+  if (e.key === 'ArrowDown') {
+    _whisperModelHovered = Math.min(_whisperModelHovered + 1, items.length - 1);
+    items.forEach((it, i) => { it.style.background = i === _whisperModelHovered ? 'var(--bs-primary-bg-subtle,#cfe2ff)' : ''; });
+    items[_whisperModelHovered]?.scrollIntoView({ block: 'nearest' });
+    e.preventDefault();
+  } else if (e.key === 'ArrowUp') {
+    _whisperModelHovered = Math.max(_whisperModelHovered - 1, 0);
+    items.forEach((it, i) => { it.style.background = i === _whisperModelHovered ? 'var(--bs-primary-bg-subtle,#cfe2ff)' : ''; });
+    items[_whisperModelHovered]?.scrollIntoView({ block: 'nearest' });
+    e.preventDefault();
+  } else if (e.key === 'Enter' && _whisperModelHovered >= 0) {
+    selectWhisperModel(items[_whisperModelHovered].dataset.model);
+    e.preventDefault();
+  }
+}
+
 async function saveWhisperConfig() {
   const result  = document.getElementById('cfgWhisperResult');
   const mode    = document.getElementById('cfgWhisperMode').value;
@@ -453,10 +600,13 @@ async function saveWhisperConfig() {
   const apiUrl  = selUrl === 'custom'
     ? document.getElementById('cfgWhisperApiUrl').value.trim()
     : selUrl;
+  const model = mode === 'api'
+    ? document.getElementById('cfgWhisperApiModel').value.trim()
+    : document.getElementById('cfgWhisperModel').value;
   const body = {
     enabled:        document.getElementById('cfgWhisperEnabled').checked,
     mode,
-    model:          document.getElementById('cfgWhisperModel').value,
+    model,
     language:       document.getElementById('cfgWhisperLanguage').value,
     command:        document.getElementById('cfgWhisperCommand').value.trim(),
     maxDurationSec: parseInt(document.getElementById('cfgWhisperMaxDuration').value || '600', 10),

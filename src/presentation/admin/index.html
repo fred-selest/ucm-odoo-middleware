@@ -878,10 +878,28 @@
               <div id="whisperApiFields" style="display:none">
                 <div class="row g-3">
                   <div class="col-12">
+                    <label class="form-label small fw-semibold">Modèle</label>
+                    <div class="position-relative" id="whisperModelComboWrap">
+                      <div class="input-group input-group-sm">
+                        <input type="text" id="cfgWhisperApiModel" class="form-control form-control-sm font-monospace"
+                               placeholder="Rechercher un modèle…" autocomplete="off"
+                               oninput="filterWhisperModels()" onfocus="openWhisperModelDropdown()"
+                               onkeydown="whisperModelKeydown(event)">
+                        <button class="btn btn-outline-secondary" type="button" onclick="toggleWhisperModelDropdown()" tabindex="-1">
+                          <i class="bi bi-chevron-down" id="whisperModelChevron"></i>
+                        </button>
+                      </div>
+                      <div id="whisperModelDropdown" style="display:none;position:absolute;z-index:1060;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:var(--bs-body-bg);border:1px solid var(--bs-border-color);border-radius:.375rem;box-shadow:0 .5rem 1rem rgba(0,0,0,.15)">
+                        <div id="whisperModelList"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-12">
                     <label class="form-label small fw-semibold">Endpoint API</label>
                     <select id="cfgWhisperApiUrlSelect" class="form-select form-select-sm mb-2" onchange="onWhisperApiUrlChange()">
                       <option value="https://api.openai.com/v1/audio/transcriptions">OpenAI (whisper-1)</option>
-                      <option value="https://api.groq.com/openai/v1/audio/transcriptions">Groq (whisper-large-v3 — recommandé)</option>
+                      <option value="https://api.groq.com/openai/v1/audio/transcriptions">Groq (whisper-large-v3)</option>
+                      <option value="https://api.mistral.ai/v1/audio/transcriptions">Mistral AI (Voxtral)</option>
                       <option value="custom">URL personnalisée…</option>
                     </select>
                     <input type="url" id="cfgWhisperApiUrl" class="form-control form-control-sm font-monospace" style="display:none" placeholder="https://…/v1/audio/transcriptions">

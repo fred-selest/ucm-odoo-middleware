@@ -199,7 +199,7 @@ class WhisperService {
 
     form.append('model', model);
     form.append('language', config.whisper.language);
-    form.append('response_format', 'text');
+    form.append('response_format', 'verbose_json');
 
     // Timeout = 2x la durée max configurée (en ms), minimum 120s
     const timeoutMs = Math.max(config.whisper.maxDurationSec * 2 * 1000, 120000);
@@ -214,9 +214,21 @@ class WhisperService {
         validateStatus: (status) => status >= 200 && status < 300,
       });
 
-      const result = typeof response.data === 'string'
-        ? response.data
-        : response.data?.text;
+      let result;
+      if (typeof response.data === 'string') {
+        result = response.data;
+      } else if (response.data?.segments?.length) {
+        result = response.data.segments
+          .map(seg => {
+            const t = Math.floor(seg.start);
+            const mm = Math.floor(t / 60);
+            const ss = String(t % 60).padStart(2, '0');
+            return `[${mm}:${ss}] ${seg.text.trim()}`;
+          })
+          .join('\n');
+      } else {
+        result = response.data?.text;
+      }
 
       if (!result) {
         logger.warn('Whisper API: réponse vide', { status: response.status, data: response.data });
