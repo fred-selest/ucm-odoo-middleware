@@ -100,7 +100,7 @@ function sanitizeInput(req, res, next) {
   function sanitize(obj) {
     if (typeof obj === 'string') {
       // Supprimer les caractères de contrôle non imprimables
-      return obj.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '').trim();
+      return obj.replace(/[^ -~]/g, chr(39) + chr(39)).trim();
     }
     if (Array.isArray(obj)) {
       return obj.map(sanitize);

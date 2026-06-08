@@ -2025,7 +2025,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
       const { from_email, from_name, subject, body, body_text, date, message_id } = req.body || {};
       
       if (!from_email && !subject) {
-        return res.status(400).json({ ok: false, error: "Payload invalide — besoin de from_email ou subject" });
+        return res.status(400).json({ ok: false, error: 'Payload invalide — besoin de from_email ou subject' });
       }
       
       // Classifier l'email

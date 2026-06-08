@@ -12,6 +12,67 @@ const logger = require('../../logger');
 const TMP_DIR   = path.join(os.tmpdir(), 'ucm-whisper');
 const MODEL_DIR = process.env.WHISPER_MODEL_DIR || '/app/data/whisper';
 
+// ── Diarisation par silence ────────────────────────────────
+const DIAR_SILENCE_THRESHOLD = 1.3;  // secondes entre segments → changement de locuteur
+const DIAR_MIN_SEGMENTS      = 3;    // nombre min de segments pour tenter la diarisation
+const DIAR_SPEAKER_LABELS    = ['👤 Client', '🔧 Tech'];  // alternance simple
+
+/**
+ * Diarisation heuristique par analyse des silences entre segments.
+ * Pour les appels à 2 personnes, un silence > seuil indique un changement de locuteur.
+ * @param {Array} segments - [{start, end, text}, ...] depuis Groq verbose_json
+ * @returns {string} texte formaté avec labels de locuteurs
+ */
+function applySilenceDiarization(segments) {
+  if (!segments || segments.length < DIAR_MIN_SEGMENTS) {
+    // Pas assez de segments : retour simple sans diarisation
+    return segments
+      ? segments.map(s => s.text.trim()).filter(Boolean).join('\n')
+      : '';
+  }
+
+  // Assigner les speakers par analyse des silences
+  const labeledSegments = [];
+  let currentSpeaker = 0; // 0 = premier locuteur
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const text = (seg.text || '').trim();
+    if (!text) continue;
+
+    // Détecter changement de locuteur : silence entre ce segment et le précédent
+    if (i > 0 && labeledSegments.length > 0) {
+      const prevEnd = segments[i - 1].end;
+      const gap = seg.start - prevEnd;
+      if (gap > DIAR_SILENCE_THRESHOLD) {
+        // Inverser le locuteur
+        currentSpeaker = currentSpeaker === 0 ? 1 : 0;
+      }
+    }
+
+    const label = DIAR_SPEAKER_LABELS[currentSpeaker];
+    // Fusionner les segments consécutifs du même locuteur
+    const last = labeledSegments[labeledSegments.length - 1];
+    if (last && last.speaker === currentSpeaker && (seg.start - last.end) < 2.0) {
+      // Même locuteur, concaténer
+      last.text += ' ' + text;
+      last.end = seg.end;
+    } else {
+      labeledSegments.push({
+        speaker: currentSpeaker,
+        text: text,
+        start: seg.start,
+        end: seg.end,
+      });
+    }
+  }
+
+  // Formater le résultat
+  return labeledSegments
+    .map(s => `${DIAR_SPEAKER_LABELS[s.speaker]}: ${s.text}`)
+    .join('\n\n');
+}
+
 class WhisperService {
   constructor({ ucmHttpClient, callHistory, crmClient }) {
     this._ucm = ucmHttpClient;
@@ -85,7 +146,7 @@ class WhisperService {
             count++;
             if (call.odoo_partner_id) {
               try {
-                const note = `Transcription de l'appel du ${call.caller_id_num || 'inconnu'}\n\n${text}`;
+                const note = `📞 Transcription de l'appel du ${call.caller_id_num || 'inconnu'}\n\n${text}`;
                 await this._crm.addContactNote(call.odoo_partner_id, note);
               } catch (err) {
                 logger.warn('Whisper: erreur post chatter', { error: err.message });
@@ -174,6 +235,7 @@ class WhisperService {
 
   /**
    * Transcription via API HTTP (OpenAI ou Groq).
+   * Retourne le texte AVEC diarisation par silence si verbose_json fournit des segments.
    */
   async _transcribeViaApi(wavPath, originalFilename) {
     if (!config.whisper.apiKey) {
@@ -214,18 +276,27 @@ class WhisperService {
         validateStatus: (status) => status >= 200 && status < 300,
       });
 
+      // ── Extraction des segments ET diarisation par silence ──
       let result;
       if (typeof response.data === 'string') {
         result = response.data;
       } else if (response.data?.segments?.length) {
-        result = response.data.segments
-          .map(seg => {
-            const t = Math.floor(seg.start);
-            const mm = Math.floor(t / 60);
-            const ss = String(t % 60).padStart(2, '0');
-            return `[${mm}:${ss}] ${seg.text.trim()}`;
-          })
-          .join('\n');
+        const segments = response.data.segments;
+        logger.info('Whisper API: segments reçus', { count: segments.length, callId: originalFilename });
+
+        // Appliquer la diarisation par silence
+        result = applySilenceDiarization(segments);
+        if (!result) {
+          // Fallback: format standard avec timestamps
+          result = segments
+            .map(seg => {
+              const t = Math.floor(seg.start);
+              const mm = Math.floor(t / 60);
+              const ss = String(t % 60).padStart(2, '0');
+              return `[${mm}:${ss}] ${seg.text.trim()}`;
+            })
+            .join('\n');
+        }
       } else {
         result = response.data?.text;
       }
@@ -281,7 +352,7 @@ class WhisperService {
     if (fs.existsSync(txtPath)) {
       const content = fs.readFileSync(txtPath, 'utf8');
       // Nettoyer les artefacts Whisper (timestamps, etc.)
-      return content.trim().replace(/^\[.*?\]\s*/gm, '').trim();
+      return content.trim().replace(/^\[.*?\s*/gm, '').trim();
     }
     return null;
   }

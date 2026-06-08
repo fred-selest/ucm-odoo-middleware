@@ -48,8 +48,8 @@ describe('Configuration', () => {
   describe('Whisper', () => {
     test('doit avoir la transcription configurée', () => {
       expect(config.whisper.enabled).toBe(true);
-      expect(config.whisper.mode).toBe('local');
-      expect(config.whisper.model).toBe('tiny');
+      expect(config.whisper.mode).toBe('api');
+      expect(config.whisper.model).toBe('Systran/faster-whisper-large-v3');
       expect(config.whisper.language).toBe('fr');
     });
   });

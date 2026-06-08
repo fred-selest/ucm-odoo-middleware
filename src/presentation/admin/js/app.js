@@ -475,7 +475,7 @@ async function loadWhisperModels() {
 function openWhisperModelDropdown() {
   const drop = document.getElementById('whisperModelDropdown');
   if (!drop) return;
-  renderWhisperModelDropdown(document.getElementById('cfgWhisperApiModel').value);
+  renderWhisperModelDropdown('');
   drop.style.display = '';
   document.getElementById('whisperModelChevron').className = 'bi bi-chevron-up';
   if (!drop._clickOutside) {
@@ -505,7 +505,7 @@ function toggleWhisperModelDropdown() {
   if (!drop) return;
   if (drop.style.display === 'none' || !drop.style.display) {
     if (_whisperServerModels.length === 0) loadWhisperModels().then(() => {
-      renderWhisperModelDropdown(document.getElementById('cfgWhisperApiModel').value);
+      renderWhisperModelDropdown('');
     });
     openWhisperModelDropdown();
     document.getElementById('cfgWhisperApiModel').focus();
