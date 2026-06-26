@@ -108,7 +108,9 @@ class HealthAgent {
         allHealthy = false;
       }
 
-      this.status.ucmWebSocket = this.ucmWsClient?.isConnected ? 'connected' : 'disconnected';
+      this.status.ucmWebSocket = config.ucm.mode === 'webhook'
+        ? 'disabled'
+        : (this.ucmWsClient?.isConnected ? 'connected' : 'disconnected');
       if (this.status.ucmWebSocket === 'disconnected') {
         allHealthy = false;
       }
@@ -207,7 +209,7 @@ class HealthAgent {
   isHealthy() {
     return (
       this.status.ucmHttp === 'connected' &&
-      this.status.ucmWebSocket === 'connected' &&
+      (this.status.ucmWebSocket === 'connected' || this.status.ucmWebSocket === 'disabled') &&
       this.status.odoo === 'connected' &&
       this.status.database === 'healthy'
     );
