@@ -34,13 +34,18 @@ logger.on('data', (info) => {
 
 // Middleware pour protéger les routes /api/* (sauf auth, test et santé)
 function apiRequireSession(req, res, next) {
+  // Note : req.path à ce stade est le path RELATIF (sans /api/ car le router
+  // est monté sur /api). On vérifie donc sans le préfixe /api.
   const p = req.path;
   const isPublic =
-    !p.startsWith('/api/') ||
-    p.startsWith('/api/auth/') ||
-    p.startsWith('/api/sirene/') ||
-    p.startsWith('/api/webhook/') ||
-    p === '/api/odoo/test';
+    p.startsWith('/auth/') ||
+    p.startsWith('/sirene/') ||
+    p.startsWith('/webhook/') ||
+    p === '/odoo/test' ||
+    p === '/health' ||
+    p === '/health/status' ||
+    p === '/status' ||
+    p === '/metrics';
   if (isPublic) return next();
   return requireSession(req, res, next);
 }
@@ -446,6 +451,108 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
         const days = parseInt(req.query.days) || 30;
         const callers = await callHistory.getTopCallers(limit, days);
         res.json({ ok: true, data: callers });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // GET /api/stats/compare - Comparaison période actuelle vs précédente
+    // Query : ?period=week|month|day (default: week)
+    router.get('/api/stats/compare', async (req, res) => {
+      try {
+        const period = req.query.period || 'week';
+        const validPeriods = { week: 7, month: 30, day: 1 };
+        const days = validPeriods[period];
+        if (!days) {
+          return res.status(400).json({ ok: false, error: 'period invalide (week|month|day)' });
+        }
+
+        const safeDiv = (a, b) => (b > 0 ? Math.round((a / b) * 100) : 0);
+
+        const [current, previous] = await Promise.all([
+          callHistory.db.get(
+            `SELECT COUNT(*) AS total,
+                    SUM(CASE WHEN status IN ('answered','hangup') THEN 1 ELSE 0 END) AS answered,
+                    SUM(CASE WHEN status = 'missed' THEN 1 ELSE 0 END) AS missed,
+                    AVG(CASE WHEN duration > 0 THEN duration END) AS avg_duration
+             FROM calls
+             WHERE started_at >= date('now', '-${days} days')`
+          ),
+          callHistory.db.get(
+            `SELECT COUNT(*) AS total,
+                    SUM(CASE WHEN status IN ('answered','hangup') THEN 1 ELSE 0 END) AS answered,
+                    SUM(CASE WHEN status = 'missed' THEN 1 ELSE 0 END) AS missed,
+                    AVG(CASE WHEN duration > 0 THEN duration END) AS avg_duration
+             FROM calls
+             WHERE started_at >= date('now', '-${days * 2} days')
+               AND started_at < date('now', '-${days} days')`
+          ),
+        ]);
+
+        res.json({
+          ok: true,
+          data: {
+            period,
+            current: {
+              total: current.total || 0,
+              answered: current.answered || 0,
+              missed: current.missed || 0,
+              avgDuration: Math.round(current.avg_duration || 0),
+            },
+            previous: {
+              total: previous.total || 0,
+              answered: previous.answered || 0,
+              missed: previous.missed || 0,
+              avgDuration: Math.round(previous.avg_duration || 0),
+            },
+            trend: {
+              totalDelta: (current.total || 0) - (previous.total || 0),
+              answerRateDelta: safeDiv(current.answered || 0, current.total || 0)
+                              - safeDiv(previous.answered || 0, previous.total || 0),
+            },
+          },
+        });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // GET /api/calls/export.csv - Export CSV avec filtres
+    router.get('/api/calls/export.csv', async (req, res) => {
+      try {
+        const filters = {
+          limit: 10000,
+          status: req.query.status,
+          direction: req.query.direction,
+          exten: req.query.exten,
+          callerIdNum: req.query.callerIdNum,
+          startDate: req.query.startDate,
+          endDate: req.query.endDate,
+        };
+        const calls = await callHistory.getCalls(filters);
+
+        const headers = [
+          'unique_id', 'caller_id_num', 'caller_id_name', 'direction',
+          'exten', 'agent_exten', 'status', 'started_at', 'answered_at',
+          'hung_up_at', 'duration', 'contact_name', 'contact_phone',
+        ];
+
+        const escape = (val) => {
+          if (val === null || val === undefined) return '';
+          const str = String(val);
+          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        };
+
+        const rows = calls.map((c) => headers.map((h) => escape(c[h])).join(','));
+        const csv = [headers.join(','), ...rows].join('\n');
+
+        const filename = `calls-export-${new Date().toISOString().split('T')[0]}.csv`;
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(csv);
       } catch (err) {
         res.status(500).json({ ok: false, error: err.message });
       }

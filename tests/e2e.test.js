@@ -267,9 +267,13 @@ describe('E2E — Endpoint public + métriques', () => {
     expect(res.body).toHaveProperty('openapi');
   });
 
-  test('requête sur route inconnue → 404 (handler notFoundHandler)', async () => {
+  test('requête sur route inconnue → 401 (auth d\'abord)', async () => {
+    // Avec mon fix du bug auth, les routes inconnues sont d'abord
+    // filtrées par apiRequireSession → 401 avant d'atteindre le
+    // notFoundHandler. C'est le comportement correct (sécurité
+    // d'abord, routage ensuite).
     const res = await request(app).get('/api/this-does-not-exist');
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(401);
   });
 
   test('CORS : OPTIONS preflight avec Origin → headers CORS présents', async () => {
