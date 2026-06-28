@@ -35,21 +35,25 @@ class Database {
   async _initSchema() {
     const schemaPath = path.join(__dirname, 'schema.sql');
     const schema = fs.readFileSync(schemaPath, 'utf8');
-    
+
     const statements = schema.split(';').filter(s => s.trim());
-    
+
     for (const statement of statements) {
       await this.run(statement);
     }
-    
+
     logger.info('Schéma de base de données initialisé');
 
-    // Migrations : ajout de colonnes manquantes (ignoré si déjà présentes)
-    const migrations = [
-      'ALTER TABLE calls ADD COLUMN transcription TEXT',
-    ];
-    for (const sql of migrations) {
-      try { await this.run(sql); } catch { /* colonne déjà existante */ }
+    // Migrations versionnées — table _migrations + ALTER traçables
+    const { applyMigrations } = require('./migrations');
+    const result = await applyMigrations(this);
+    if (result.applied.length > 0) {
+      logger.info('Nouvelles migrations appliquées', { versions: result.applied });
+    } else if (result.skipped.length > 0) {
+      logger.debug('Toutes les migrations connues déjà appliquées', { versions: result.skipped });
+    }
+    if (result.errors.length > 0) {
+      logger.warn('Migrations en erreur', { count: result.errors.length, errors: result.errors });
     }
   }
 
