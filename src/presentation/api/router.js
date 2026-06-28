@@ -257,7 +257,7 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
   // ── Auth : logout ───────────────────────────────────────────────────────
   router.post('/api/auth/logout', requireSession, (req, res) => {
     const token = req.headers['x-session-token'] || '';
-    const { SESSIONS } = require('./middleware');
+    const { SESSIONS } = require('./middleware/auth');
     SESSIONS.delete(token); // Nettoyage immédiat
     res.json({ ok: true });
   });
