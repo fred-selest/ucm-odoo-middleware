@@ -1,7 +1,6 @@
 'use strict';
 
 const express = require('express');
-// eslint-disable-next-line node/no-unpublished-require
 const request = require('supertest');
 const { registry, metrics, httpMetricsMiddleware, metricsHandler, reset } = require('../src/infrastructure/monitoring/metrics');
 
