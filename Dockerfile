@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build stage
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci --only=production && npm cache clean --force
 
 # Runtime stage
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 
 WORKDIR /app
 
