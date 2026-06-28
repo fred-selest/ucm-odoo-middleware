@@ -189,6 +189,36 @@ npm run lint      # ESLint
 npm test          # Tests Jest
 ```
 
+### CI / GitHub Actions
+
+Le projet utilise 2 workflows :
+
+| Workflow | Rôle |
+|----------|------|
+| **CI** (`.github/workflows/ci.yml`) | Lint + tests Jest sur Node 20 + check syntaxe |
+| **Secret Scan** (`.github/workflows/secret-scan.yml`) | Détection de tokens / clés API avec gitleaks avant merge |
+
+Toute PR doit passer ces deux checks avant merge. Pour exécuter les mêmes vérifications en local avant de push :
+
+```bash
+npm run lint && npm test
+```
+
+### Pré-commit checklist
+
+Avant chaque commit :
+
+```bash
+npm run lint     # 0 erreur
+npm test         # 100% pass
+```
+
+Vérifier aussi qu'aucun secret n'est introduit (`.env`, `data/config.json`, tokens en dur).
+
+### Ajout de bind mount docker-compose
+
+⚠️ **Piège connu** : `docker-compose.yml` liste les fichiers source montés en `:ro`. Tout nouveau fichier ajouté à `src/` **doit** être ajouté à la liste des volumes, sinon les modifications sont ignorées tant que l'image Docker n'est pas reconstruite. Voir [P1-H du CHANGELOG](#changelog).
+
 ## Module Odoo
 
 Le dossier `odoo_addons/ucm_connector/` contient un module Odoo optionnel qui ajoute :
