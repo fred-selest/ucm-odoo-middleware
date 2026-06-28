@@ -21,6 +21,8 @@ services:
     volumes:
       - /opt/stacks/ucm-odoo-middleware/data:/app/data:rw
       - ./src/logger.js:/app/src/logger.js:ro
+      - ./src/index.js:/app/src/index.js:ro
+      - ./src/container.js:/app/src/container.js:ro
       - ./src/infrastructure/database/Database.js:/app/src/infrastructure/database/Database.js:ro
       - ./src/infrastructure/database/migrations.js:/app/src/infrastructure/database/migrations.js:ro
       - ./src/infrastructure/database/CallHistory.js:/app/src/infrastructure/database/CallHistory.js:ro
