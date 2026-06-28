@@ -639,35 +639,46 @@ class CallHistory {
     try {
       const calls = await this.getCalls({ callerIdNum: phone, limit: 1000 });
       if (calls.length === 0) return 0;
-      
-      const uniqueIds = calls.map(c => c.unique_id).join('\',\'');
-      await this.db.run(
-        `UPDATE calls SET 
-          contact_id = ?, contact_name = ?, contact_phone = ?, 
-          contact_email = ?, contact_odoo_url = ?, odoo_partner_id = ?, 
-          contact_avatar = ?, contact_street = ?, contact_city = ?,
-          contact_company = ?, contact_zip = ?, contact_country = ?,
-          contact_website = ?, contact_function = ?, contact_mobile = ?
-         WHERE unique_id IN ('${uniqueIds}')`,
-        [
-          contact.id,
-          contact.name,
-          contact.phone,
-          contact.email,
-          contact.odooUrl,
-          contact.partnerId,
-          contact.avatar,
-          contact.street || null,
-          contact.city || null,
-          contact.company || null,
-          contact.zip || null,
-          contact.country || null,
-          contact.website || null,
-          contact.function || null,
-          contact.mobile || null,
-        ]
-      );
-      return calls.length;
+
+      const uniqueIds = calls.map(c => c.unique_id);
+      const contactValues = [
+        contact.id,
+        contact.name,
+        contact.phone,
+        contact.email,
+        contact.odooUrl,
+        contact.partnerId,
+        contact.avatar,
+        contact.street || null,
+        contact.city || null,
+        contact.company || null,
+        contact.zip || null,
+        contact.country || null,
+        contact.website || null,
+        contact.function || null,
+        contact.mobile || null,
+      ];
+
+      // SQLITE_MAX_VARIABLE_NUMBER = 999 par défaut dans SQLite < 3.32, 32766 après.
+      // On batche par 500 pour rester compatible avec toutes les versions.
+      const BATCH = 500;
+      let updated = 0;
+      for (let i = 0; i < uniqueIds.length; i += BATCH) {
+        const slice = uniqueIds.slice(i, i + BATCH);
+        const placeholders = slice.map(() => '?').join(',');
+        const result = await this.db.run(
+          `UPDATE calls SET
+            contact_id = ?, contact_name = ?, contact_phone = ?,
+            contact_email = ?, contact_odoo_url = ?, odoo_partner_id = ?,
+            contact_avatar = ?, contact_street = ?, contact_city = ?,
+            contact_company = ?, contact_zip = ?, contact_country = ?,
+            contact_website = ?, contact_function = ?, contact_mobile = ?
+           WHERE unique_id IN (${placeholders})`,
+          [...contactValues, ...slice]
+        );
+        updated += result.changes || 0;
+      }
+      return updated;
     } catch (err) {
       logger.error('Erreur updateCallsForPhone', { error: err.message, phone });
       return 0;

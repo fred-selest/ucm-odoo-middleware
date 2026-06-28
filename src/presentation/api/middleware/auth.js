@@ -7,6 +7,7 @@ const { AppError } = require('./errorHandler');
 // token → { uid, username, expiresAt }
 const SESSIONS = new Map();
 const SESSION_TTL = 8 * 60 * 60 * 1000; // 8 heures
+const SESSIONS_MAX = 10000; // Plafond anti-OOM (DoS via création massive)
 
 /**
  * Crée une nouvelle session pour un utilisateur
@@ -15,6 +16,14 @@ const SESSION_TTL = 8 * 60 * 60 * 1000; // 8 heures
  * @returns {string} Token de session
  */
 function createSession(uid, username) {
+  // Si le plafond est atteint, on expurge d'abord les expirées.
+  // Si encore saturé, on refuse la nouvelle session pour éviter un OOM.
+  if (SESSIONS.size >= SESSIONS_MAX) {
+    cleanupExpiredSessions();
+    if (SESSIONS.size >= SESSIONS_MAX) {
+      throw new AppError('Trop de sessions actives, réessayez plus tard', 503, 'SESSIONS_FULL');
+    }
+  }
   const token = uuidv4();
   SESSIONS.set(token, { uid, username, expiresAt: Date.now() + SESSION_TTL });
   return token;
@@ -78,8 +87,9 @@ function cleanupExpiredSessions() {
   }
 }
 
-// Nettoyage toutes les heures
-setInterval(cleanupExpiredSessions, 60 * 60 * 1000);
+// Nettoyage toutes les heures — unref pour ne pas bloquer l'arrêt du process
+const cleanupTimer = setInterval(cleanupExpiredSessions, 60 * 60 * 1000);
+if (typeof cleanupTimer.unref === 'function') cleanupTimer.unref();
 
 module.exports = {
   createSession,

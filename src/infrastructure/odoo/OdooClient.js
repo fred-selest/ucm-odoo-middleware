@@ -73,26 +73,11 @@ class OdooClient {
 
     const domain = this._buildPhoneDomain(variants);
 
-    let result;
-    try {
-      result = await this._callModel('res.partner', 'search_read', [domain], {
-        fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function', 'image_128'],
-        limit:  1,
-        order:  'is_company desc, id asc',
-      });
-    } catch (err) {
-      if (err.message?.includes('Access Denied') || err.message?.includes('Session expired')) {
-        this._uid = null;
-        await this.authenticate();
-        result = await this._callModel('res.partner', 'search_read', [domain], {
-          fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function', 'image_128'],
-          limit:  1,
-          order:  'is_company desc, id asc',
-        });
-      } else {
-        throw err;
-      }
-    }
+    const result = await this._searchReadWithReauth(domain, {
+      fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function', 'image_128'],
+      limit:  1,
+      order:  'is_company desc, id asc',
+    });
 
     const contact = result?.[0] ? this._formatContact(result[0]) : null;
     logger.info('Odoo: contact trouvé', { phone, contact: contact?.name || null });
@@ -122,26 +107,11 @@ class OdooClient {
       ['parent_id.name', 'ilike', searchTerm]
     ];
 
-    let result;
-    try {
-      result = await this._callModel('res.partner', 'search_read', [domain], {
-        fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function', 'image_128'],
-        limit: limit,
-        order: 'name asc',
-      });
-    } catch (err) {
-      if (err.message?.includes('Access Denied') || err.message?.includes('Session expired')) {
-        this._uid = null;
-        await this.authenticate();
-        result = await this._callModel('res.partner', 'search_read', [domain], {
-          fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function', 'image_128'],
-          limit: limit,
-          order: 'name asc',
-        });
-      } else {
-        throw err;
-      }
-    }
+    const result = await this._searchReadWithReauth(domain, {
+      fields: ['id', 'name', 'phone', 'email', 'parent_id', 'is_company', 'street', 'city', 'function', 'image_128'],
+      limit,
+      order: 'name asc',
+    });
 
     const contacts = result?.map(p => this._formatContact(p)) || [];
     logger.info('Odoo: recherche par nom', { query: searchTerm, results: contacts.length });
@@ -463,6 +433,25 @@ class OdooClient {
       config.odoo.db, this._uid, config.odoo.apiKey,
       model, method, args, kwargs,
     ]);
+  }
+
+  /**
+   * search_read avec retry automatique sur session expirée.
+   * @param {Array} domain - Domaine Odoo
+   * @param {Object} opts - Options (fields, limit, order)
+   * @returns {Promise<Array>}
+   */
+  async _searchReadWithReauth(domain, opts = {}) {
+    try {
+      return await this._callModel('res.partner', 'search_read', [domain], opts);
+    } catch (err) {
+      const msg = err.message || '';
+      const isAuthFailure = msg.includes('Access Denied') || msg.includes('Session expired');
+      if (!isAuthFailure) throw err;
+      this._uid = null;
+      await this.authenticate();
+      return this._callModel('res.partner', 'search_read', [domain], opts);
+    }
   }
 
   // ── XML-RPC minimal ────────────────────────────────────────────────────────
