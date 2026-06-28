@@ -23,6 +23,7 @@ services:
       - ./src/logger.js:/app/src/logger.js:ro
       - ./src/infrastructure/database/CallHistory.js:/app/src/infrastructure/database/CallHistory.js:ro
       - ./src/presentation/api/router.js:/app/src/presentation/api/router.js:ro
+      - ./src/presentation/api/middleware/security.js:/app/src/presentation/api/middleware/security.js:ro
       - ./src/presentation/admin/index.html:/app/src/presentation/admin/index.html:ro
       - ./src/presentation/admin/js/app.js:/app/src/presentation/admin/js/app.js:ro
       - ./src/presentation/admin/js/calls.js:/app/src/presentation/admin/js/calls.js:ro

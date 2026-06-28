@@ -114,11 +114,13 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
 
   // ── Fichiers JS/CSS pour admin (avant autres routes) ─────────────────────
   router.get('/admin/js/:file', (req, res) => {
-    res.sendFile(path.join(__dirname, '../admin/js/', req.params.file));
+    const file = req.params.file.split('?')[0];
+    res.sendFile(path.join(__dirname, '../admin/js/', file));
   });
   router.get('/admin/css/:file', (req, res) => {
     res.setHeader('Content-Type', 'text/css');
-    res.sendFile(path.join(__dirname, '../admin/css/', req.params.file));
+    const file = req.params.file.split('?')[0];
+    res.sendFile(path.join(__dirname, '../admin/css/', file));
   });
 
   // ── Interface admin (sans auth) ─────────────────────────────────────────
@@ -1831,19 +1833,52 @@ function createRouter({ ucmHttpClient, ucmWsClient, crmClient, odooClient, wsSer
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
 
+      // Normalise un numéro brut → chiffres seuls (avec + initial conservé)
+      const normalizePhone = (raw) => {
+        if (!raw) return null;
+        const s = String(raw).trim();
+        const norm = s.startsWith('+')
+          ? '+' + s.slice(1).replace(/\D/g, '')
+          : s.replace(/\D/g, '');
+        return norm.replace(/^\+?/, '').length >= 7 ? norm : null;
+      };
+
+      // Retourne les variantes du numéro normalisé (format local + international)
+      const phoneVariants = (norm) => {
+        const variants = [norm];
+        if (norm.startsWith('+33') && norm.length === 12) {
+          variants.push('0' + norm.slice(3));
+        } else if (/^0[1-9]\d{8}$/.test(norm)) {
+          variants.push('+33' + norm.slice(1));
+        }
+        return [...new Set(variants)];
+      };
+
       const entries = [];
       for (const c of contacts) {
         const company = Array.isArray(c.parent_id) ? c.parent_id[1] : null;
         const displayName = c.is_company || !company ? c.name : `${c.name} (${company})`;
-        const phones = [];
-        const phoneStr = String(c.phone || '').trim();
-        const mobileStr = String(c.mobile || '').trim();
-        if (phoneStr) phones.push(phoneStr);
-        if (mobileStr && mobileStr !== phoneStr) phones.push(mobileStr);
-        // Inclure tous les contacts, même sans téléphone
-        const phoneXml = phones.length > 0 ? phones.map(p =>
+
+        const rawPhones = [
+          String(c.phone || '').trim(),
+          String(c.mobile || '').trim(),
+        ];
+        const allVariants = [];
+        for (const raw of rawPhones) {
+          const norm = normalizePhone(raw);
+          if (norm) {
+            for (const v of phoneVariants(norm)) {
+              if (!allVariants.includes(v)) allVariants.push(v);
+            }
+          }
+        }
+
+        // Ignorer les contacts sans numéro valide
+        if (allVariants.length === 0) continue;
+
+        const phoneXml = allVariants.map(p =>
           `    <Phone><phonenumber>${xmlEsc(p)}</phonenumber><accountindex>0</accountindex></Phone>`
-        ).join('\n') : '    <Phone><phonenumber></phonenumber><accountindex>0</accountindex></Phone>';
+        ).join('\n');
         entries.push(`  <Contact>\n    <FirstName>${xmlEsc(displayName)}</FirstName>\n    <LastName></LastName>\n${phoneXml}\n  </Contact>`);
       }
 
