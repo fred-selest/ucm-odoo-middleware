@@ -2,6 +2,8 @@ node_modules/
 logs/
 .env
 *.log
+*.bak
+*.bak-*
 coverage/
 data/
 HISTORIQUE_ACTIONS.md
