@@ -8,6 +8,7 @@ const {
   ACTIVE_CALL_TTL_MS,
   ACTIVE_CALL_PURGE_INTERVAL_MS,
 } = require('../config/constants');
+const { metrics } = require('../infrastructure/monitoring/metrics');
 
 /**
  * Orchestre le traitement d'un appel entrant :
@@ -253,6 +254,7 @@ class CallHandler {
 
     const enriched = { ...call, contact, spamInfo, _addedAt: Date.now() };
     this._activeCalls.set(uniqueId, enriched);
+    metrics.active_calls.set(this._activeCalls.size);
 
     logger.debug('📋 DEBUG: Appel enrichi avec contact', {
       uniqueId,
@@ -346,6 +348,7 @@ class CallHandler {
 
     const enriched = { ...existing, ...call, hungUpAt: new Date().toISOString(), duration };
     this._activeCalls.delete(uniqueId);
+    metrics.active_calls.set(this._activeCalls.size);
 
     const target = existing.exten || existing.agentExten || call.exten;
     if (target) {
@@ -401,6 +404,13 @@ class CallHandler {
     
     if (contact?.id && this._odoo) {
       const callStatus = enriched.answeredAt ? 'answered' : 'missed';
+
+      // Métriques : incrémenter les compteurs par direction/status + observer la durée
+      const direction = enriched.direction || 'inbound';
+      metrics.calls_total.inc({ direction, status: callStatus });
+      if (duration && duration > 0) {
+        metrics.call_duration_seconds.observe({ direction }, duration);
+      }
 
       // Ne pas logger "missed" si un autre appel actif existe pour le même contact
       if (callStatus === 'missed') {

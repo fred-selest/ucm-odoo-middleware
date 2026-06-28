@@ -22,6 +22,7 @@ const rateLimit   = require('express-rate-limit');
 const config = require('./config');
 const logger = require('./logger');
 const swaggerSpec = require('./config/swagger');
+const { httpMetricsMiddleware, metricsHandler } = require('./infrastructure/monitoring/metrics');
 
 const UcmHttpClient      = require('./infrastructure/ucm/UcmHttpClient');
 const UcmWsClient        = require('./infrastructure/ucm/UcmWsClient');
@@ -129,6 +130,10 @@ function buildApp() {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(compression({ threshold: 1024 }));
+
+  // Endpoint métriques Prometheus (avant le rate-limit global pour ne pas être bloqué)
+  app.get('/metrics', metricsHandler);
+
   app.use(cors({
     origin: config.app.allowedOrigins || ['https://admin.ucm.local'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
@@ -149,6 +154,9 @@ function buildApp() {
 
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+  // Observabilité HTTP : compte chaque requête par route/status
+  app.use(httpMetricsMiddleware);
 
   // Swagger UI
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
