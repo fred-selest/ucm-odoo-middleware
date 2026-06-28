@@ -31,7 +31,7 @@ class UcmHttpClient {
    */
   _setupAxios() {
     const tlsOptions = {
-      rejectUnauthorized: false,
+      rejectUnauthorized: config.ucm.tls.rejectUnauthorized,
     };
 
     if (config.ucm.tls.caCert) {
