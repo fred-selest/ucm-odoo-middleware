@@ -4,6 +4,7 @@ logs/
 *.log
 *.bak
 *.bak-*
+*.bak.*
 coverage/
 data/
 HISTORIQUE_ACTIONS.md
