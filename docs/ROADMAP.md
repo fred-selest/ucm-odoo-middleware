@@ -18,25 +18,64 @@
 | v2.1.1 | 2026-04 | Fix timestamps ISO + superpositions mobile |
 | v2.1.2 | 2026-04 | Fix responsive dashboard (cards < 992px) |
 
-**Patches sécurité/dette appliqués en 2026-06** (session de maintenance) :
+**Patches sécurité/dette/outillage appliqués en 2026-06** (session de maintenance, 13 commits) :
 
-| Item | Statut |
+### Sécurité
+
+| Item | Commit |
 |------|--------|
-| TLS `rejectUnauthorized` (régression SEC_LOG) | ✅ |
-| Rate-limit `/api/auth/login` (tests régression) | ✅ |
-| Sessions bornées (anti-OOM) | ✅ |
-| SQL injection `updateCallsForPhone` | ✅ |
-| Retry auth OdooClient dédupliqué | ✅ |
-| Dep `crypto` inutile supprimée | ✅ |
-| Logs DEBUG en `debug` (CallHandler) | ✅ |
-| TTL purge `_activeCalls` | ✅ |
-| OdooClient XML-RPC parser testé | ✅ |
-| Migrations DB versionnées | ✅ |
-| Container DI (god bootstrap) | ✅ |
-| CI GitHub Actions + gitleaks | ✅ |
-| Prometheus `/metrics` | ✅ |
-| ESLint 9 + flat config | ✅ |
-| Tests CrmFactory + adapters | ✅ |
+| TLS `rejectUnauthorized` (régression SEC_LOG) | `b854907` |
+| Rate-limit `/api/auth/login` (tests régression) | `b854907` |
+| Sessions bornées (anti-OOM, plafond 10 000) | `eecc26f` |
+| SQL injection `updateCallsForPhone` (paramétrisation + batching 500) | `eecc26f` |
+| Bug logout 500 trouvé par E2E (`SESSIONS` import path) | `e62121c` |
+
+### Dette
+
+| Item | Commit |
+|------|--------|
+| Retry auth OdooClient dédupliqué (`_searchReadWithReauth`) | `eecc26f` |
+| Dep npm `crypto` inutile supprimée (module natif Node) | `eecc26f` |
+| 12 logs DEBUG en `debug` (CallHandler) | `1ef66b6` |
+| TTL purge `_activeCalls` (2h, intervalle 10 min, unref) | `1ef66b6` |
+| Migrations DB versionnées (table `_migrations`) | `14a6d07` |
+| Container DI (god bootstrap 236 → 100 LOC) | `bd7a79f` |
+
+### Outillage & observabilité
+
+| Item | Commit |
+|------|--------|
+| CI GitHub Actions (lint + tests + syntax check) | `e550ec6` |
+| Secret scan gitleaks (barrière pre-merge) | `e550ec6` |
+| Prometheus `/metrics` (process + calls + http + sessions) | `fc03506` |
+| ESLint 9 + flat config (drop plugin-node obsolète) | `f7471e4` |
+
+### Tests & documentation
+
+| Item | Commit |
+|------|--------|
+| OdooClient XML-RPC parser + phone variants (20 cas) | `1ef66b6` |
+| Tests CrmFactory + Odoo/Dolibarr adapters (28 cas) | `a25c785` |
+| Documentation unifiée (README + docs/) | `e64d2e9` |
+| Tests E2E stack complet via supertest (20 cas) | `e62121c` |
+| `config.test.js` rendu CI-resilient (mock config) | `c592098` |
+| `.gitignore` mis à jour (`.bak`, `.bak-*`) | `4c33d81` |
+
+### Bugs découverts par les tests (bonus)
+
+| Bug | Détecté par | Fixé dans |
+|-----|-------------|-----------|
+| TLS hardcodé `rejectUnauthorized: false` | Audit initial | `b854907` |
+| Logout `/api/auth/logout` retourne 500 (`SESSIONS` undefined) | Tests E2E | `e62121c` |
+
+### Stats session
+
+- **Tests** : 78 / 5 suites → **192 / 17 suites** (+114 tests)
+- **`src/index.js`** : 236 LOC → 100 LOC (-58%)
+- **Bind mounts docker-compose** : 9 → 15 fichiers
+- **Couverture CRM** : 0% → Odoo + Dolibarr testés
+- **Documentation** : 5 fichiers redondants (930 LOC) → 4 fichiers hiérarchisés (613 LOC)
+- **Tag Git** : `session-maintenance-2026-06`
 
 ## Versions futures
 
