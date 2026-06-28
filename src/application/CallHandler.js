@@ -5,6 +5,8 @@ const {
   AUTO_CREATE_LOCK_DELAY_MS,
   MIN_PHONE_DIGITS_LENGTH,
   CALL_POLLING_INTERVAL_MS,
+  ACTIVE_CALL_TTL_MS,
+  ACTIVE_CALL_PURGE_INTERVAL_MS,
 } = require('../config/constants');
 
 /**
@@ -55,6 +57,10 @@ class CallHandler {
     this._polledCalls   = new Map(); // uniqueId → dernière vue
     this._isPolling     = false;
     this._startPolling();
+
+    // Purge périodique des appels actifs expirés (si hangup manqué — déco UCM, restart, etc.)
+    this._purgeTimer = setInterval(() => this._purgeStaleCalls(), ACTIVE_CALL_PURGE_INTERVAL_MS);
+    if (typeof this._purgeTimer.unref === 'function') this._purgeTimer.unref();
   }
 
   /**
@@ -118,7 +124,7 @@ class CallHandler {
   async _onIncoming(call) {
     const { uniqueId, callerIdNum, callerIdName } = call;
     
-    logger.info('🔔 DEBUG: Appel entrant reçu', { 
+    logger.debug('🔔 DEBUG: Appel entrant reçu', { 
       uniqueId, 
       callerIdNum, 
       callerIdName,
@@ -181,7 +187,7 @@ class CallHandler {
     let contact = null;
 
     // DEBUG: Vérification détaillée avant recherche Odoo
-    logger.info('🔍 DEBUG: Analyse du numéro avant recherche Odoo', {
+    logger.debug('🔍 DEBUG: Analyse du numéro avant recherche Odoo', {
       callerIdNum,
       isTruthy: !!callerIdNum,
       isInternal: this._isInternalNumber(callerIdNum),
@@ -192,9 +198,9 @@ class CallHandler {
     // recherche Odoo uniquement si numéro externe (non interne)
     if (callerIdNum && !this._isInternalNumber(callerIdNum)) {
       try {
-        logger.info('🔎 DEBUG: Début recherche Odoo pour', { phone: callerIdNum });
+        logger.debug('🔎 DEBUG: Début recherche Odoo pour', { phone: callerIdNum });
         contact = await this._odoo.findContactByPhone(callerIdNum);
-        logger.info('🔎 DEBUG: Résultat recherche Odoo', { 
+        logger.debug('🔎 DEBUG: Résultat recherche Odoo', { 
           phone: callerIdNum, 
           contactFound: !!contact,
           contactId: contact?.id,
@@ -207,14 +213,14 @@ class CallHandler {
 
       // DEBUG: Afficher si contact est null ou non
       if (!contact) {
-        logger.info('⚠️ DEBUG: Contact null après recherche Odoo', { phone: callerIdNum });
+        logger.debug('⚠️ DEBUG: Contact null après recherche Odoo', { phone: callerIdNum });
         
         // DEBUG: Vérifier les critères de création auto
         const digits = callerIdNum.replace(/\D/g, '');
         const isValidExternal = digits.length > MIN_PHONE_DIGITS_LENGTH && !/^(anonymous|unknown|restricted|s)$/i.test(callerIdNum);
         const isAutoCreating = this._autoCreatingPhones.has(callerIdNum);
         
-        logger.info('⚠️ DEBUG: Analyse création auto', {
+        logger.debug('⚠️ DEBUG: Analyse création auto', {
           phone: callerIdNum,
           digits,
           digitsLength: digits.length,
@@ -242,13 +248,13 @@ class CallHandler {
         }
       }
     } else {
-      logger.info('ℹ️ DEBUG: Numéro ignoré (interne ou vide)', { callerIdNum, isInternal: this._isInternalNumber(callerIdNum) });
+      logger.debug('ℹ️ DEBUG: Numéro ignoré (interne ou vide)', { callerIdNum, isInternal: this._isInternalNumber(callerIdNum) });
     }
 
-    const enriched = { ...call, contact, spamInfo };
+    const enriched = { ...call, contact, spamInfo, _addedAt: Date.now() };
     this._activeCalls.set(uniqueId, enriched);
 
-    logger.info('📋 DEBUG: Appel enrichi avec contact', {
+    logger.debug('📋 DEBUG: Appel enrichi avec contact', {
       uniqueId,
       hasContact: !!contact,
       contactId: contact?.id,
@@ -269,7 +275,7 @@ class CallHandler {
         
         // Mettre à jour avec le contact si trouvé
         if (contact) {
-          logger.info('💾 DEBUG: Sauvegarde contact en BDD', { uniqueId, contactId: contact.id });
+          logger.debug('💾 DEBUG: Sauvegarde contact en BDD', { uniqueId, contactId: contact.id });
           await this._callHistory.updateCallContact(uniqueId, contact);
         }
       } catch (err) {
@@ -279,17 +285,17 @@ class CallHandler {
 
     // Notifier l'extension cible
     if (target) {
-      logger.info('📡 DEBUG: Envoi notification call:incoming', { target, uniqueId });
+      logger.debug('📡 DEBUG: Envoi notification call:incoming', { target, uniqueId });
       this._ws.notifyExtension(target, 'call:incoming', enriched);
     }
 
     // Notifier le contact Odoo séparément si trouvé
     if (contact && target) {
-      logger.info('📡 DEBUG: Envoi notification contact', { target, uniqueId, contactId: contact.id });
+      logger.debug('📡 DEBUG: Envoi notification contact', { target, uniqueId, contactId: contact.id });
       this._ws.notifyExtension(target, 'contact', { uniqueId, contact });
     }
     
-    logger.info('🏁 DEBUG: Fin traitement _onIncoming', { uniqueId, hasContact: !!contact });
+    logger.debug('🏁 DEBUG: Fin traitement _onIncoming', { uniqueId, hasContact: !!contact });
   }
 
   async _onAnswered(call) {
@@ -551,10 +557,36 @@ class CallHandler {
 
   // ── Nettoyage ──────────────────────────────────────────────────────────────
 
+  // ── Purge TTL ──────────────────────────────────────────────────────────────
+
+  /**
+   * Supprime les entrées de _activeCalls plus vieilles que ACTIVE_CALL_TTL_MS.
+   * Compteur exposé pour les tests.
+   * @returns {number} nombre d'entrées purgées
+   */
+  _purgeStaleCalls() {
+    const now = Date.now();
+    let purged = 0;
+    for (const [uniqueId, entry] of this._activeCalls.entries()) {
+      if (!entry._addedAt || now - entry._addedAt > ACTIVE_CALL_TTL_MS) {
+        this._activeCalls.delete(uniqueId);
+        purged++;
+      }
+    }
+    if (purged > 0) {
+      logger.warn('CallHandler: appels actifs expirés purgés', { purged, remaining: this._activeCalls.size });
+    }
+    return purged;
+  }
+
   disconnect() {
     if (this._pollInterval) {
       clearInterval(this._pollInterval);
       this._pollInterval = null;
+    }
+    if (this._purgeTimer) {
+      clearInterval(this._purgeTimer);
+      this._purgeTimer = null;
     }
     this._polledCalls.clear();
     this._autoCreatingPhones.clear();

@@ -51,6 +51,12 @@ const SPAM_CACHE_TTL_MS = 3600000;
 /** Intervalle de synchronisation CDR (5 minutes en ms) */
 const CDR_SYNC_INTERVAL_MS = 300000;
 
+/** TTL des appels actifs en mémoire (2 heures en ms) — purge auto si hangup manqué */
+const ACTIVE_CALL_TTL_MS = 2 * 60 * 60 * 1000;
+
+/** Intervalle de purge des appels actifs expirés (10 minutes en ms) */
+const ACTIVE_CALL_PURGE_INTERVAL_MS = 10 * 60 * 1000;
+
 // ── Limites ─────────────────────────────────────────────────────────────────
 
 /** Nombre maximum de logs en mémoire */
@@ -201,6 +207,8 @@ module.exports = {
   GOOGLE_PLACES_CACHE_TTL_MS,
   SPAM_CACHE_TTL_MS,
   CDR_SYNC_INTERVAL_MS,
+  ACTIVE_CALL_TTL_MS,
+  ACTIVE_CALL_PURGE_INTERVAL_MS,
 
   // Limites
   LOG_BUFFER_MAX_SIZE,
