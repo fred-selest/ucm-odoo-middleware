@@ -27,6 +27,7 @@ services:
       - ./src/infrastructure/database/migrations.js:/app/src/infrastructure/database/migrations.js:ro
       - ./src/infrastructure/database/CallHistory.js:/app/src/infrastructure/database/CallHistory.js:ro
       - ./src/application/CallHandler.js:/app/src/application/CallHandler.js:ro
+      - ./src/application/NotificationService.js:/app/src/application/NotificationService.js:ro
       - ./src/infrastructure/monitoring/metrics.js:/app/src/infrastructure/monitoring/metrics.js:ro
       - ./src/presentation/api/router.js:/app/src/presentation/api/router.js:ro
       - ./src/presentation/api/middleware/security.js:/app/src/presentation/api/middleware/security.js:ro

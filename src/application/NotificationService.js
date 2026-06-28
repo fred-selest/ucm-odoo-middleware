@@ -328,8 +328,9 @@ class NotificationService {
     setTimeout(() => {
       this._sendDailySummary();
       // Re-planifier pour le lendemain
-      setTimeout(() => this._startDailySummaryScheduler(), 24 * 60 * 60 * 1000);
-    }, delay);
+      const nextDayTimer = setTimeout(() => this._startDailySummaryScheduler(), 24 * 60 * 60 * 1000);
+      if (typeof nextDayTimer.unref === 'function') nextDayTimer.unref();
+    }, delay).unref?.();
   }
 
   /**
