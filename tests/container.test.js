@@ -25,6 +25,13 @@ describe('container.buildContainer — câblage DI', () => {
     c = await buildContainer();
   });
 
+  afterAll(() => {
+    // Cleanup des timers/intervals pour permettre à Jest de sortir proprement
+    if (c && c.callHandler && c.callHandler.disconnect) {
+      c.callHandler.disconnect();
+    }
+  });
+
   test('retourne app + httpServer', () => {
     expect(c.app).toBeDefined();
     expect(typeof c.app.use).toBe('function'); // Express app
